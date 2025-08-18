@@ -1,7 +1,7 @@
 # Service
 
 [![Swift Version](https://img.shields.io/badge/Swift-6.0-F16D39.svg?style=flat)](https://developer.apple.com/swift)
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/nslogmeng/service/.github%2Fworkflows%2Fswift.yml)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/nslogmeng/swift-service/.github%2Fworkflows%2Fswift.yml)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 
 A lightweight, zero-dependency, type-safe dependency injection framework for Swift.  
@@ -23,13 +23,13 @@ in `Package.swift` add the following:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/nslogmeng/Service", from: "0.1.0")
+    .package(url: "https://github.com/nslogmeng/swift-service", from: "0.1.0")
 ],
 targets: [
     .target(
         name: "MyProject",
         dependencies: [
-            .product(name: "Service", package: "Service"),
+            .product(name: "Service", package: "swift-service"),
         ]
     )
     ...
