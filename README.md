@@ -1,6 +1,7 @@
 # Service
 
 [![Swift Version](https://img.shields.io/badge/Swift-6.0-F16D39.svg?style=flat)](https://developer.apple.com/swift)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/nslogmeng/service/.github%2Fworkflows%2Fswift.yml)
 ![GitHub License](https://img.shields.io/github/license/nslogmeng/service)
 
 A lightweight, zero-dependency, type-safe dependency injection framework for Swift.  
