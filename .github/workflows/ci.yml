@@ -33,5 +33,8 @@ jobs:
         with:
           xcode-version: latest
 
+      - name: Build (again for test)
+        run: swift build --build-tests
+
       - name: Test
         run: swift test
