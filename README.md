@@ -1,5 +1,7 @@
 # Service
 
+![GitHub License](https://img.shields.io/github/license/nslogmeng/service)
+
 A lightweight, zero-dependency, type-safe dependency injection framework for Swift.  
 Inspired by [Swinject](https://github.com/Swinject/Swinject) and [swift-dependencies](https://github.com/pointfreeco/swift-dependencies), Service leverages modern Swift features for simple, robust DI.
 
