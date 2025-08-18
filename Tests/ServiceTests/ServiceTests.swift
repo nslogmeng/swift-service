@@ -353,9 +353,8 @@ func testServiceValuesSubscript() async throws {
     let testEnv = ServiceEnv(key: "values-test")
     
     ServiceEnv.$current.withValue(testEnv) {
-        let serviceValues = ServiceEnv.current.values
-        let database = serviceValues[DatabaseServiceKey.self]
-        let logger = serviceValues[LoggerServiceKey.self]
+        let database = ServiceEnv.current[DatabaseServiceKey.self]
+        let logger = ServiceEnv.current[LoggerServiceKey.self]
         
         // Test functionality
         let connectionInfo = database.connect()
@@ -415,11 +414,11 @@ func testEnvironmentIsolation() async throws {
     }
     
     let devService = ServiceEnv.$current.withValue(.dev) {
-        return ServiceEnv.current.values[ConfigurableService.self]
+        return ServiceEnv.current[ConfigurableService.self]
     }
     
     let onlineService = ServiceEnv.$current.withValue(.online) {
-        return ServiceEnv.current.values[ConfigurableService.self]
+        return ServiceEnv.current[ConfigurableService.self]
     }
     
     #expect(devService.environment == "dev")
