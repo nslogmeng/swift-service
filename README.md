@@ -23,7 +23,7 @@ in `Package.swift` add the following:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/nslogmeng/swift-service", from: "0.1.0")
+    .package(url: "https://github.com/nslogmeng/swift-service", from: "0.1.1")
 ],
 targets: [
     .target(
