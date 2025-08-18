@@ -3,14 +3,8 @@
 
 import PackageDescription
 
-let swiftSettings: [SwiftSetting] = [
-//    .enableUpcomingFeature("ConciseMagicFile"),             // SE-0274
-//    .enableUpcomingFeature("StrictConcurrency"),            // SE-0337
-//    .enableUpcomingFeature("ImplicitOpenExistentials"),     // SE-0352
-]
-
 let package = Package(
-    name: "Service",
+    name: "swift-service",
     platforms: [
         .iOS(.v18),
         .macOS(.v15)
