@@ -29,6 +29,9 @@ public final class ServiceContext: @unchecked Sendable {
     /// The service environment this context operates in.
     let env: ServiceEnv
 
+    @Locked
+    private(set) var graphParams: [ObjectIdentifier: any Sendable]
+
     /// Tracks the current dependency resolution chain to detect circular dependencies.
     /// Each entry represents a service type currently being resolved.
     @Locked
@@ -54,6 +57,7 @@ public final class ServiceContext: @unchecked Sendable {
     ///         excessive resolution depth are detected.
     public func resolve<Key: ServiceKey>(_ keyType: Key.Type, params: Key.Params? = nil) -> Key.Value {
         let id = String(describing: Key.Value.self)
+        let typeId = ObjectIdentifier(Key.self)
         let key = HashableKey<Key>(params: params)
 
         // Check for circular dependency
@@ -76,7 +80,11 @@ public final class ServiceContext: @unchecked Sendable {
 
         // Track this service in the resolution chain
         depth.append(id)
-        defer { depth.removeLast() }
+        graphParams[typeId] = params
+        defer {
+            depth.removeLast()
+            graphParams.removeValue(forKey: typeId)
+        }
 
         // Check if service is already cached
         if let service: Key.Value = env.storage[key] {
@@ -84,8 +92,12 @@ public final class ServiceContext: @unchecked Sendable {
         }
 
         // Build and cache the service
-        let service = Key.build(with: self, params: key.params)
+        let service = Key.build(with: self)
         env.storage[key] = service
         return service
+    }
+
+    public func resolveCurrentParams<Key: ServiceKey>(for key: Key.Type) -> Key.Params? {
+        return graphParams[ObjectIdentifier(key)] as? Key.Params
     }
 }

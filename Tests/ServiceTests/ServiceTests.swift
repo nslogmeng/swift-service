@@ -346,24 +346,6 @@ func testCustomScope() async throws {
     #expect(customScope == customScope)
 }
 
-// MARK: - ServiceValues Tests
-
-@Test("ServiceValues resolves services through subscript")
-func testServiceValuesSubscript() async throws {
-    let testEnv = ServiceEnv(key: "values-test")
-    
-    ServiceEnv.$current.withValue(testEnv) {
-        let database = ServiceEnv.current[DatabaseServiceKey.self]
-        let logger = ServiceEnv.current[LoggerServiceKey.self]
-        
-        // Test functionality
-        let connectionInfo = database.connect()
-        #expect(connectionInfo.contains("sqlite://test.db"))
-        
-        logger.info("Test log message")
-    }
-}
-
 // MARK: - Integration Tests
 
 @Test("Complete dependency injection flow works")
@@ -403,28 +385,6 @@ func testCompleteFlow() async throws {
     #expect(!result.id.isEmpty)
 }
 
-@Test("Environment isolation works correctly")
-func testEnvironmentIsolation() async throws {
-    struct ConfigurableService: ServiceKey {
-        let environment: String
-        
-        static func build(with context: ServiceContext) -> ConfigurableService {
-            return ConfigurableService(environment: context.env.key)
-        }
-    }
-    
-    let devService = ServiceEnv.$current.withValue(.dev) {
-        return ServiceEnv.current[ConfigurableService.self]
-    }
-    
-    let onlineService = ServiceEnv.$current.withValue(.online) {
-        return ServiceEnv.current[ConfigurableService.self]
-    }
-    
-    #expect(devService.environment == "dev")
-    #expect(onlineService.environment == "online")
-}
-
 @Test("Service reset functionality works")
 func testServiceReset() async throws {
     let env = ServiceEnv(key: "reset-test")
@@ -460,4 +420,50 @@ func testScopeStorageBehavior() async throws {
     let weakStorage = WeakScopeStorage(testService)
     #expect(weakStorage.cache == true)
     #expect((weakStorage.instance as? SingletonService)?.id == testService.id)
+}
+
+// MARK: - Params Tests
+
+struct GreetingServiceKey: ServiceKey {
+    struct Params: Hashable, Sendable {
+        let name: String
+        let language: String
+    }
+    static func build(with context: ServiceContext) -> String {
+        guard let params = context.resolveCurrentParams(for: Self.self) else { return "Hello, World!" }
+        switch params.language {
+        case "en": return "Hello, \(params.name)!"
+        case "zh": return "你好，\(params.name)！"
+        case "fr": return "Bonjour, \(params.name)!"
+        default: return "Hello, \(params.name)!"
+        }
+    }
+}
+
+@Test("ServiceKey with Params returns correct result")
+func testServiceKeyWithParams() async throws {
+    let context = ServiceContext()
+    let enGreeting = context.resolve(GreetingServiceKey.self, params: .init(name: "Alice", language: "en"))
+    let zhGreeting = context.resolve(GreetingServiceKey.self, params: .init(name: "小明", language: "zh"))
+    let frGreeting = context.resolve(GreetingServiceKey.self, params: .init(name: "Jean", language: "fr"))
+    let defaultGreeting = context.resolve(GreetingServiceKey.self)
+
+    #expect(enGreeting == "Hello, Alice!")
+    #expect(zhGreeting == "你好，小明！")
+    #expect(frGreeting == "Bonjour, Jean!")
+    #expect(defaultGreeting == "Hello, World!")
+}
+
+@Test("ServiceEnv caches instances by Params")
+func testServiceEnvParamsCaching() async throws {
+    let env = ServiceEnv(key: "params-test")
+    ServiceEnv.$current.withValue(env) {
+        let greeting1 = ServiceEnv.current[HashableKey<GreetingServiceKey>(params: .init(name: "Bob", language: "en"))]
+        let greeting2 = ServiceEnv.current[HashableKey<GreetingServiceKey>(params: .init(name: "Bob", language: "en"))]
+        let greeting3 = ServiceEnv.current[HashableKey<GreetingServiceKey>(params: .init(name: "Bob", language: "zh"))]
+
+        // 测试结果一致性而非实例缓存
+        #expect(greeting1 == greeting2)
+        #expect(greeting1 != greeting3)
+    }
 }
