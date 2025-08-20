@@ -13,17 +13,10 @@ import Foundation
 ///
 /// Usage example:
 /// ```swift
-/// struct OrderProcessor: ServiceKey {
-///     static func build(with context: ServiceContext) -> OrderProcessorProtocol {
-///         let paymentService = context.resolve(PaymentService.self)
-///         let inventoryService = context.resolve(InventoryService.self)
-///         let logger = context.resolve(LoggerService.self)
-///
-///         return OrderProcessorImpl(
-///             payment: paymentService,
-///             inventory: inventoryService,
-///             logger: logger
-///         )
+/// struct Cat: ServiceKey {
+///     static func build(with context: ServiceContext) -> Animal {
+///         let owner = context.resolve(Owner.self)
+///         return Cat(owner: owner)
 ///     }
 /// }
 /// ```

@@ -13,11 +13,11 @@
 ///
 /// Usage example:
 /// ```swift
-/// struct DatabaseConnection: ServiceKey {
+/// struct MyService: ServiceKey {
 ///     static var scope: Scope { .shared } // Singleton database connection
 ///     
-///     static func build(with context: ServiceContext) -> DatabaseConnectionProtocol {
-///         return DatabaseConnectionImpl(url: "sqlite://app.db")
+///     static func build(with context: ServiceContext) -> MyServiceProtocol {
+///         return MyService()
 ///     }
 /// }
 /// ```

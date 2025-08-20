@@ -10,11 +10,10 @@
 ///
 /// Usage example:
 /// ```swift
-/// struct UserRepository: ServiceKey {
-///     static func build(with context: ServiceContext) -> UserRepositoryProtocol {
-///         let database = context.resolve(DatabaseService.self)
-///         let logger = context.resolve(LoggerService.self)
-///         return UserRepositoryImpl(database: database, logger: logger)
+/// struct Cat: ServiceKey {
+///     static func build(with context: ServiceContext) -> Animal {
+///         let owner = context.resolve(Owner.self)
+///         return Cat(owner: owner)
 ///     }
 /// }
 /// ```
