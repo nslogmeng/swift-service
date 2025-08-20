@@ -19,11 +19,11 @@ Inspired by [Swinject](https://github.com/Swinject/Swinject) and [swift-dependen
 
 ## Installation
 
-in `Package.swift` add the following:
+Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/nslogmeng/swift-service", from: "0.1.1")
+    .package(url: "https://github.com/nslogmeng/swift-service", from: "0.1.2")
 ],
 targets: [
     .target(
@@ -32,27 +32,26 @@ targets: [
             .product(name: "Service", package: "swift-service"),
         ]
     )
-    ...
 ]
 ```
 
 ## Quick Start
 
-Register a service by conforming to `ServiceKey`:
+### 1. Register a Service
 
 ```swift
-struct UserRepository: ServiceKey {
+struct UserRepositoryKey: ServiceKey {
     static func build(with context: ServiceContext) -> UserRepositoryProtocol {
         UserRepositoryImpl()
     }
 }
 ```
 
-Inject and use your service:
+### 2. Inject and Use
 
 ```swift
 struct UserManager {
-    @Service(UserRepository.self)
+    @Service(UserRepositoryKey.self)
     var repository: UserRepositoryProtocol
 
     func createUser(name: String) {
@@ -61,158 +60,22 @@ struct UserManager {
 }
 ```
 
-## Advanced Usage
-
-### 1. Custom Scopes
+### 3. Custom Scope Example
 
 ```swift
-struct DatabaseConnection: ServiceKey {
-    static var scope: Scope { .shared } // Singleton
+struct DatabaseConnectionKey: ServiceKey {
+    static var scope: Scope { .shared }
     static func build(with context: ServiceContext) -> DatabaseConnectionProtocol {
         DatabaseConnectionImpl(url: "sqlite://app.db")
     }
 }
-
-struct SessionCache: ServiceKey {
-    static var scope: Scope { .transient } // Always new
-    static func build(with context: ServiceContext) -> SessionCacheProtocol {
-        SessionCacheImpl()
-    }
-}
 ```
 
-### 2. Lazy and Transient Injection
-
-```swift
-struct AnalyticsManager {
-    @LazyService(MachineLearningService.self)
-    var mlService: MLServiceProtocol
-
-    func analyze(_ events: [Event]) {
-        let result = mlService.analyze(events)
-        // ...
-    }
-}
-
-struct RequestHandler {
-    @ServiceProvider(UUIDGenerator.self)
-    var idGenerator: UUIDGeneratorProtocol
-
-    func handle(_ request: Request) -> Response {
-        let id = idGenerator.generate() // Always fresh
-        // ...
-    }
-}
-```
-
-### 3. Environment Switching
+### 4. Environment Switching
 
 ```swift
 await ServiceEnv.$current.withValue(.dev) {
     // All services resolved here use the dev environment
-}
-```
-
-### 4. Dependency Graph Example
-
-```swift
-struct UserRepository: ServiceKey {
-    static func build(with context: ServiceContext) -> UserRepositoryProtocol {
-        let db = context.resolve(DatabaseService.self)
-        let logger = context.resolve(LoggerService.self)
-        return UserRepositoryImpl(database: db, logger: logger)
-    }
-}
-```
-
-### 5. ViewModel Injection (SwiftUI / MVVM)
-
-```swift
-final class UserViewModel: ObservableObject {
-    @Service(UserRepository.self)
-    var repository: UserRepositoryProtocol
-
-    @LazyService(LoggerService.self)
-    var logger: LoggerProtocol
-
-    func loadUser(id: String) {
-        logger.info("Loading user \(id)")
-        let user = repository.fetch(id: id)
-        // update UI...
-    }
-}
-```
-
-### 6. Networking and Caching
-
-```swift
-struct NetworkService: ServiceKey {
-    static var scope: Scope { .shared }
-    static func build(with context: ServiceContext) -> NetworkClientProtocol {
-        NetworkClient(baseURL: "https://api.example.com")
-    }
-}
-
-struct ImageCache: ServiceKey {
-    static var scope: Scope { .weak }
-    static func build(with context: ServiceContext) -> ImageCacheProtocol {
-        ImageCacheImpl()
-    }
-}
-
-struct ImageLoader {
-    @Service(NetworkService.self)
-    var network: NetworkClientProtocol
-
-    @Service(ImageCache.self)
-    var cache: ImageCacheProtocol
-
-    func loadImage(url: String) -> Image? {
-        if let cached = cache.get(url) { return cached }
-        let image = network.downloadImage(url: url)
-        cache.set(url, image)
-        return image
-    }
-}
-```
-
-### 7. Feature Flag and A/B Testing
-
-```swift
-struct FeatureFlagService: ServiceKey {
-    static var scope: Scope { .shared }
-    static func build(with context: ServiceContext) -> FeatureFlagProtocol {
-        FeatureFlagManager()
-    }
-}
-
-struct HomeView {
-    @Service(FeatureFlagService.self)
-    var flags: FeatureFlagProtocol
-
-    var showNewFeature: Bool {
-        flags.isEnabled("new_home_feature")
-    }
-}
-```
-
-### 8. Local Storage and Preferences
-
-```swift
-struct PreferencesService: ServiceKey {
-    static var scope: Scope { .shared }
-    static func build(with context: ServiceContext) -> PreferencesProtocol {
-        PreferencesImpl()
-    }
-}
-
-struct SettingsViewModel {
-    @Service(PreferencesService.self)
-    var preferences: PreferencesProtocol
-
-    func updateTheme(_ theme: Theme) {
-        preferences.setTheme(theme)
-    }
 }
 ```
 
