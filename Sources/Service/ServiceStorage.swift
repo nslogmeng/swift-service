@@ -2,13 +2,14 @@
 //  Copyright © 2025 Service Contributors. All rights reserved.
 //
 
-/// Internal storage system that manages cached service instances based on their types and scopes.
+/// Internal storage system that manages cached service instances based on their types, parameters, and scopes.
 /// This class provides thread-safe storage and retrieval of services, handling both value types
-/// and reference types with different scope-based lifecycle management.
+/// and reference types with different scope-based lifecycle management. Parameterized services
+/// are cached based on their type and parameter hash.
 final class ServiceStorage: @unchecked Sendable {
     
     /// A cache key that uniquely identifies a service instance in storage.
-    /// Combines the service type identifier with its scope information for proper isolation.
+    /// Combines the service type identifier, parameter hash, and scope information for proper isolation.
     struct CacheKey: Hashable, Sendable {
         /// The unique identifier for the service type.
         let typeId: ObjectIdentifier
@@ -49,6 +50,7 @@ final class ServiceStorage: @unchecked Sendable {
 
     /// Subscript for value type services that don't use scopes.
     /// Provides direct storage and retrieval of service instances.
+    /// Parameterized services are cached by type and parameter hash.
     subscript<Key: ServiceKey>(_ key: HashableKey<Key>) -> Key.Value? {
         get { caches[CacheKey(key)] as? Key.Value }
         set { caches[CacheKey(key)] = newValue }
@@ -56,6 +58,7 @@ final class ServiceStorage: @unchecked Sendable {
 
     /// Subscript for reference type services that use scope-based storage.
     /// Handles scope-specific storage patterns and caching decisions.
+    /// Parameterized services are cached by type, parameter hash, and scope.
     subscript<Key: ServiceKey>(_ key: HashableKey<Key>) -> Key.Value? where Key.Value: AnyObject {
         get {
             let storage = caches[CacheKey(key)] as? ObjectScopeStorage

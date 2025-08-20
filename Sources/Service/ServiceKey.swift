@@ -6,22 +6,23 @@
 /// Types conforming to this protocol serve as keys for service registration and resolution.
 ///
 /// The protocol requires implementing a static `build(with:)` method that defines how to construct
-/// the service instance when it's requested.
+/// the service instance when it's requested. If your service requires parameters, use the
+/// `resolveCurrentParams(for:)` method on ServiceContext to access the parameters during resolution.
 ///
 /// Usage example:
 /// ```swift
 /// struct Cat: ServiceKey {
+///     struct Params: Hashable, Sendable { let name: String }
 ///     static func build(with context: ServiceContext) -> Animal {
-///         let owner = context.resolve(Owner.self)
-///         return Cat(owner: owner)
+///         let params = context.resolveCurrentParams(for: Self.self)
+///         return Cat(name: params?.name ?? "default")
 ///     }
 /// }
 /// ```
 ///
 /// - Note: ServiceKey supports parameterized resolution via the `Params` associatedtype.
-///   If your service requires parameters for construction, specify a type for `Params`
-///   and use the `params` argument in `build(with:params:)`. The system will cache
-///   instances based on both type and params hash, ensuring correct isolation.
+///   If your service requires parameters for construction, specify a type for `Params`.
+///   The system will cache instances based on both type and params hash, ensuring correct isolation.
 public protocol ServiceKey {
     /// The type of service this key represents.
     /// Defaults to Self if not specified, allowing the key type to also be the service type.
@@ -38,8 +39,8 @@ public protocol ServiceKey {
     /// This method is called when the service needs to be resolved.
     ///
     /// - Parameter context: The service context used for resolving dependencies.
-    /// - Parameter params: Optional parameters for service construction.
     /// - Returns: A new instance of the service.
+    /// - Note: If Params is not Never, use `context.resolveCurrentParams(for: Self.self)` to access parameters.
     static func build(with context: ServiceContext) -> Value
 }
 

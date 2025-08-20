@@ -7,9 +7,11 @@
 ///
 /// The scope system provides several predefined scopes with different lifecycle characteristics:
 /// - `.shared`: Singleton behavior, cached until explicitly reset
-/// - `.graph`: Cached within dependency resolution graph only
+/// - `.graph`: Cached within dependency resolution graph only (default for reference types)
 /// - `.transient`: Never cached, always creates new instances
 /// - `.weak`: Cached with weak references, released when no strong references exist
+///
+/// You can also create custom scopes by providing a unique identifier and a storage factory.
 ///
 /// Usage example:
 /// ```swift

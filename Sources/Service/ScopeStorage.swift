@@ -6,24 +6,7 @@
 /// Different scope storage implementations provide different lifecycle and caching behaviors.
 ///
 /// Conforming types must specify whether they cache instances and provide access to the stored instance.
-///
-/// Usage example:
-/// ```swift
-/// final class SessionScopeStorage: ObjectScopeStorage, @unchecked Sendable {
-///     private let sessionId: String
-///     private let _instance: AnyObject?
-///     let cache: Bool = true
-///     
-///     var instance: AnyObject? {
-///         return SessionManager.shared.isActive(sessionId) ? _instance : nil
-///     }
-///     
-///     init(_ instance: AnyObject) {
-///         self.sessionId = SessionManager.shared.currentSessionId
-///         self._instance = instance
-///     }
-/// }
-/// ```
+/// The storage is used for reference type services only.
 public protocol ObjectScopeStorage: AnyObject, Sendable {
     /// The stored service instance, if available.
     /// May return nil if the instance has been released or was never stored.

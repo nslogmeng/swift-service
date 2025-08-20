@@ -7,7 +7,7 @@
 /// different configurations in different contexts (e.g., production, testing, development).
 ///
 /// The environment uses TaskLocal storage to ensure thread-safe access to the current environment
-/// across async contexts.
+/// across async contexts. Service resolution supports parameterized services via HashableKey.
 ///
 /// Usage example:
 /// ```swift
@@ -33,7 +33,7 @@ public struct ServiceEnv: Sendable {
     /// Defaults to 200 levels deep.
     public let maxResolutionDepth: Int
 
-    /// Internal storage for caching resolved services based on their scope.
+    /// Internal storage for caching resolved services based on their scope and parameters.
     internal let storage = ServiceStorage()
 
     /// Creates a new service environment with the specified configuration.
@@ -76,6 +76,7 @@ extension ServiceEnv {
 extension ServiceEnv {
     /// Internal subscript that uses HashableKey for service resolution.
     /// This method delegates to the resolve function for actual service creation.
+    /// Supports parameterized resolution via HashableKey.
     ///
     /// - Parameter key: The hashable key wrapper for the ServiceKey.
     /// - Returns: The resolved service instance.
@@ -86,6 +87,7 @@ extension ServiceEnv {
     /// Resolves a service instance with proper context management.
     /// This method ensures that service resolution happens within a proper ServiceContext
     /// and validates that nested resolutions use the context.resolve method.
+    /// Supports parameterized resolution.
     ///
     /// - Parameter key: The ServiceKey type to resolve.
     /// - Returns: The resolved service instance
