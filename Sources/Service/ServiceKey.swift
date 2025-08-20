@@ -22,12 +22,16 @@ public protocol ServiceKey {
     /// Defaults to Self if not specified, allowing the key type to also be the service type.
     associatedtype Value: Sendable = Self
 
+    /// The parameters required to resolve the service.
+    /// Defaults to Never if not specified, meaning the service does not require parameters.
+    associatedtype Params: Hashable & Sendable = Never
+
     /// Builds and returns an instance of the service.
     /// This method is called when the service needs to be resolved.
     ///
     /// - Parameter context: The service context used for resolving dependencies.
     /// - Returns: A new instance of the service.
-    static func build(with context: ServiceContext) -> Value
+    static func build(with context: ServiceContext, params: Params?) -> Value
 }
 
 /// Extension for ServiceKey types where the Value is an AnyObject (reference type).
@@ -42,9 +46,13 @@ extension ServiceKey where Value: AnyObject {
 /// A type-erased wrapper that makes ServiceKey types hashable for use in collections.
 /// This struct enables ServiceKey types to be used as dictionary keys and in sets,
 /// which is essential for the service caching mechanism.
-struct HashableKey<T>: Hashable, Sendable {
+struct HashableKey<T: ServiceKey>: Hashable, Sendable {
+    let params: T.Params?
+
     /// Creates a new HashableKey for the given type.
-    init() {}
+    init(params: T.Params? = nil) {
+        self.params = params
+    }
 
     /// Hashes the wrapped type using its ObjectIdentifier.
     /// This ensures that each unique type gets a unique hash value.
@@ -52,5 +60,6 @@ struct HashableKey<T>: Hashable, Sendable {
     /// - Parameter hasher: The hasher to combine the type identifier with.
     func hash(into hasher: inout Hasher) {
         hasher.combine(ObjectIdentifier(T.self))
+        hasher.combine(params)
     }
 }

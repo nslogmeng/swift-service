@@ -52,9 +52,10 @@ public final class ServiceContext: @unchecked Sendable {
     /// - Returns: The resolved service instance.
     /// - Note: This method will terminate the program if circular dependencies or
     ///         excessive resolution depth are detected.
-    public func resolve<Key: ServiceKey>(_ key: Key.Type) -> Key.Value {
+    public func resolve<Key: ServiceKey>(_ keyType: Key.Type, params: Key.Params? = nil) -> Key.Value {
         let id = String(describing: Key.Value.self)
-        
+        let key = HashableKey<Key>(params: params)
+
         // Check for circular dependency
         if depth.contains(id) {
             fatalError("""
@@ -83,7 +84,7 @@ public final class ServiceContext: @unchecked Sendable {
         }
 
         // Build and cache the service
-        let service = key.build(with: self)
+        let service = Key.build(with: self, params: key.params)
         env.storage[key] = service
         return service
     }
