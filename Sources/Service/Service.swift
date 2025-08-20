@@ -4,6 +4,7 @@
 
 /// A property wrapper that provides immediate dependency injection.
 /// The service is resolved eagerly when the property wrapper is initialized.
+/// Supports parameterized resolution via the `params` argument.
 ///
 /// Usage example:
 /// ```swift
@@ -11,7 +12,7 @@
 ///     @Service(Book.self)
 ///     var book: Book
 ///
-///     @Service(Cat.self)
+///     @Service(Cat.self, params: Cat.Params(name: "Kitty"))
 ///     var animal: Animal
 /// }
 /// ```
@@ -22,8 +23,10 @@ public struct Service<S: Sendable>: Sendable {
 
     /// Initializes the service using a ServiceKey type.
     /// The service is resolved immediately from the current environment.
+    /// Supports parameterized resolution.
     ///
     /// - Parameter key: The ServiceKey type that defines how to build the service.
+    /// - Parameter params: Optional parameters for parameterized service resolution.
     public init<Key: ServiceKey>(_ key: Key.Type, params: Key.Params? = nil) where Key.Value == S {
         let hashKey = HashableKey<Key>(params: params)
         self.wrappedValue = ServiceEnv.current[hashKey]
@@ -40,7 +43,7 @@ public struct Service<S: Sendable>: Sendable {
 
 /// A property wrapper that provides lazy dependency injection.
 /// The service is resolved only when first accessed, improving performance
-/// for services that may not be used immediately.
+/// for services that may not be used immediately. Supports parameterized resolution.
 ///
 /// Usage example:
 /// ```swift
@@ -48,7 +51,7 @@ public struct Service<S: Sendable>: Sendable {
 ///     @LazyService(Book.self)
 ///     var book: Book
 ///
-///     @LazyService(Cat.self)
+///     @LazyService(Cat.self, params: Cat.Params(name: "Kitty"))
 ///     var animal: Animal
 /// }
 /// ```
@@ -66,8 +69,10 @@ public struct LazyService<S: Sendable>: Sendable {
     }()
 
     /// Initializes the lazy service using a ServiceKey type.
+    /// Supports parameterized resolution.
     ///
     /// - Parameter key: The ServiceKey type that defines how to build the service.
+    /// - Parameter params: Optional parameters for parameterized service resolution.
     public init<Key: ServiceKey>(_ key: Key.Type, params: Key.Params? = nil) where Key.Value == S {
         self.init(\ServiceEnv.[HashableKey<Key>(params: params)])
     }
@@ -83,7 +88,7 @@ public struct LazyService<S: Sendable>: Sendable {
 
 /// A property wrapper that provides fresh service resolution on each access.
 /// Unlike Service and LazyService, this always resolves the service anew,
-/// which is useful for transient or stateless services.
+/// which is useful for transient or stateless services. Supports parameterized resolution.
 ///
 /// Usage example:
 /// ```swift
@@ -91,7 +96,7 @@ public struct LazyService<S: Sendable>: Sendable {
 ///     @ServiceProvider(Book.self)
 ///     var book: Book
 ///
-///     @ServiceProvider(Cat.self)
+///     @ServiceProvider(Cat.self, params: Cat.Params(name: "Kitty"))
 ///     var animal: Animal
 /// }
 /// ```
@@ -106,8 +111,10 @@ public struct ServiceProvider<S: Sendable>: Sendable {
     public var wrappedValue: S { env[keyPath: keyPath] }
 
     /// Initializes the service provider using a ServiceKey type.
+    /// Supports parameterized resolution.
     ///
     /// - Parameter key: The ServiceKey type that defines how to build the service.
+    /// - Parameter params: Optional parameters for parameterized service resolution.
     public init<Key: ServiceKey>(_ key: Key.Type, params: Key.Params? = nil) where Key.Value == S {
         self.init(\ServiceEnv.[HashableKey<Key>(params: params)])
     }

@@ -5,6 +5,8 @@
 import Synchronization
 
 /// Thread-safe property wrapper using a mutex for value storage.
+/// Provides safe concurrent access to the wrapped value.
+/// Used for internal state in service storage and context.
 @propertyWrapper
 final class Locked<Value: Sendable>: Sendable {
     private let storage: Mutex<Value>
