@@ -9,17 +9,16 @@ import Foundation
 /// tracking the resolution depth to avoid infinite recursion, and passing parameters for
 /// parameterized service resolution.
 ///
-/// The context uses TaskLocal storage to maintain thread-safe access across async contexts
-/// and tracks the current resolution chain to detect circular dependencies.
-/// It also tracks parameters for each service type during the resolution graph.
+/// You can also create custom contexts using the public initializer and inspect the environment via the public `env` property.
+/// The context tracks the current resolution chain and parameters for each service type during the resolution graph.
 public final class ServiceContext: @unchecked Sendable {
-    /// The current service context for the current task.
+    /// The global service context for the current task, used for dependency resolution.
     /// Each task gets its own context to ensure isolation.
     @TaskLocal
-    static var current = ServiceContext()
+    static var graph = ServiceContext()
 
     /// The service environment this context operates in.
-    let env: ServiceEnv
+    public let env: ServiceEnv
 
     /// Stores the parameters for each service type currently being resolved in the graph.
     /// Used for parameterized service resolution.
@@ -34,7 +33,7 @@ public final class ServiceContext: @unchecked Sendable {
     /// Creates a new service context for the specified environment.
     ///
     /// - Parameter env: The service environment to use (defaults to current environment).
-    init(env: ServiceEnv = .current) {
+    public init(env: ServiceEnv = .current) {
         self.env = env
     }
 
