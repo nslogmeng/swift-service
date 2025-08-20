@@ -12,7 +12,7 @@
 /// Usage example:
 /// ```swift
 /// func testUserService() async {
-///     await ServiceEnv.$current.withValue(.dev) {
+///     await ServiceEnv.$graph.withValue(.dev) {
 ///         // All services resolved in this block use dev environment
 ///         let userService = UserService()
 ///         let result = userService.createUser(name: "Test User")
@@ -92,13 +92,13 @@ extension ServiceEnv {
     /// - Parameter key: The ServiceKey type to resolve.
     /// - Returns: The resolved service instance
     private func resolve<Key: ServiceKey>(_ key: HashableKey<Key>) -> Key.Value {
-        assert(ServiceContext.current.depth.isEmpty, """
-        Resolve \(ServiceContext.current.depth.last ?? "") in resolution func build(with:) must use context.resolve(_:) \
+        assert(ServiceContext.graph.depth.isEmpty, """
+        Resolve \(ServiceContext.graph.depth.last ?? "") in resolution func build(with:) must use context.resolve(_:) \
         to resolve your dependency \(String(describing: key)).
         """)
         let context = ServiceContext(env: .current)
-        return ServiceContext.$current.withValue(context) {
-            return ServiceContext.current.resolve(Key.self, params: key.params)
+        return ServiceContext.$graph.withValue(context) {
+            return ServiceContext.graph.resolve(Key.self, params: key.params)
         }
     }
 }
