@@ -24,8 +24,9 @@ public struct Service<S: Sendable>: Sendable {
     /// The service is resolved immediately from the current environment.
     ///
     /// - Parameter key: The ServiceKey type that defines how to build the service.
-    public init<Key: ServiceKey>(_ key: Key.Type) where Key.Value == S {
-        self.wrappedValue = ServiceEnv.current[key]
+    public init<Key: ServiceKey>(_ key: Key.Type, params: Key.Params? = nil) where Key.Value == S {
+        let hashKey = HashableKey<Key>(params: params)
+        self.wrappedValue = ServiceEnv.current[hashKey]
     }
 
     /// Initializes the service using a KeyPath to ServiceEnv.
@@ -67,8 +68,8 @@ public struct LazyService<S: Sendable>: Sendable {
     /// Initializes the lazy service using a ServiceKey type.
     ///
     /// - Parameter key: The ServiceKey type that defines how to build the service.
-    public init<Key: ServiceKey>(_ key: Key.Type) where Key.Value == S {
-        self.init(\ServiceEnv.[HashableKey<Key>()])
+    public init<Key: ServiceKey>(_ key: Key.Type, params: Key.Params? = nil) where Key.Value == S {
+        self.init(\ServiceEnv.[HashableKey<Key>(params: params)])
     }
 
     /// Initializes the lazy service using a KeyPath to ServiceEnv.
@@ -107,8 +108,8 @@ public struct ServiceProvider<S: Sendable>: Sendable {
     /// Initializes the service provider using a ServiceKey type.
     ///
     /// - Parameter key: The ServiceKey type that defines how to build the service.
-    public init<Key: ServiceKey>(_ key: Key.Type) where Key.Value == S {
-        self.init(\ServiceEnv.[HashableKey<Key>()])
+    public init<Key: ServiceKey>(_ key: Key.Type, params: Key.Params? = nil) where Key.Value == S {
+        self.init(\ServiceEnv.[HashableKey<Key>(params: params)])
     }
 
     /// Initializes the service provider using a KeyPath to ServiceEnv.

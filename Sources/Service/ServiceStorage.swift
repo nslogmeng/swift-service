@@ -12,7 +12,10 @@ final class ServiceStorage: @unchecked Sendable {
     struct CacheKey: Hashable, Sendable {
         /// The unique identifier for the service type.
         let typeId: ObjectIdentifier
-        
+
+        /// The unique hash value for service params.
+        let paramsHashValue: Int
+
         /// The scope associated with this service, if it's a reference type.
         /// Value types don't have scopes, so this will be nil.
         let scope: Scope?
@@ -20,17 +23,19 @@ final class ServiceStorage: @unchecked Sendable {
         /// Creates a cache key for value type services (no scope).
         ///
         /// - Parameter key: The ServiceKey type.
-        init<Key: ServiceKey>(_ key: Key.Type) {
-            self.typeId = ObjectIdentifier(key)
+        init<Key: ServiceKey>(_ key: HashableKey<Key>) {
+            self.typeId = ObjectIdentifier(Key.self)
+            self.paramsHashValue = key.params?.hashValue ?? 0
             self.scope = nil
         }
 
         /// Creates a cache key for reference type services (with scope).
         ///
         /// - Parameter key: The ServiceKey type where Value is AnyObject.
-        init<Key: ServiceKey>(_ key: Key.Type) where Key.Value: AnyObject {
-            self.typeId = ObjectIdentifier(key)
-            self.scope = key.scope
+        init<Key: ServiceKey>(_ key: HashableKey<Key>) where Key.Value: AnyObject {
+            self.typeId = ObjectIdentifier(Key.self)
+            self.paramsHashValue = key.params?.hashValue ?? 0
+            self.scope = Key.scope
         }
     }
 
@@ -44,20 +49,20 @@ final class ServiceStorage: @unchecked Sendable {
 
     /// Subscript for value type services that don't use scopes.
     /// Provides direct storage and retrieval of service instances.
-    subscript<Key: ServiceKey>(_ key: Key.Type) -> Key.Value? {
+    subscript<Key: ServiceKey>(_ key: HashableKey<Key>) -> Key.Value? {
         get { caches[CacheKey(key)] as? Key.Value }
         set { caches[CacheKey(key)] = newValue }
     }
 
     /// Subscript for reference type services that use scope-based storage.
     /// Handles scope-specific storage patterns and caching decisions.
-    subscript<Key: ServiceKey>(_ key: Key.Type) -> Key.Value? where Key.Value: AnyObject {
+    subscript<Key: ServiceKey>(_ key: HashableKey<Key>) -> Key.Value? where Key.Value: AnyObject {
         get {
             let storage = caches[CacheKey(key)] as? ObjectScopeStorage
             return storage?.instance as? Key.Value
         }
         set {
-            let storage = newValue.map({ key.scope.factory($0) })
+            let storage = newValue.map({ Key.scope.factory($0) })
             if storage?.cache ?? false {
                 caches[CacheKey(key)] = storage
             } else {

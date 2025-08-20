@@ -74,22 +74,13 @@ extension ServiceEnv {
 }
 
 extension ServiceEnv {
-    /// Resolves a service using a ServiceKey type.
-    /// This is the primary method for accessing services in a type-safe manner.
-    ///
-    /// - Parameter key: The ServiceKey type to resolve.
-    /// - Returns: The resolved service instance.
-    public subscript<Key: ServiceKey>(_ key: Key.Type) -> Key.Value {
-        return self[HashableKey<Key>()]
-    }
-
     /// Internal subscript that uses HashableKey for service resolution.
     /// This method delegates to the resolve function for actual service creation.
     ///
     /// - Parameter key: The hashable key wrapper for the ServiceKey.
     /// - Returns: The resolved service instance.
     subscript<Key: ServiceKey>(_ key: HashableKey<Key>) -> Key.Value {
-        return resolve(Key.self)
+        return resolve(key)
     }
 
     /// Resolves a service instance with proper context management.
@@ -98,14 +89,14 @@ extension ServiceEnv {
     ///
     /// - Parameter key: The ServiceKey type to resolve.
     /// - Returns: The resolved service instance
-    private func resolve<Key: ServiceKey>(_ key: Key.Type) -> Key.Value {
+    private func resolve<Key: ServiceKey>(_ key: HashableKey<Key>) -> Key.Value {
         assert(ServiceContext.current.depth.isEmpty, """
         Resolve \(ServiceContext.current.depth.last ?? "") in resolution func build(with:) must use context.resolve(_:) \
         to resolve your dependency \(String(describing: key)).
         """)
         let context = ServiceContext(env: .current)
         return ServiceContext.$current.withValue(context) {
-            return ServiceContext.current.resolve(key)
+            return ServiceContext.current.resolve(Key.self, params: key.params)
         }
     }
 }
