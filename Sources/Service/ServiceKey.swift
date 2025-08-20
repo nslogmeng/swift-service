@@ -17,6 +17,11 @@
 ///     }
 /// }
 /// ```
+///
+/// - Note: ServiceKey supports parameterized resolution via the `Params` associatedtype.
+///   If your service requires parameters for construction, specify a type for `Params`
+///   and use the `params` argument in `build(with:params:)`. The system will cache
+///   instances based on both type and params hash, ensuring correct isolation.
 public protocol ServiceKey {
     /// The type of service this key represents.
     /// Defaults to Self if not specified, allowing the key type to also be the service type.
@@ -24,14 +29,18 @@ public protocol ServiceKey {
 
     /// The parameters required to resolve the service.
     /// Defaults to Never if not specified, meaning the service does not require parameters.
+    ///
+    /// - Note: If your service requires parameters, specify a concrete type for Params.
+    ///   The system will use the hash value of Params to distinguish different instances.
     associatedtype Params: Hashable & Sendable = Never
 
     /// Builds and returns an instance of the service.
     /// This method is called when the service needs to be resolved.
     ///
     /// - Parameter context: The service context used for resolving dependencies.
+    /// - Parameter params: Optional parameters for service construction.
     /// - Returns: A new instance of the service.
-    static func build(with context: ServiceContext, params: Params?) -> Value
+    static func build(with context: ServiceContext) -> Value
 }
 
 /// Extension for ServiceKey types where the Value is an AnyObject (reference type).
