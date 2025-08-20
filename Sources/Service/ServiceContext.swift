@@ -33,6 +33,7 @@ public final class ServiceContext: @unchecked Sendable {
     /// Creates a new service context for the specified environment.
     ///
     /// - Parameter env: The service environment to use (defaults to current environment).
+    /// TODO: custom ServiceContext resolve graph limit check.
     public init(env: ServiceEnv = .current) {
         self.env = env
     }
