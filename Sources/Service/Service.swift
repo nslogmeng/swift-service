@@ -7,17 +7,12 @@
 ///
 /// Usage example:
 /// ```swift
-/// struct UserRepository {
-///     @Service(DatabaseService.self)
-///     var database: DatabaseProtocol
+/// struct Foo {
+///     @Service(Book.self)
+///     var book: Book
 ///
-///     @Service(LoggerService.self)
-///     var logger: LoggerProtocol
-///
-///     func saveUser(_ user: User) {
-///         logger.info("Saving user: \(user.name)")
-///         database.save(user)
-///     }
+///     @Service(Cat.self)
+///     var animal: Animal
 /// }
 /// ```
 @propertyWrapper
@@ -48,15 +43,12 @@ public struct Service<S: Sendable>: Sendable {
 ///
 /// Usage example:
 /// ```swift
-/// struct AnalyticsManager {
-///     @LazyService(MachineLearningService.self)
-///     var mlService: MLServiceProtocol
+/// struct Foo {
+///     @LazyService(Book.self)
+///     var book: Book
 ///
-///     func processUserBehavior(_ events: [Event]) {
-///         // ML service only created if this method is called
-///         let insights = mlService.analyze(events)
-///         store(insights)
-///     }
+///     @LazyService(Cat.self)
+///     var animal: Animal
 /// }
 /// ```
 @propertyWrapper
@@ -94,14 +86,12 @@ public struct LazyService<S: Sendable>: Sendable {
 ///
 /// Usage example:
 /// ```swift
-/// struct RequestHandler {
-///     @ServiceProvider(UUIDGenerator.self)
-///     var idGenerator: UUIDGeneratorProtocol
+/// struct Foo {
+///     @ServiceProvider(Book.self)
+///     var book: Book
 ///
-///     func handleRequest(_ request: Request) -> Response {
-///         let requestId = idGenerator.generate() // Fresh UUID each time
-///         return Response(id: requestId, data: process(request))
-///     }
+///     @ServiceProvider(Cat.self)
+///     var animal: Animal
 /// }
 /// ```
 @propertyWrapper
