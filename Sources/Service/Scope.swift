@@ -49,14 +49,14 @@ public struct Scope: Hashable, Sendable {
     
     /// A factory function that creates the appropriate storage for this scope.
     /// The factory receives a service instance and returns a storage wrapper.
-    public let factory: @Sendable (AnyObject) -> ObjectScopeStorage
+    public let factory: @Sendable (AnyObject & Sendable) -> ObjectScopeStorage
 
     /// Creates a custom scope with the specified identifier and storage factory.
     ///
     /// - Parameters:
     ///   - id: A unique identifier for this scope.
     ///   - factory: A factory function that creates storage for service instances.
-    public init(id: String, factory: @Sendable @escaping (AnyObject) -> ObjectScopeStorage) {
+    public init(id: String, factory: @Sendable @escaping (AnyObject & Sendable) -> ObjectScopeStorage) {
         self.id = id
         self.factory = factory
     }
