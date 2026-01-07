@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="./Images/logo.png" alt="Service Logo">
+</div>
+
 # Service
 
 [![Swift Version](https://img.shields.io/badge/Swift-6.0-F16D39.svg?style=flat)](https://developer.apple.com/swift)
@@ -5,7 +9,10 @@
 [![Build Status](https://github.com/nslogmeng/swift-service/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/nslogmeng/swift-service/actions/workflows/build.yml)
 [![Test Status](https://github.com/nslogmeng/swift-service/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/nslogmeng/swift-service/actions/workflows/test.yml)
 
-[English](./README.md) | [中文](./README_CN.md)
+<div align="center">
+    English | <a href="./README_CN.md">简体中文</a>
+</div>
+<br/>
 
 A lightweight, zero-dependency, type-safe dependency injection framework for Swift.  
 Inspired by [Swinject](https://github.com/Swinject/Swinject) and [swift-dependencies](https://github.com/pointfreeco/swift-dependencies), Service leverages modern Swift features for simple, robust DI.
