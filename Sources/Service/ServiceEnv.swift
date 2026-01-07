@@ -7,17 +7,20 @@
 /// different configurations in different contexts (e.g., production, testing, development).
 ///
 /// The environment uses TaskLocal storage to ensure thread-safe access to the current environment
-/// across async contexts. Service resolution supports parameterized services via HashableKey.
+/// across async contexts.
 ///
 /// Usage example:
 /// ```swift
-/// func testUserService() async {
-///     await ServiceEnv.$graph.withValue(.dev) {
-///         // All services resolved in this block use dev environment
-///         let userService = UserService()
-///         let result = userService.createUser(name: "Test User")
-///         XCTAssertNotNil(result)
-///     }
+/// // Switch environment in tests
+/// await ServiceEnv.$current.withValue(.dev) {
+///     // All services resolved in this block use dev environment
+///     let service = MyService()
+///     // ...
+/// }
+///
+/// // Register services
+/// ServiceEnv.current.register(DatabaseProtocol.self) {
+///     DatabaseService()
 /// }
 /// ```
 public struct ServiceEnv: Sendable {
@@ -27,36 +30,48 @@ public struct ServiceEnv: Sendable {
     public static var current: ServiceEnv = .online
 
     /// A unique identifier for this environment.
-    public let key: String
+    public let name: String
 
-    /// The maximum depth allowed for dependency resolution to prevent infinite recursion.
-    /// Defaults to 200 levels deep.
-    public let maxResolutionDepth: Int
-
-    /// Internal storage for caching resolved services based on their scope and parameters.
+    /// Internal storage for caching resolved service instances.
     internal let storage = ServiceStorage()
 
-    /// Creates a new service environment with the specified configuration.
+    /// Creates a new service environment with the specified name.
     ///
-    /// - Parameters:
-    ///   - key: A unique identifier for this environment.
-    ///   - maxResolutionDepth: Maximum allowed dependency resolution depth (default: 200).
-    public init(key: String, maxResolutionDepth: Int = 200) {
-        self.key = key
-        self.maxResolutionDepth = maxResolutionDepth
+    /// - Parameter name: A unique identifier for this environment.
+    public init(name: String) {
+        self.name = name
     }
 
-    /// Resets all cached services for a specific scope.
-    /// This is useful for cleaning up services when their lifecycle ends.
+    /// Registers a service using a factory function.
     ///
-    /// - Parameter scope: The scope to reset.
-    func reset(scope: Scope) {
-        storage.reset(scope: scope)
+    /// - Parameters:
+    ///   - type: The service type to register.
+    ///   - factory: A factory function that creates the service instance.
+    public func register<Service: Sendable>(
+        _ type: Service.Type,
+        factory: @escaping @Sendable () -> Service
+    ) {
+        storage.register(type, factory: factory)
+    }
+
+    /// Registers a service using the ServiceKey's default value.
+    ///
+    /// - Parameter type: A service type conforming to the ServiceKey protocol.
+    public func register<Service: ServiceKey>(_ type: Service.Type) {
+        storage.register(type, factory: { Service.default })
+    }
+
+    /// Registers a service instance directly.
+    /// The instance will be cached and reused for subsequent resolutions.
+    ///
+    /// - Parameter instance: The service instance to register.
+    public func register<Service: Sendable>(_ instance: Service) {
+        storage.register(Service.self, factory: { instance })
     }
 
     /// Resets all cached services in this environment.
-    /// This clears the entire service cache.
-    func reset() {
+    /// This clears the entire service cache, forcing all services to be recreated on next resolution.
+    public func reset() {
         storage.reset()
     }
 }
@@ -64,41 +79,25 @@ public struct ServiceEnv: Sendable {
 /// Predefined service environments for common use cases.
 extension ServiceEnv {
     /// Production environment for live application usage.
-    public static let online: ServiceEnv = ServiceEnv(key: "online")
-    
+    public static let online: ServiceEnv = ServiceEnv(name: "online")
+
     /// Internal testing environment for in-house builds.
-    public static let inhouse: ServiceEnv = ServiceEnv(key: "inhouse")
-    
+    public static let inhouse: ServiceEnv = ServiceEnv(name: "inhouse")
+
     /// Development environment for local development and debugging.
-    public static let dev: ServiceEnv = ServiceEnv(key: "dev")
+    public static let dev: ServiceEnv = ServiceEnv(name: "dev")
 }
 
 extension ServiceEnv {
-    /// Internal subscript that uses HashableKey for service resolution.
-    /// This method delegates to the resolve function for actual service creation.
-    /// Supports parameterized resolution via HashableKey.
+    /// Resolves a service instance by its type.
+    /// If the service is not registered, this will cause a runtime fatalError.
     ///
-    /// - Parameter key: The hashable key wrapper for the ServiceKey.
+    /// - Parameter type: The service type to resolve.
     /// - Returns: The resolved service instance.
-    subscript<Key: ServiceKey>(_ key: HashableKey<Key>) -> Key.Value {
-        return resolve(key)
-    }
-
-    /// Resolves a service instance with proper context management.
-    /// This method ensures that service resolution happens within a proper ServiceContext
-    /// and validates that nested resolutions use the context.resolve method.
-    /// Supports parameterized resolution.
-    ///
-    /// - Parameter key: The ServiceKey type to resolve.
-    /// - Returns: The resolved service instance
-    private func resolve<Key: ServiceKey>(_ key: HashableKey<Key>) -> Key.Value {
-        assert(ServiceContext.graph.depth.isEmpty, """
-        Resolve \(ServiceContext.graph.depth.last ?? "") in resolution func build(with:) must use context.resolve(_:) \
-        to resolve your dependency \(String(describing: key)).
-        """)
-        let context = ServiceContext(env: .current)
-        return ServiceContext.$graph.withValue(context) {
-            return ServiceContext.graph.resolve(Key.self, params: key.params)
+    subscript<Service: Sendable>(_ type: Service.Type) -> Service {
+        guard let service = storage[type] else {
+            fatalError("Service: \(Service.self) must register in ServiceEnv")
         }
+        return service
     }
 }

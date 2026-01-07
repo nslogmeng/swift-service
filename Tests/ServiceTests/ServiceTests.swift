@@ -124,52 +124,17 @@ final class NetworkService: NetworkServiceProtocol, @unchecked Sendable {
     }
 }
 
-// MARK: - Service Keys
+// MARK: - ServiceKey Implementations
 
 struct DatabaseServiceKey: ServiceKey {
-    static func build(with context: ServiceContext) -> DatabaseProtocol {
-        return DatabaseService(connectionString: "sqlite://test.db")
+    static var `default`: DatabaseServiceKey {
+        DatabaseServiceKey()
     }
 }
 
 struct LoggerServiceKey: ServiceKey {
-    static func build(with context: ServiceContext) -> LoggerProtocol {
-        return LoggerService(level: "DEBUG")
-    }
-}
-
-struct UserRepositoryKey: ServiceKey {
-    static func build(with context: ServiceContext) -> UserRepositoryProtocol {
-        let database = context.resolve(DatabaseServiceKey.self)
-        let logger = context.resolve(LoggerServiceKey.self)
-        return UserRepository(database: database, logger: logger)
-    }
-}
-
-struct NetworkServiceKey: ServiceKey {
-    static func build(with context: ServiceContext) -> NetworkServiceProtocol {
-        let logger = context.resolve(LoggerServiceKey.self)
-        return NetworkService(baseURL: "https://api.example.com", logger: logger)
-    }
-}
-
-final class SingletonService: ServiceKey, @unchecked Sendable {
-    static var scope: Scope { .shared }
-    let id = UUID()
-    let createdAt = Date()
-    
-    static func build(with context: ServiceContext) -> SingletonService {
-        return SingletonService()
-    }
-}
-
-final class TransientService: ServiceKey, @unchecked Sendable {
-    static var scope: Scope { .transient }
-    let id = UUID()
-    let timestamp = Date()
-    
-    static func build(with context: ServiceContext) -> TransientService {
-        return TransientService()
+    static var `default`: LoggerServiceKey {
+        LoggerServiceKey()
     }
 }
 
@@ -177,190 +142,193 @@ final class TransientService: ServiceKey, @unchecked Sendable {
 
 @Test("Service property wrapper resolves dependencies")
 func testServicePropertyWrapper() async throws {
-    struct UserController {
-        @Service(UserRepositoryKey.self)
-        var userRepository: UserRepositoryProtocol
-        
-        @Service(LoggerServiceKey.self)
-        var logger: LoggerProtocol
-        
-        func handleCreateUser(name: String) -> User {
-            logger.info("Handling user creation request")
-            return userRepository.createUser(name: name)
+    // Setup test environment
+    let testEnv = ServiceEnv(name: "test")
+    ServiceEnv.$current.withValue(testEnv) {
+        // Register services
+        ServiceEnv.current.register(DatabaseProtocol.self) {
+            DatabaseService(connectionString: "sqlite://test.db")
         }
-    }
-    
-    let controller = UserController()
-    let user = controller.handleCreateUser(name: "Test User")
-    
-    #expect(user.name == "Test User")
-    #expect(!user.id.isEmpty)
-}
-
-@Test("LazyService property wrapper resolves dependencies lazily")
-func testLazyServicePropertyWrapper() async throws {
-    class APIService {
-        @LazyService(NetworkServiceKey.self)
-        var networkService: NetworkServiceProtocol
-        
-        @LazyService(LoggerServiceKey.self)
-        var logger: LoggerProtocol
-        
-        func fetchData() async throws -> String {
-            logger.info("Fetching data from API")
-            let data = try await networkService.get(url: "/users")
-            return String(data: data, encoding: .utf8) ?? ""
+        ServiceEnv.current.register(LoggerProtocol.self) {
+            LoggerService(level: "DEBUG")
         }
-    }
-    
-    let apiService = APIService()
-    let result = try await apiService.fetchData()
-    
-    #expect(result == "GET response")
-}
-
-@Test("ServiceProvider property wrapper behavior")
-func testServiceProviderPropertyWrapper() async throws {
-    struct RequestHandler {
-        @ServiceProvider(LoggerServiceKey.self)
-        var logger: LoggerProtocol
-        
-        func handleRequest(id: String) {
-            logger.info("Processing request: \(id)")
+        ServiceEnv.current.register(UserRepositoryProtocol.self) {
+            let database = ServiceEnv.current[DatabaseProtocol.self]
+            let logger = ServiceEnv.current[LoggerProtocol.self]
+            return UserRepository(database: database, logger: logger)
         }
+        
+        struct UserController {
+            @Service
+            var userRepository: UserRepositoryProtocol
+            
+            @Service
+            var logger: LoggerProtocol
+            
+            func handleCreateUser(name: String) -> User {
+                logger.info("Handling user creation request")
+                return userRepository.createUser(name: name)
+            }
+        }
+        
+        let controller = UserController()
+        let user = controller.handleCreateUser(name: "Test User")
+        
+        #expect(user.name == "Test User")
+        #expect(!user.id.isEmpty)
     }
-    
-    let handler = RequestHandler()
-    handler.handleRequest(id: "req-123")
-    
-    // Verify that the logger service works correctly
-    handler.logger.info("Test message")
 }
 
 // MARK: - ServiceKey Tests
 
-@Test("ServiceKey builds services with dependencies")
-func testServiceKeyWithDependencies() async throws {
-    let userRepo = UserRepositoryKey.build(with: ServiceContext())
-    let user = userRepo.createUser(name: "John Doe")
-    
-    #expect(user.name == "John Doe")
-    #expect(!user.id.isEmpty)
-    
-    let foundUser = userRepo.findUser(id: user.id)
-    #expect(foundUser != nil)
+@Test("ServiceKey protocol can define default services")
+func testServiceKeyProtocol() async throws {
+    let testEnv = ServiceEnv(name: "test")
+    ServiceEnv.$current.withValue(testEnv) {
+        // Register service using ServiceKey
+        ServiceEnv.current.register(DatabaseServiceKey.self)
+        
+        // Verify service can be accessed by type
+        let _ = ServiceEnv.current[DatabaseServiceKey.self]
+        // If resolution succeeds, registration and resolution work correctly
+    }
 }
 
 // MARK: - ServiceEnv Tests
 
 @Test("ServiceEnv provides different environments")
 func testServiceEnvironments() async throws {
-    #expect(ServiceEnv.online.key == "online")
-    #expect(ServiceEnv.dev.key == "dev")
-    #expect(ServiceEnv.inhouse.key == "inhouse")
+    #expect(ServiceEnv.online.name == "online")
+    #expect(ServiceEnv.dev.name == "dev")
+    #expect(ServiceEnv.inhouse.name == "inhouse")
     
-    let customEnv = ServiceEnv(key: "test", maxResolutionDepth: 50)
-    #expect(customEnv.key == "test")
-    #expect(customEnv.maxResolutionDepth == 50)
+    let customEnv = ServiceEnv(name: "test")
+    #expect(customEnv.name == "test")
 }
 
-@Test("ServiceEnv switches context correctly")
+@Test("ServiceEnv can switch contexts")
 func testServiceEnvContextSwitching() async throws {
-    struct EnvAwareService: ServiceKey {
-        static func build(with context: ServiceContext) -> String {
-            return "Service built in \(context.env.key) environment"
-        }
-    }
-    
-    let devResult = ServiceEnv.$current.withValue(.dev) {
-        return EnvAwareService.build(with: ServiceContext())
-    }
-    #expect(devResult == "Service built in dev environment")
-    
-    let onlineResult = ServiceEnv.$current.withValue(.online) {
-        return EnvAwareService.build(with: ServiceContext())
-    }
-    #expect(onlineResult == "Service built in online environment")
-}
-
-// MARK: - ServiceContext Tests
-
-@Test("ServiceContext resolves services correctly")
-func testServiceContextResolution() async throws {
-    let context = ServiceContext()
-    
-    let database = context.resolve(DatabaseServiceKey.self)
-    let logger = context.resolve(LoggerServiceKey.self)
-    let userRepo = context.resolve(UserRepositoryKey.self)
-    
-    // Test actual functionality
-    let connectionInfo = database.connect()
-    #expect(connectionInfo.contains("sqlite://test.db"))
-    
-    logger.info("Testing logger service")
-    
-    let user = userRepo.createUser(name: "Test User")
-    #expect(user.name == "Test User")
-}
-
-// MARK: - Scope Tests
-
-@Test("Shared scope maintains singleton behavior")
-func testSharedScope() async throws {
-    let testEnv = ServiceEnv(key: "shared-test")
+    let testEnv = ServiceEnv(name: "test-env")
     
     ServiceEnv.$current.withValue(testEnv) {
-        let context = ServiceContext()
-        let service1 = context.resolve(SingletonService.self)
-        let service2 = context.resolve(SingletonService.self)
+        ServiceEnv.current.register(String.self) {
+            "Service built in \(ServiceEnv.current.name) environment"
+        }
         
-        #expect(service1.id == service2.id)
-        #expect(service1.createdAt == service2.createdAt)
+        let result = ServiceEnv.current[String.self]
+        #expect(result == "Service built in test-env environment")
+    }
+    
+    ServiceEnv.$current.withValue(.dev) {
+        ServiceEnv.current.register(String.self) {
+            "Service built in \(ServiceEnv.current.name) environment"
+        }
+        
+        let result = ServiceEnv.current[String.self]
+        #expect(result == "Service built in dev environment")
     }
 }
 
-@Test("Transient scope creates new instances in different environments")
-func testTransientScope() async throws {
-    let env1 = ServiceEnv(key: "transient-test-1")
-    let env2 = ServiceEnv(key: "transient-test-2")
-    
-    let service1 = ServiceEnv.$current.withValue(env1) {
-        return ServiceContext().resolve(TransientService.self)
+@Test("ServiceEnv can register and resolve services")
+func testServiceEnvRegistrationAndResolution() async throws {
+    let testEnv = ServiceEnv(name: "test")
+    ServiceEnv.$current.withValue(testEnv) {
+        // Register services
+        ServiceEnv.current.register(DatabaseProtocol.self) {
+            DatabaseService(connectionString: "sqlite://test.db")
+        }
+        ServiceEnv.current.register(LoggerProtocol.self) {
+            LoggerService(level: "DEBUG")
+        }
+        
+        // Resolve services
+        let database = ServiceEnv.current[DatabaseProtocol.self]
+        let logger = ServiceEnv.current[LoggerProtocol.self]
+        
+        // Test actual functionality
+        let connectionInfo = database.connect()
+        #expect(connectionInfo.contains("sqlite://test.db"))
+        
+        logger.info("Testing logger service")
     }
-    
-    let service2 = ServiceEnv.$current.withValue(env2) {
-        return ServiceContext().resolve(TransientService.self)
-    }
-    
-    #expect(service1.id != service2.id)
-    #expect(service1.timestamp != service2.timestamp)
 }
 
-@Test("Custom scope can be created")
-func testCustomScope() async throws {
-    let customScope = Scope(id: "custom") { instance in
-        return SharedScopeStorage(instance)
+@Test("ServiceEnv singleton behavior")
+func testServiceEnvSingletonBehavior() async throws {
+    let testEnv = ServiceEnv(name: "singleton-test")
+    ServiceEnv.$current.withValue(testEnv) {
+        ServiceEnv.current.register(String.self) {
+            UUID().uuidString
+        }
+        
+        let service1 = ServiceEnv.current[String.self]
+        let service2 = ServiceEnv.current[String.self]
+        
+        // Should return the same instance (singleton)
+        #expect(service1 == service2)
     }
-    
-    #expect(customScope.id == "custom")
-    #expect(customScope == customScope)
+}
+
+@Test("ServiceEnv reset functionality")
+func testServiceReset() async throws {
+    let env = ServiceEnv(name: "reset-test")
+    ServiceEnv.$current.withValue(env) {
+        var serviceId1: String?
+        var serviceId2: String?
+        
+        ServiceEnv.current.register(String.self) {
+            UUID().uuidString
+        }
+        
+        serviceId1 = ServiceEnv.current[String.self]
+        
+        // reset clears cache and providers
+        ServiceEnv.current.reset()
+        
+        // Re-register service
+        ServiceEnv.current.register(String.self) {
+            UUID().uuidString
+        }
+        
+        serviceId2 = ServiceEnv.current[String.self]
+        
+        // Instances recreated after reset should be different
+        #expect(serviceId1 != serviceId2)
+    }
 }
 
 // MARK: - Integration Tests
 
-@Test("Complete dependency injection flow works")
+@Test("Complete dependency injection flow")
 func testCompleteFlow() async throws {
-    let testEnv = ServiceEnv(key: "integration-test")
+    let testEnv = ServiceEnv(name: "integration-test")
     
     let result = try await ServiceEnv.$current.withValue(testEnv) {
+        // Register all services
+        ServiceEnv.current.register(DatabaseProtocol.self) {
+            DatabaseService(connectionString: "sqlite://test.db")
+        }
+        ServiceEnv.current.register(LoggerProtocol.self) {
+            LoggerService(level: "INFO")
+        }
+        ServiceEnv.current.register(UserRepositoryProtocol.self) {
+            let database = ServiceEnv.current[DatabaseProtocol.self]
+            let logger = ServiceEnv.current[LoggerProtocol.self]
+            return UserRepository(database: database, logger: logger)
+        }
+        ServiceEnv.current.register(NetworkServiceProtocol.self) {
+            let logger = ServiceEnv.current[LoggerProtocol.self]
+            return NetworkService(baseURL: "https://api.example.com", logger: logger)
+        }
+        
         class UserService {
-            @Service(UserRepositoryKey.self)
+            @Service
             var userRepository: UserRepositoryProtocol
             
-            @LazyService(NetworkServiceKey.self)
+            @Service
             var networkService: NetworkServiceProtocol
             
-            @ServiceProvider(LoggerServiceKey.self)
+            @Service
             var logger: LoggerProtocol
             
             func processUser(name: String) async throws -> User {
@@ -385,85 +353,30 @@ func testCompleteFlow() async throws {
     #expect(!result.id.isEmpty)
 }
 
-@Test("Service reset functionality works")
-func testServiceReset() async throws {
-    let env = ServiceEnv(key: "reset-test")
+@Test("Service isolation between different environments")
+func testServiceIsolationBetweenEnvironments() async throws {
+    let env1 = ServiceEnv(name: "env1")
+    let env2 = ServiceEnv(name: "env2")
     
-    ServiceEnv.$current.withValue(env) {
-        let service1 = ServiceContext().resolve(SingletonService.self)
-        env.reset()
-        let service2 = ServiceContext().resolve(SingletonService.self)
-        
-        #expect(service1.id != service2.id)
-        #expect(service1.createdAt != service2.createdAt)
-    }
-}
-
-// MARK: - Scope Storage Tests
-
-@Test("Scope storage behavior")
-func testScopeStorageBehavior() async throws {
-    let testService = SingletonService()
+    var service1: String?
+    var service2: String?
     
-    let sharedStorage = SharedScopeStorage(testService)
-    #expect(sharedStorage.cache == true)
-    #expect((sharedStorage.instance as? SingletonService)?.id == testService.id)
-    
-    let graphStorage = GraphScopeStorage(testService)
-    #expect(graphStorage.cache == false)
-    #expect((graphStorage.instance as? SingletonService)?.id == testService.id)
-    
-    let transientStorage = TransientScopeStorage(testService)
-    #expect(transientStorage.cache == false)
-    #expect(transientStorage.instance == nil)
-    
-    let weakStorage = WeakScopeStorage(testService)
-    #expect(weakStorage.cache == true)
-    #expect((weakStorage.instance as? SingletonService)?.id == testService.id)
-}
-
-// MARK: - Params Tests
-
-struct GreetingServiceKey: ServiceKey {
-    struct Params: Hashable, Sendable {
-        let name: String
-        let language: String
-    }
-    static func build(with context: ServiceContext) -> String {
-        guard let params = context.resolveCurrentParams(for: Self.self) else { return "Hello, World!" }
-        switch params.language {
-        case "en": return "Hello, \(params.name)!"
-        case "zh": return "你好，\(params.name)！"
-        case "fr": return "Bonjour, \(params.name)!"
-        default: return "Hello, \(params.name)!"
+    ServiceEnv.$current.withValue(env1) {
+        ServiceEnv.current.register(String.self) {
+            "env1-service"
         }
+        service1 = ServiceEnv.current[String.self]
     }
-}
-
-@Test("ServiceKey with Params returns correct result")
-func testServiceKeyWithParams() async throws {
-    let context = ServiceContext()
-    let enGreeting = context.resolve(GreetingServiceKey.self, params: .init(name: "Alice", language: "en"))
-    let zhGreeting = context.resolve(GreetingServiceKey.self, params: .init(name: "小明", language: "zh"))
-    let frGreeting = context.resolve(GreetingServiceKey.self, params: .init(name: "Jean", language: "fr"))
-    let defaultGreeting = context.resolve(GreetingServiceKey.self)
-
-    #expect(enGreeting == "Hello, Alice!")
-    #expect(zhGreeting == "你好，小明！")
-    #expect(frGreeting == "Bonjour, Jean!")
-    #expect(defaultGreeting == "Hello, World!")
-}
-
-@Test("ServiceEnv caches instances by Params")
-func testServiceEnvParamsCaching() async throws {
-    let env = ServiceEnv(key: "params-test")
-    ServiceEnv.$current.withValue(env) {
-        let greeting1 = ServiceEnv.current[HashableKey<GreetingServiceKey>(params: .init(name: "Bob", language: "en"))]
-        let greeting2 = ServiceEnv.current[HashableKey<GreetingServiceKey>(params: .init(name: "Bob", language: "en"))]
-        let greeting3 = ServiceEnv.current[HashableKey<GreetingServiceKey>(params: .init(name: "Bob", language: "zh"))]
-
-        // 测试结果一致性而非实例缓存
-        #expect(greeting1 == greeting2)
-        #expect(greeting1 != greeting3)
+    
+    ServiceEnv.$current.withValue(env2) {
+        ServiceEnv.current.register(String.self) {
+            "env2-service"
+        }
+        service2 = ServiceEnv.current[String.self]
     }
+    
+    #expect(service1 == "env1-service")
+    #expect(service2 == "env2-service")
+    #expect(service1 != service2)
 }
+
