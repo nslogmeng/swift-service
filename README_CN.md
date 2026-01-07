@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="./Images/logo.png" alt="Service Logo" >
+</div>
+
 # Service
 
 [![Swift Version](https://img.shields.io/badge/Swift-6.0-F16D39.svg?style=flat)](https://developer.apple.com/swift)
@@ -5,7 +9,10 @@
 [![Build Status](https://github.com/nslogmeng/swift-service/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/nslogmeng/swift-service/actions/workflows/build.yml)
 [![Test Status](https://github.com/nslogmeng/swift-service/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/nslogmeng/swift-service/actions/workflows/test.yml)
 
-[English](./README.md) | [中文](./README_CN.md)
+<div align="center">
+    <a href="./README.md">English</a> | 简体中文
+</div>
+<br/>
 
 一个轻量级、零依赖、类型安全的 Swift 依赖注入框架。  
 受 [Swinject](https://github.com/Swinject/Swinject) 和 [swift-dependencies](https://github.com/pointfreeco/swift-dependencies) 启发，Service 利用现代 Swift 特性实现简单、健壮的依赖注入。
