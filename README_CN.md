@@ -6,6 +6,7 @@
 
 [![Swift Version](https://img.shields.io/badge/Swift-6.0-F16D39.svg?style=flat)](https://developer.apple.com/swift)
 [![GitHub License](https://img.shields.io/github/license/nslogmeng/swift-service)](./LICENSE)
+![Platform Support Status](https://img.shields.io/badge/platform-iOS%7CmacOS%7CwatchOS%7CtvOS%7CvisionOS%7CLinux-green)
 [![Build Status](https://github.com/nslogmeng/swift-service/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/nslogmeng/swift-service/actions/workflows/build.yml)
 [![Test Status](https://github.com/nslogmeng/swift-service/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/nslogmeng/swift-service/actions/workflows/test.yml)
 
