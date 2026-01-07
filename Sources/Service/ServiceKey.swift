@@ -2,74 +2,23 @@
 //  Copyright © 2025 Service Contributors. All rights reserved.
 //
 
-/// A protocol that defines how to register and build services in the dependency injection system.
-/// Types conforming to this protocol serve as keys for service registration and resolution.
-///
-/// The protocol requires implementing a static `build(with:)` method that defines how to construct
-/// the service instance when it's requested. If your service requires parameters, use the
-/// `resolveCurrentParams(for:)` method on ServiceContext to access the parameters during resolution.
+import Foundation
+
+/// A protocol for defining default service implementations.
+/// Types conforming to this protocol can be registered directly using `ServiceEnv.register(_:)`.
 ///
 /// Usage example:
 /// ```swift
-/// struct Cat: ServiceKey {
-///     struct Params: Hashable, Sendable { let name: String }
-///     static func build(with context: ServiceContext) -> Animal {
-///         let params = context.resolveCurrentParams(for: Self.self)
-///         return Cat(name: params?.name ?? "default")
+/// struct DatabaseService: ServiceKey {
+///     static var `default`: DatabaseService {
+///         DatabaseService(connectionString: "sqlite://app.db")
 ///     }
 /// }
-/// ```
 ///
-/// - Note: ServiceKey supports parameterized resolution via the `Params` associatedtype.
-///   If your service requires parameters for construction, specify a type for `Params`.
-///   The system will cache instances based on both type and params hash, ensuring correct isolation.
-public protocol ServiceKey {
-    /// The type of service this key represents.
-    /// Defaults to Self if not specified, allowing the key type to also be the service type.
-    associatedtype Value: Sendable = Self
-
-    /// The parameters required to resolve the service.
-    /// Defaults to Never if not specified, meaning the service does not require parameters.
-    ///
-    /// - Note: If your service requires parameters, specify a concrete type for Params.
-    ///   The system will use the hash value of Params to distinguish different instances.
-    associatedtype Params: Hashable & Sendable = Never
-
-    /// Builds and returns an instance of the service.
-    /// This method is called when the service needs to be resolved.
-    ///
-    /// - Parameter context: The service context used for resolving dependencies.
-    /// - Returns: A new instance of the service.
-    /// - Note: If Params is not Never, use `context.resolveCurrentParams(for: Self.self)` to access parameters.
-    static func build(with context: ServiceContext) -> Value
-}
-
-/// Extension for ServiceKey types where the Value is an AnyObject (reference type).
-/// This provides a default scope for object-based services, enabling lifecycle management.
-extension ServiceKey where Value: AnyObject {
-    /// The default scope for reference type services.
-    /// Uses `.graph` scope by default, which means instances are cached within
-    /// the current dependency resolution graph but not across different resolutions.
-    public static var scope: Scope { .default }
-}
-
-/// A type-erased wrapper that makes ServiceKey types hashable for use in collections.
-/// This struct enables ServiceKey types to be used as dictionary keys and in sets,
-/// which is essential for the service caching mechanism.
-struct HashableKey<T: ServiceKey>: Hashable, Sendable {
-    let params: T.Params?
-
-    /// Creates a new HashableKey for the given type.
-    init(params: T.Params? = nil) {
-        self.params = params
-    }
-
-    /// Hashes the wrapped type using its ObjectIdentifier.
-    /// This ensures that each unique type gets a unique hash value.
-    ///
-    /// - Parameter hasher: The hasher to combine the type identifier with.
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(ObjectIdentifier(T.self))
-        hasher.combine(params)
-    }
+/// // Register the service
+/// ServiceEnv.current.register(DatabaseService.self)
+/// ```
+public protocol ServiceKey: Sendable {
+    /// The default instance of the service.
+    static var `default`: Self { get }
 }

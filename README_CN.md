@@ -6,21 +6,21 @@
 
 [English](./README.md) | [中文](./README_CN.md)
 
-A lightweight, zero-dependency, type-safe dependency injection framework for Swift.  
-Inspired by [Swinject](https://github.com/Swinject/Swinject) and [swift-dependencies](https://github.com/pointfreeco/swift-dependencies), Service leverages modern Swift features for simple, robust DI.
+一个轻量级、零依赖、类型安全的 Swift 依赖注入框架。  
+受 [Swinject](https://github.com/Swinject/Swinject) 和 [swift-dependencies](https://github.com/pointfreeco/swift-dependencies) 启发，Service 利用现代 Swift 特性实现简单、健壮的依赖注入。
 
-## Features
+## 特性
 
-- **Modern Swift**: Uses property wrappers, TaskLocal, and concurrency primitives.
-- **Lightweight & Zero Dependency**: No third-party dependencies, minimal footprint.
-- **Simple Usage**: Easy to register and inject services.
-- **Type-safe**: Compile-time checked service registration and resolution.
-- **Thread-safe**: Safe for concurrent and async code.
-- **Environment Support**: Switch between production, development, and testing environments.
+- **现代 Swift**：使用属性包装器、TaskLocal 和并发原语。
+- **轻量级且零依赖**：无第三方依赖，占用空间小。
+- **简单易用**：易于注册和注入服务。
+- **类型安全**：编译时检查服务注册和解析。
+- **线程安全**：适用于并发和异步代码。
+- **环境支持**：可在生产、开发和测试环境之间切换。
 
-## Installation
+## 安装
 
-Add to your `Package.swift`:
+在 `Package.swift` 中添加：
 
 ```swift
 dependencies: [
@@ -36,11 +36,11 @@ targets: [
 ]
 ```
 
-## Quick Start
+## 快速开始
 
-### 1. Register a Service
+### 1. 注册服务
 
-Register using a factory function:
+使用工厂函数注册：
 
 ```swift
 ServiceEnv.current.register(DatabaseProtocol.self) {
@@ -48,14 +48,14 @@ ServiceEnv.current.register(DatabaseProtocol.self) {
 }
 ```
 
-Or register a service instance directly:
+或直接注册服务实例：
 
 ```swift
 let database = DatabaseService(connectionString: "sqlite://app.db")
 ServiceEnv.current.register(database)
 ```
 
-Or use the `ServiceKey` protocol:
+或使用 `ServiceKey` 协议：
 
 ```swift
 struct DatabaseService: ServiceKey {
@@ -64,13 +64,13 @@ struct DatabaseService: ServiceKey {
     }
 }
 
-// Register
+// 注册
 ServiceEnv.current.register(DatabaseService.self)
 ```
 
-### 2. Inject and Use
+### 2. 注入和使用
 
-Use the `@Service` property wrapper to inject services:
+使用 `@Service` 属性包装器注入服务：
 
 ```swift
 struct UserManager {
@@ -82,12 +82,12 @@ struct UserManager {
     
     func createUser(name: String) {
         logger.info("Creating user: \(name)")
-        // Use database...
+        // 使用 database...
     }
 }
 ```
 
-You can also explicitly specify the service type:
+也可以显式指定服务类型：
 
 ```swift
 struct UserManager {
@@ -96,25 +96,25 @@ struct UserManager {
 }
 ```
 
-### 3. Environment Switching Example
+### 3. 环境切换示例
 
-Use different service configurations in different environments (production, development, testing):
+在不同环境（生产、开发、测试）中使用不同的服务配置：
 
 ```swift
-// Switch to dev environment in tests
+// 在测试中切换到开发环境
 await ServiceEnv.$current.withValue(.dev) {
-    // All services resolved in this block use dev environment
+    // 在此块中解析的所有服务都使用 dev 环境
     let userService = UserService()
     let result = userService.createUser(name: "Test User")
 }
 ```
 
-### 4. Dependency Injection Example
+### 4. 依赖注入示例
 
-Services can depend on other services:
+服务可以依赖其他服务：
 
 ```swift
-// Register base services
+// 注册基础服务
 ServiceEnv.current.register(DatabaseProtocol.self) {
     DatabaseService()
 }
@@ -123,7 +123,7 @@ ServiceEnv.current.register(LoggerProtocol.self) {
     LoggerService()
 }
 
-// Register a service that depends on other services
+// 注册依赖其他服务的服务
 ServiceEnv.current.register(UserRepositoryProtocol.self) {
     let database = ServiceEnv.current[DatabaseProtocol.self]
     let logger = ServiceEnv.current[LoggerProtocol.self]
@@ -131,53 +131,53 @@ ServiceEnv.current.register(UserRepositoryProtocol.self) {
 }
 ```
 
-## API Reference
+## API 参考
 
 ### ServiceEnv
 
-Service environment that manages service registration, resolution, and lifecycle.
+服务环境，管理服务的注册、解析和生命周期。
 
 ```swift
-// Predefined environments
-ServiceEnv.online  // Production environment
-ServiceEnv.dev     // Development environment
-ServiceEnv.inhouse // Internal testing environment
+// 预定义环境
+ServiceEnv.online  // 生产环境
+ServiceEnv.dev     // 开发环境
+ServiceEnv.inhouse // 内部测试环境
 
-// Create custom environment
+// 创建自定义环境
 let testEnv = ServiceEnv(name: "test")
 
-// Switch environment
+// 切换环境
 await ServiceEnv.$current.withValue(.dev) {
-    // Use dev environment
+    // 使用 dev 环境
 }
 
-// Register service with factory
+// 使用工厂函数注册服务
 ServiceEnv.current.register(MyService.self) {
     MyService()
 }
 
-// Register service instance directly
+// 直接注册服务实例
 let service = MyService()
 ServiceEnv.current.register(service)
 
-// Resolve service
+// 解析服务
 let service = ServiceEnv.current[MyService.self]
 
-// Reset all cached services
+// 重置所有缓存的服务
 ServiceEnv.current.reset()
 ```
 
 ### @Service
 
-Property wrapper for injecting services.
+属性包装器，用于注入服务。
 
 ```swift
 struct MyController {
-    // Type inferred from property type
+    // 从属性类型推断服务类型
     @Service
     var myService: MyService
     
-    // Explicit type specification
+    // 显式指定服务类型
     @Service(MyService.self)
     var anotherService: MyService
 }
@@ -185,7 +185,7 @@ struct MyController {
 
 ### ServiceKey
 
-Protocol for defining default service implementations.
+协议，用于定义服务的默认实现。
 
 ```swift
 struct MyService: ServiceKey {
@@ -195,11 +195,12 @@ struct MyService: ServiceKey {
 }
 ```
 
-## Why Service?
+## 为什么选择 Service？
 
-Service is designed for modern Swift projects that value simplicity, safety, and flexibility.  
-It provides a simple, intuitive API with no external dependencies while maintaining type safety and thread safety.
+Service 专为重视简洁性、安全性和灵活性的现代 Swift 项目而设计。  
+它提供了简单直观的 API，无需外部依赖，同时保持类型安全和线程安全。
 
-## License
+## 许可证
 
-This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
+本项目采用 MIT 许可证。详见 [LICENSE](./LICENSE) 文件。
+
