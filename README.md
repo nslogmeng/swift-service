@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./Images/logo.png" alt="Service Logo">
+  <img src="./images/logo.png" alt="Service Logo">
 </div>
 
 # Service
