@@ -163,7 +163,8 @@ struct NetworkAssembly: ServiceAssembly {
     }
 }
 
-// Assemble assemblies
+// Assemble assemblies (must be called from @MainActor context)
+// In SwiftUI apps, this is usually already on the main actor
 ServiceEnv.current.assemble(DatabaseAssembly())
 
 // Or assemble multiple assemblies at once
@@ -173,6 +174,8 @@ ServiceEnv.current.assemble([
     RepositoryAssembly()
 ])
 ```
+
+**Note:** `ServiceAssembly` and its `assemble` methods are marked with `@MainActor` for thread safety. In SwiftUI apps, you're typically already on the main actor, so no special handling is needed. In other contexts, use `await MainActor.run { }` to call `assemble`.
 
 This provides a standardized, modular way to organize service registrations, similar to Swinject's Assembly pattern.
 
@@ -249,6 +252,11 @@ struct MyService: ServiceKey {
 
 Protocol for organizing service registrations in a modular, reusable way.
 
+**Why `@MainActor`?**
+Service assembly typically occurs during application initialization, which is a very early stage of the application lifecycle. Assembly operations are strongly dependent on execution order and are usually performed in `main.swift` or SwiftUI App's `init` method, where the code is already running on the main actor. Constraining assembly operations to the main actor ensures thread safety and provides a predictable, sequential execution context for service registration.
+
+**Note:** `ServiceAssembly` is marked with `@MainActor` for thread safety. The `assemble` methods must be called from the main actor context.
+
 ```swift
 struct MyAssembly: ServiceAssembly {
     func assemble(env: ServiceEnv) {
@@ -258,7 +266,7 @@ struct MyAssembly: ServiceAssembly {
     }
 }
 
-// Assemble a single assembly
+// Assemble a single assembly (must be on @MainActor)
 ServiceEnv.current.assemble(MyAssembly())
 
 // Assemble multiple assemblies
@@ -272,6 +280,11 @@ ServiceEnv.current.assemble(
     DatabaseAssembly(),
     NetworkAssembly()
 )
+
+// If not on the main actor, use:
+await MainActor.run {
+    ServiceEnv.current.assemble(MyAssembly())
+}
 ```
 
 ## Why Service?

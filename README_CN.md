@@ -163,7 +163,8 @@ struct NetworkAssembly: ServiceAssembly {
     }
 }
 
-// 装配服务
+// 装配服务（必须在 @MainActor 上下文中调用）
+// 在 SwiftUI 应用中，通常已经在主 actor 上下文中
 ServiceEnv.current.assemble(DatabaseAssembly())
 
 // 或一次性装配多个服务
@@ -172,7 +173,14 @@ ServiceEnv.current.assemble([
     NetworkAssembly(),
     RepositoryAssembly()
 ])
+
+// 如果不在主 actor 上下文中，使用：
+await MainActor.run {
+    ServiceEnv.current.assemble(DatabaseAssembly())
+}
 ```
+
+**注意：** `ServiceAssembly` 及其 `assemble` 方法标记为 `@MainActor` 以确保线程安全。在 SwiftUI 应用中，通常已经在主 actor 上下文中，因此无需特殊处理。在其他上下文中，使用 `await MainActor.run { }` 来调用 `assemble`。
 
 这提供了一种标准化的、模块化的方式来组织服务注册，类似于 Swinject 的 Assembly 模式。
 
@@ -249,6 +257,11 @@ struct MyService: ServiceKey {
 
 协议，用于以模块化、可复用的方式组织服务注册。
 
+**为什么使用 `@MainActor`？**
+服务装配通常发生在应用初始化阶段，这是应用生命周期的非常早期阶段。装配操作强烈依赖于执行顺序，通常在 `main.swift` 或 SwiftUI App 的 `init` 方法中执行，这些代码已经在主 actor 上运行。将装配操作约束到主 actor 可以确保线程安全，并为服务注册提供可预测的、顺序执行的上下文。
+
+**注意：** `ServiceAssembly` 标记为 `@MainActor` 以确保线程安全。`assemble` 方法必须在主 actor 上下文中调用。
+
 ```swift
 struct MyAssembly: ServiceAssembly {
     func assemble(env: ServiceEnv) {
@@ -258,7 +271,7 @@ struct MyAssembly: ServiceAssembly {
     }
 }
 
-// 装配单个服务
+// 装配单个服务（必须在 @MainActor 上下文中）
 ServiceEnv.current.assemble(MyAssembly())
 
 // 装配多个服务
@@ -272,6 +285,11 @@ ServiceEnv.current.assemble(
     DatabaseAssembly(),
     NetworkAssembly()
 )
+
+// 如果不在 MainActor 则使用:
+await MainActor.run {
+    ServiceEnv.current.assemble(MyAssembly())
+}
 ```
 
 ## 为什么选择 Service？

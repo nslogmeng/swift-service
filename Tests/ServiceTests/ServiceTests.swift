@@ -487,9 +487,11 @@ struct NetworkAssembly: ServiceAssembly {
 @Test("ServiceAssembly can register services")
 func testServiceAssembly() async throws {
     let testEnv = ServiceEnv(name: "assembly-test")
-    ServiceEnv.$current.withValue(testEnv) {
+    await ServiceEnv.$current.withValue(testEnv) {
         // Assemble a single assembly
-        ServiceEnv.current.assemble(DatabaseAssembly())
+        await MainActor.run {
+            ServiceEnv.current.assemble(DatabaseAssembly())
+        }
 
         // Verify service is registered
         let database = ServiceEnv.current.resolve(DatabaseProtocol.self)
@@ -501,12 +503,14 @@ func testServiceAssembly() async throws {
 @Test("ServiceAssembly can apply multiple assemblies")
 func testMultipleAssemblies() async throws {
     let testEnv = ServiceEnv(name: "multi-assembly-test")
-    ServiceEnv.$current.withValue(testEnv) {
+    await ServiceEnv.$current.withValue(testEnv) { @MainActor in
         // Assemble multiple assemblies using array
-        ServiceEnv.current.assemble([
-            DatabaseAssembly(),
-            LoggerAssembly(),
-        ])
+        await MainActor.run {
+            ServiceEnv.current.assemble([
+                DatabaseAssembly(),
+                LoggerAssembly(),
+            ])
+        }
 
         // Verify both services are registered
         let database = ServiceEnv.current.resolve(DatabaseProtocol.self)
@@ -520,13 +524,15 @@ func testMultipleAssemblies() async throws {
 @Test("ServiceAssembly can apply multiple assemblies using variadic arguments")
 func testVariadicAssemblies() async throws {
     let testEnv = ServiceEnv(name: "variadic-assembly-test")
-    ServiceEnv.$current.withValue(testEnv) {
+    await ServiceEnv.$current.withValue(testEnv) {
         // Assemble multiple assemblies using variadic arguments
-        ServiceEnv.current.assemble(
-            DatabaseAssembly(),
-            LoggerAssembly(),
-            RepositoryAssembly()
-        )
+        await MainActor.run {
+            ServiceEnv.current.assemble(
+                DatabaseAssembly(),
+                LoggerAssembly(),
+                RepositoryAssembly()
+            )
+        }
 
         // Verify all services are registered and can work together
         let userRepository = ServiceEnv.current.resolve(UserRepositoryProtocol.self)
@@ -542,12 +548,14 @@ func testAssemblyDependencyInjection() async throws {
     let testEnv = ServiceEnv(name: "assembly-di-test")
     try await ServiceEnv.$current.withValue(testEnv) {
         // Assemble assemblies in order (dependencies first)
-        ServiceEnv.current.assemble(
-            DatabaseAssembly(),
-            LoggerAssembly(),
-            RepositoryAssembly(),
-            NetworkAssembly()
-        )
+        await MainActor.run {
+            ServiceEnv.current.assemble(
+                DatabaseAssembly(),
+                LoggerAssembly(),
+                RepositoryAssembly(),
+                NetworkAssembly()
+            )
+        }
 
         // Verify services with dependencies work correctly
         let networkService = ServiceEnv.current.resolve(NetworkServiceProtocol.self)
@@ -571,13 +579,17 @@ func testAssemblyWithDifferentEnvironments() async throws {
     var service1: DatabaseProtocol?
     var service2: DatabaseProtocol?
 
-    ServiceEnv.$current.withValue(env1) {
-        ServiceEnv.current.assemble(DatabaseAssembly())
+    await ServiceEnv.$current.withValue(env1) {
+        await MainActor.run {
+            ServiceEnv.current.assemble(DatabaseAssembly())
+        }
         service1 = ServiceEnv.current.resolve(DatabaseProtocol.self)
     }
 
-    ServiceEnv.$current.withValue(env2) {
-        ServiceEnv.current.assemble(DatabaseAssembly())
+    await ServiceEnv.$current.withValue(env2) {
+        await MainActor.run {
+            ServiceEnv.current.assemble(DatabaseAssembly())
+        }
         service2 = ServiceEnv.current.resolve(DatabaseProtocol.self)
     }
 
