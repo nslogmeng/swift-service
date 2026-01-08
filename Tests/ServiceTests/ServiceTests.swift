@@ -154,8 +154,8 @@ func testServicePropertyWrapper() async throws {
             LoggerService(level: "DEBUG")
         }
         ServiceEnv.current.register(UserRepositoryProtocol.self) {
-            let database = ServiceEnv.current[DatabaseProtocol.self]
-            let logger = ServiceEnv.current[LoggerProtocol.self]
+            let database = ServiceEnv.current.resolve(DatabaseProtocol.self)
+            let logger = ServiceEnv.current.resolve(LoggerProtocol.self)
             return UserRepository(database: database, logger: logger)
         }
 
@@ -190,7 +190,7 @@ func testServiceKeyProtocol() async throws {
         ServiceEnv.current.register(DatabaseServiceKey.self)
 
         // Verify service can be accessed by type
-        let _ = ServiceEnv.current[DatabaseServiceKey.self]
+        let _ = ServiceEnv.current.resolve(DatabaseServiceKey.self)
         // If resolution succeeds, registration and resolution work correctly
     }
 }
@@ -216,7 +216,7 @@ func testServiceEnvContextSwitching() async throws {
             "Service built in \(ServiceEnv.current.name) environment"
         }
 
-        let result = ServiceEnv.current[String.self]
+        let result = ServiceEnv.current.resolve(String.self)
         #expect(result == "Service built in test-env environment")
     }
 
@@ -225,7 +225,7 @@ func testServiceEnvContextSwitching() async throws {
             "Service built in \(ServiceEnv.current.name) environment"
         }
 
-        let result = ServiceEnv.current[String.self]
+        let result = ServiceEnv.current.resolve(String.self)
         #expect(result == "Service built in dev environment")
     }
 }
@@ -243,8 +243,8 @@ func testServiceEnvRegistrationAndResolution() async throws {
         }
 
         // Resolve services
-        let database = ServiceEnv.current[DatabaseProtocol.self]
-        let logger = ServiceEnv.current[LoggerProtocol.self]
+        let database = ServiceEnv.current.resolve(DatabaseProtocol.self)
+        let logger = ServiceEnv.current.resolve(LoggerProtocol.self)
 
         // Test actual functionality
         let connectionInfo = database.connect()
@@ -262,8 +262,8 @@ func testServiceEnvSingletonBehavior() async throws {
             UUID().uuidString
         }
 
-        let service1 = ServiceEnv.current[String.self]
-        let service2 = ServiceEnv.current[String.self]
+        let service1 = ServiceEnv.current.resolve(String.self)
+        let service2 = ServiceEnv.current.resolve(String.self)
 
         // Should return the same instance (singleton)
         #expect(service1 == service2)
@@ -281,7 +281,7 @@ func testServiceReset() async throws {
             UUID().uuidString
         }
 
-        serviceId1 = ServiceEnv.current[String.self]
+        serviceId1 = ServiceEnv.current.resolve(String.self)
 
         // reset clears cache and providers
         ServiceEnv.current.reset()
@@ -291,7 +291,7 @@ func testServiceReset() async throws {
             UUID().uuidString
         }
 
-        serviceId2 = ServiceEnv.current[String.self]
+        serviceId2 = ServiceEnv.current.resolve(String.self)
 
         // Instances recreated after reset should be different
         #expect(serviceId1 != serviceId2)
@@ -313,12 +313,12 @@ func testCompleteFlow() async throws {
             LoggerService(level: "INFO")
         }
         ServiceEnv.current.register(UserRepositoryProtocol.self) {
-            let database = ServiceEnv.current[DatabaseProtocol.self]
-            let logger = ServiceEnv.current[LoggerProtocol.self]
+            let database = ServiceEnv.current.resolve(DatabaseProtocol.self)
+            let logger = ServiceEnv.current.resolve(LoggerProtocol.self)
             return UserRepository(database: database, logger: logger)
         }
         ServiceEnv.current.register(NetworkServiceProtocol.self) {
-            let logger = ServiceEnv.current[LoggerProtocol.self]
+            let logger = ServiceEnv.current.resolve(LoggerProtocol.self)
             return NetworkService(baseURL: "https://api.example.com", logger: logger)
         }
 
@@ -366,14 +366,14 @@ func testServiceIsolationBetweenEnvironments() async throws {
         ServiceEnv.current.register(String.self) {
             "env1-service"
         }
-        service1 = ServiceEnv.current[String.self]
+        service1 = ServiceEnv.current.resolve(String.self)
     }
 
     ServiceEnv.$current.withValue(env2) {
         ServiceEnv.current.register(String.self) {
             "env2-service"
         }
-        service2 = ServiceEnv.current[String.self]
+        service2 = ServiceEnv.current.resolve(String.self)
     }
 
     #expect(service1 == "env1-service")
@@ -402,8 +402,8 @@ struct LoggerAssembly: ServiceAssembly {
 struct RepositoryAssembly: ServiceAssembly {
     func assemble(env: ServiceEnv) {
         env.register(UserRepositoryProtocol.self) {
-            let database = env[DatabaseProtocol.self]
-            let logger = env[LoggerProtocol.self]
+            let database = env.resolve(DatabaseProtocol.self)
+            let logger = env.resolve(LoggerProtocol.self)
             return UserRepository(database: database, logger: logger)
         }
     }
@@ -412,7 +412,7 @@ struct RepositoryAssembly: ServiceAssembly {
 struct NetworkAssembly: ServiceAssembly {
     func assemble(env: ServiceEnv) {
         env.register(NetworkServiceProtocol.self) {
-            let logger = env[LoggerProtocol.self]
+            let logger = env.resolve(LoggerProtocol.self)
             return NetworkService(baseURL: "https://api.assembly.com", logger: logger)
         }
     }
@@ -426,7 +426,7 @@ func testServiceAssembly() async throws {
         ServiceEnv.current.assemble(DatabaseAssembly())
 
         // Verify service is registered
-        let database = ServiceEnv.current[DatabaseProtocol.self]
+        let database = ServiceEnv.current.resolve(DatabaseProtocol.self)
         let connectionInfo = database.connect()
         #expect(connectionInfo.contains("sqlite://assembly.db"))
     }
@@ -443,8 +443,8 @@ func testMultipleAssemblies() async throws {
         ])
 
         // Verify both services are registered
-        let database = ServiceEnv.current[DatabaseProtocol.self]
-        let logger = ServiceEnv.current[LoggerProtocol.self]
+        let database = ServiceEnv.current.resolve(DatabaseProtocol.self)
+        let logger = ServiceEnv.current.resolve(LoggerProtocol.self)
 
         #expect(database.connect().contains("sqlite://assembly.db"))
         logger.info("Testing logger from assembly")
@@ -463,7 +463,7 @@ func testVariadicAssemblies() async throws {
         )
 
         // Verify all services are registered and can work together
-        let userRepository = ServiceEnv.current[UserRepositoryProtocol.self]
+        let userRepository = ServiceEnv.current.resolve(UserRepositoryProtocol.self)
         let user = userRepository.createUser(name: "Assembly User")
 
         #expect(user.name == "Assembly User")
@@ -484,8 +484,8 @@ func testAssemblyDependencyInjection() async throws {
         )
 
         // Verify services with dependencies work correctly
-        let networkService = ServiceEnv.current[NetworkServiceProtocol.self]
-        let userRepository = ServiceEnv.current[UserRepositoryProtocol.self]
+        let networkService = ServiceEnv.current.resolve(NetworkServiceProtocol.self)
+        let userRepository = ServiceEnv.current.resolve(UserRepositoryProtocol.self)
 
         // Test network service (depends on logger)
         let response = try await networkService.get(url: "/test")
@@ -507,12 +507,12 @@ func testAssemblyWithDifferentEnvironments() async throws {
 
     ServiceEnv.$current.withValue(env1) {
         ServiceEnv.current.assemble(DatabaseAssembly())
-        service1 = ServiceEnv.current[DatabaseProtocol.self]
+        service1 = ServiceEnv.current.resolve(DatabaseProtocol.self)
     }
 
     ServiceEnv.$current.withValue(env2) {
         ServiceEnv.current.assemble(DatabaseAssembly())
-        service2 = ServiceEnv.current[DatabaseProtocol.self]
+        service2 = ServiceEnv.current.resolve(DatabaseProtocol.self)
     }
 
     // Verify services are isolated per environment

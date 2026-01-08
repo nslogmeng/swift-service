@@ -28,7 +28,7 @@ public struct Service<S: Sendable>: Sendable {
     ///
     /// - Note: If the service is not registered, this will cause a runtime fatalError.
     public init() {
-        self.wrappedValue = ServiceEnv.current[S.self]
+        self.wrappedValue = ServiceEnv.current.resolve(S.self)
     }
 
     /// Initializes the service by resolving it from the current service environment.
@@ -37,6 +37,6 @@ public struct Service<S: Sendable>: Sendable {
     /// - Parameter type: The service type to resolve.
     /// - Note: If the service is not registered, this will cause a runtime fatalError.
     public init(_ type: S.Type) {
-        self.wrappedValue = ServiceEnv.current[type]
+        self.wrappedValue = ServiceEnv.current.resolve(type)
     }
 }

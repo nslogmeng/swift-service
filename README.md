@@ -134,8 +134,8 @@ ServiceEnv.current.register(LoggerProtocol.self) {
 
 // Register a service that depends on other services
 ServiceEnv.current.register(UserRepositoryProtocol.self) {
-    let database = ServiceEnv.current[DatabaseProtocol.self]
-    let logger = ServiceEnv.current[LoggerProtocol.self]
+    let database = ServiceEnv.current.resolve(DatabaseProtocol.self)
+    let logger = ServiceEnv.current.resolve(LoggerProtocol.self)
     return UserRepository(database: database, logger: logger)
 }
 ```
@@ -157,7 +157,7 @@ struct DatabaseAssembly: ServiceAssembly {
 struct NetworkAssembly: ServiceAssembly {
     func assemble(env: ServiceEnv) {
         env.register(NetworkServiceProtocol.self) {
-            let logger = env[LoggerProtocol.self]
+            let logger = env.resolve(LoggerProtocol.self)
             return NetworkService(baseURL: "https://api.example.com", logger: logger)
         }
     }
@@ -206,7 +206,7 @@ let service = MyService()
 ServiceEnv.current.register(service)
 
 // Resolve service
-let service = ServiceEnv.current[MyService.self]
+let service = ServiceEnv.current.resolve(MyService.self)
 
 // Reset all cached services
 ServiceEnv.current.reset()
