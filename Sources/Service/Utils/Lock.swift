@@ -45,9 +45,16 @@ final class Locked<Value: Sendable>: @unchecked Sendable {
     }
 }
 
-// work around for Linux Swift 6.0 Compiler Bug
-#if os(Linux) && compiler(<6.1)
+// work around for Swift 6.0 Compiler Bug
+#if compiler(<6.1)
+
+#if canImport(GlibC)
 import Glibc
+#endif
+
+#if canImport(Darwin)
+import Darwin
+#endif
 
 /// Minimal mutex box for Linux Swift 6.0.x workaround
 final class _MutexBox<Value> {
