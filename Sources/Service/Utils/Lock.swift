@@ -26,7 +26,7 @@ final class Locked<Value: Sendable>: @unchecked Sendable {
     ///
     /// - Parameter default: The default value.
     init(default: Value) {
-        self.storage = Mutex(`default`)
+        self.storage = _MutexBox(`default`)
     }
 
     /// Convenience initializer for array literal values.
