@@ -284,7 +284,7 @@ func testServiceReset() async throws {
         serviceId1 = ServiceEnv.current.resolve(String.self)
 
         // reset clears cache and providers
-        ServiceEnv.current.resetAll()
+        ServiceEnv.current.reset()
 
         // Re-register service
         ServiceEnv.current.register(String.self) {
