@@ -258,6 +258,7 @@ struct MyService: ServiceKey {
 协议，用于以模块化、可复用的方式组织服务注册。
 
 **为什么使用 `@MainActor`？**
+
 服务装配通常发生在应用初始化阶段，这是应用生命周期的非常早期阶段。装配操作强烈依赖于执行顺序，通常在 `main.swift` 或 SwiftUI App 的 `init` 方法中执行，这些代码已经在主 actor 上运行。将装配操作约束到主 actor 可以确保线程安全，并为服务注册提供可预测的、顺序执行的上下文。
 
 **注意：** `ServiceAssembly` 标记为 `@MainActor` 以确保线程安全。`assemble` 方法必须在主 actor 上下文中调用。
