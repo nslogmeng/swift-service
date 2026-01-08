@@ -33,24 +33,21 @@ final class ServiceStorage: @unchecked Sendable {
     /// Creates a new service storage instance.
     init() {}
 
-    /// Gets or sets a service instance by its type.
+    /// Resolves a service instance by its type.
     /// If not in cache, attempts to create a new instance using the registered factory function and caches it.
     ///
     /// - Parameter type: The service type.
     /// - Returns: The service instance, or nil if not registered.
-    subscript<Service: Sendable>(_ type: Service.Type) -> Service? {
-        get {
-            let key = CacheKey(type)
-            if let service = caches[key] as? Service {
-                return service
-            }
-            if let factory = providers[key], let service = factory() as? Service {
-                caches[key] = service
-                return service
-            }
-            return nil
+    func resolve<Service: Sendable>(_ type: Service.Type) -> Service? {
+        let key = CacheKey(type)
+        if let service = caches[key] as? Service {
+            return service
         }
-        set { caches[CacheKey(type)] = newValue }
+        if let factory = providers[key], let service = factory() as? Service {
+            caches[key] = service
+            return service
+        }
+        return nil
     }
 
     /// Registers a service factory function.
@@ -58,10 +55,7 @@ final class ServiceStorage: @unchecked Sendable {
     /// - Parameters:
     ///   - type: The service type to register.
     ///   - factory: A factory function that creates the service instance.
-    func register<Service: Sendable>(
-        _ type: Service.Type,
-        factory: @escaping @Sendable () -> any Sendable
-    ) {
+    func register<Service: Sendable>(_ type: Service.Type, factory: @escaping @Sendable () -> any Sendable) {
         providers[CacheKey(type)] = factory
     }
 

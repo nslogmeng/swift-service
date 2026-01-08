@@ -94,8 +94,8 @@ extension ServiceEnv {
     ///
     /// - Parameter type: The service type to resolve.
     /// - Returns: The resolved service instance.
-    public subscript<Service: Sendable>(_ type: Service.Type) -> Service {
-        guard let service = storage[type] else {
+    public func resolve<Service: Sendable>(_ type: Service.Type) -> Service {
+        guard let service = storage.resolve(type) else {
             fatalError("Service: \(Service.self) must register in ServiceEnv")
         }
         return service
