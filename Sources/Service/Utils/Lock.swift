@@ -8,8 +8,8 @@ import Synchronization
 /// Provides safe concurrent access to the wrapped value.
 /// Used for internal state in service storage and context.
 @propertyWrapper
-final class Locked<Value: Sendable>: Sendable {
-    private let storage: Mutex<Value>
+final class Locked<Value: Sendable>: @unchecked Sendable {
+    private let storage: _MutexBox<Value>
 
     /// Returns the current value, locking for thread safety.
     var wrappedValue: Value {
@@ -44,3 +44,34 @@ final class Locked<Value: Sendable>: Sendable {
         self.init(default: nil)
     }
 }
+
+// work around for Linux Swift 6.0 Compiler Bug
+#if os(Linux) && compiler(<6.1)
+import Glibc
+
+/// Minimal mutex box for Linux Swift 6.0.x workaround
+final class _MutexBox<Value> {
+    private var value: Value
+    private var mutex = pthread_mutex_t()
+
+    init(_ value: Value) {
+        self.value = value
+        pthread_mutex_init(&mutex, nil)
+    }
+
+    deinit {
+        pthread_mutex_destroy(&mutex)
+    }
+
+    @inline(__always)
+    func withLock<R>(_ body: (inout Value) throws -> R) rethrows -> R {
+        pthread_mutex_lock(&mutex)
+        defer { pthread_mutex_unlock(&mutex) }
+        return try body(&value)
+    }
+}
+
+#else
+import Synchronization
+typealias _MutexBox<Value> = Mutex<Value>
+#endif
