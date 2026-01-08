@@ -185,8 +185,8 @@ ServiceEnv.current.assemble([
 ```swift
 // 预定义环境
 ServiceEnv.online  // 生产环境
+ServiceEnv.test    // 测试环境
 ServiceEnv.dev     // 开发环境
-ServiceEnv.inhouse // 内部测试环境
 
 // 创建自定义环境
 let testEnv = ServiceEnv(name: "test")
@@ -208,8 +208,13 @@ ServiceEnv.current.register(service)
 // 解析服务
 let service = ServiceEnv.current.resolve(MyService.self)
 
-// 重置所有缓存的服务
-ServiceEnv.current.reset()
+// 重置缓存的服务（保留已注册的提供者）
+// 服务将在下次解析时重新创建
+ServiceEnv.current.resetCaches()
+
+// 重置所有内容（清除缓存并移除所有提供者）
+// 调用此方法后，所有服务必须重新注册
+ServiceEnv.current.resetAll()
 ```
 
 ### @Service

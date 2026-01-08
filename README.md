@@ -185,8 +185,8 @@ Service environment that manages service registration, resolution, and lifecycle
 ```swift
 // Predefined environments
 ServiceEnv.online  // Production environment
+ServiceEnv.test    // Testing environment
 ServiceEnv.dev     // Development environment
-ServiceEnv.inhouse // Internal testing environment
 
 // Create custom environment
 let testEnv = ServiceEnv(name: "test")
@@ -208,8 +208,13 @@ ServiceEnv.current.register(service)
 // Resolve service
 let service = ServiceEnv.current.resolve(MyService.self)
 
-// Reset all cached services
-ServiceEnv.current.reset()
+// Reset cached services (keeps registered providers)
+// Services will be recreated on next resolution
+ServiceEnv.current.resetCaches()
+
+// Reset everything (clears cache and removes all providers)
+// All services must be re-registered after this
+ServiceEnv.current.resetAll()
 ```
 
 ### @Service
