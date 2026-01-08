@@ -313,7 +313,7 @@ func testServiceResetCaches() async throws {
 
         // First resolution - creates and caches instance
         serviceId1 = ServiceEnv.current.resolve(String.self)
-        
+
         // Second resolution - should return same cached instance
         serviceId2 = ServiceEnv.current.resolve(String.self)
         #expect(serviceId1 == serviceId2)
@@ -323,11 +323,11 @@ func testServiceResetCaches() async throws {
 
         // Third resolution - should create new instance using same provider
         serviceId3 = ServiceEnv.current.resolve(String.self)
-        
+
         // New instance created after resetCaches should be different
         #expect(serviceId1 != serviceId3)
         #expect(serviceId2 != serviceId3)
-        
+
         // Service should still be registered (provider still exists)
         let serviceId4 = ServiceEnv.current.resolve(String.self)
         #expect(!serviceId4.isEmpty)
@@ -344,15 +344,15 @@ func testResetCachesVsResetAll() async throws {
         }
 
         let service1 = ServiceEnv.current.resolve(String.self)
-        
+
         // resetCaches - provider still exists
         ServiceEnv.current.resetCaches()
         let service2 = ServiceEnv.current.resolve(String.self)
-        #expect(service1 != service2) // New instance created
-        
+        #expect(service1 != service2)  // New instance created
+
         // resetAll - provider removed
         ServiceEnv.current.resetAll()
-        
+
         // Service should no longer be registered
         // This will cause a fatalError, so we can't test it directly
         // But we can verify by re-registering
