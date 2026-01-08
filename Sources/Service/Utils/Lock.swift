@@ -2,8 +2,6 @@
 //  Copyright © 2025 Service Contributors. All rights reserved.
 //
 
-import Synchronization
-
 /// A thread-safe property wrapper using a mutex for value storage.
 /// Provides safe concurrent access to the wrapped value.
 /// Used for internal state in service storage and context.
@@ -47,13 +45,12 @@ final class Locked<Value: Sendable>: @unchecked Sendable {
 
 // work around for Swift 6.0 Compiler Bug
 #if compiler(<6.1)
-
-#if canImport(GlibC)
-import Glibc
+#if canImport(Glibc)
+    import Glibc
 #endif
 
 #if canImport(Darwin)
-import Darwin
+    import Darwin
 #endif
 
 /// Minimal mutex box for Linux Swift 6.0.x workaround
