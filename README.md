@@ -140,6 +140,42 @@ ServiceEnv.current.register(UserRepositoryProtocol.self) {
 }
 ```
 
+### 5. Service Assembly (Standardized Registration)
+
+For better organization and reusability, use `ServiceAssembly` to group related service registrations:
+
+```swift
+// Define an assembly
+struct DatabaseAssembly: ServiceAssembly {
+    func assemble(env: ServiceEnv) {
+        env.register(DatabaseProtocol.self) {
+            DatabaseService(connectionString: "sqlite://app.db")
+        }
+    }
+}
+
+struct NetworkAssembly: ServiceAssembly {
+    func assemble(env: ServiceEnv) {
+        env.register(NetworkServiceProtocol.self) {
+            let logger = env[LoggerProtocol.self]
+            return NetworkService(baseURL: "https://api.example.com", logger: logger)
+        }
+    }
+}
+
+// Assemble assemblies
+ServiceEnv.current.assemble(DatabaseAssembly())
+
+// Or assemble multiple assemblies at once
+ServiceEnv.current.assemble([
+    DatabaseAssembly(),
+    NetworkAssembly(),
+    RepositoryAssembly()
+])
+```
+
+This provides a standardized, modular way to organize service registrations, similar to Swinject's Assembly pattern.
+
 ## API Reference
 
 ### ServiceEnv
@@ -202,6 +238,35 @@ struct MyService: ServiceKey {
         MyService()
     }
 }
+```
+
+### ServiceAssembly
+
+Protocol for organizing service registrations in a modular, reusable way.
+
+```swift
+struct MyAssembly: ServiceAssembly {
+    func assemble(env: ServiceEnv) {
+        env.register(MyService.self) {
+            MyService()
+        }
+    }
+}
+
+// Assemble a single assembly
+ServiceEnv.current.assemble(MyAssembly())
+
+// Assemble multiple assemblies
+ServiceEnv.current.assemble([
+    DatabaseAssembly(),
+    NetworkAssembly()
+])
+
+// Or using variadic arguments
+ServiceEnv.current.assemble(
+    DatabaseAssembly(),
+    NetworkAssembly()
+)
 ```
 
 ## Why Service?
