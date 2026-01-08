@@ -59,9 +59,16 @@ final class ServiceStorage: @unchecked Sendable {
         providers[CacheKey(type)] = factory
     }
 
-    /// Resets all cached services.
-    /// This clears the entire service cache, forcing all services to be recreated on next resolution.
-    func reset() {
+    /// Clears all cached service instances.
+    /// Registered service providers remain intact, so services will be recreated
+    /// on the next resolution using their registered factory functions.
+    func resetCaches() {
+        caches.removeAll()
+    }
+
+    /// Clears all cached service instances and removes all registered service providers.
+    /// This completely resets the storage to its initial state.
+    func resetAll() {
         caches.removeAll()
         providers.removeAll()
     }

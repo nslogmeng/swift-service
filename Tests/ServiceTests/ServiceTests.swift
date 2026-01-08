@@ -201,10 +201,10 @@ func testServiceKeyProtocol() async throws {
 func testServiceEnvironments() async throws {
     #expect(ServiceEnv.online.name == "online")
     #expect(ServiceEnv.dev.name == "dev")
-    #expect(ServiceEnv.inhouse.name == "inhouse")
+    #expect(ServiceEnv.test.name == "test")
 
-    let customEnv = ServiceEnv(name: "test")
-    #expect(customEnv.name == "test")
+    let customEnv = ServiceEnv(name: "custom")
+    #expect(customEnv.name == "custom")
 }
 
 @Test("ServiceEnv can switch contexts")
@@ -270,9 +270,9 @@ func testServiceEnvSingletonBehavior() async throws {
     }
 }
 
-@Test("ServiceEnv reset functionality")
-func testServiceReset() async throws {
-    let env = ServiceEnv(name: "reset-test")
+@Test("ServiceEnv resetAll functionality")
+func testServiceResetAll() async throws {
+    let env = ServiceEnv(name: "reset-all-test")
     ServiceEnv.$current.withValue(env) {
         var serviceId1: String?
         var serviceId2: String?
@@ -283,8 +283,8 @@ func testServiceReset() async throws {
 
         serviceId1 = ServiceEnv.current.resolve(String.self)
 
-        // reset clears cache and providers
-        ServiceEnv.current.reset()
+        // resetAll clears cache and providers
+        ServiceEnv.current.resetAll()
 
         // Re-register service
         ServiceEnv.current.register(String.self) {
@@ -293,8 +293,74 @@ func testServiceReset() async throws {
 
         serviceId2 = ServiceEnv.current.resolve(String.self)
 
-        // Instances recreated after reset should be different
+        // Instances recreated after resetAll should be different
         #expect(serviceId1 != serviceId2)
+    }
+}
+
+@Test("ServiceEnv resetCaches functionality")
+func testServiceResetCaches() async throws {
+    let env = ServiceEnv(name: "reset-caches-test")
+    ServiceEnv.$current.withValue(env) {
+        var serviceId1: String?
+        var serviceId2: String?
+        var serviceId3: String?
+
+        // Register service
+        ServiceEnv.current.register(String.self) {
+            UUID().uuidString
+        }
+
+        // First resolution - creates and caches instance
+        serviceId1 = ServiceEnv.current.resolve(String.self)
+        
+        // Second resolution - should return same cached instance
+        serviceId2 = ServiceEnv.current.resolve(String.self)
+        #expect(serviceId1 == serviceId2)
+
+        // resetCaches clears cache but keeps providers
+        ServiceEnv.current.resetCaches()
+
+        // Third resolution - should create new instance using same provider
+        serviceId3 = ServiceEnv.current.resolve(String.self)
+        
+        // New instance created after resetCaches should be different
+        #expect(serviceId1 != serviceId3)
+        #expect(serviceId2 != serviceId3)
+        
+        // Service should still be registered (provider still exists)
+        let serviceId4 = ServiceEnv.current.resolve(String.self)
+        #expect(!serviceId4.isEmpty)
+    }
+}
+
+@Test("ServiceEnv resetCaches vs resetAll difference")
+func testResetCachesVsResetAll() async throws {
+    let env = ServiceEnv(name: "reset-comparison-test")
+    ServiceEnv.$current.withValue(env) {
+        // Register service
+        ServiceEnv.current.register(String.self) {
+            UUID().uuidString
+        }
+
+        let service1 = ServiceEnv.current.resolve(String.self)
+        
+        // resetCaches - provider still exists
+        ServiceEnv.current.resetCaches()
+        let service2 = ServiceEnv.current.resolve(String.self)
+        #expect(service1 != service2) // New instance created
+        
+        // resetAll - provider removed
+        ServiceEnv.current.resetAll()
+        
+        // Service should no longer be registered
+        // This will cause a fatalError, so we can't test it directly
+        // But we can verify by re-registering
+        ServiceEnv.current.register(String.self) {
+            UUID().uuidString
+        }
+        let service3 = ServiceEnv.current.resolve(String.self)
+        #expect(!service3.isEmpty)
     }
 }
 

@@ -33,7 +33,7 @@ public struct ServiceEnv: Sendable {
     public let name: String
 
     /// Internal storage for caching resolved service instances.
-    internal let storage = ServiceStorage()
+    let storage = ServiceStorage()
 
     /// Creates a new service environment with the specified name.
     ///
@@ -69,10 +69,53 @@ public struct ServiceEnv: Sendable {
         storage.register(Service.self, factory: { instance })
     }
 
-    /// Resets all cached services in this environment.
-    /// This clears the entire service cache, forcing all services to be recreated on next resolution.
-    public func reset() {
-        storage.reset()
+    /// Clears all cached service instances.
+    /// Registered service providers remain intact, so services will be recreated
+    /// on the next resolution using their registered factory functions.
+    ///
+    /// This is useful when you want to force services to be recreated without
+    /// re-registering them, such as in testing scenarios where you need fresh instances.
+    ///
+    /// Usage example:
+    /// ```swift
+    /// // Register a service
+    /// ServiceEnv.current.register(String.self) {
+    ///     UUID().uuidString
+    /// }
+    ///
+    /// let service1 = ServiceEnv.current.resolve(String.self)
+    ///
+    /// // Clear cache - next resolution will create a new instance
+    /// ServiceEnv.current.resetCaches()
+    /// let service2 = ServiceEnv.current.resolve(String.self)
+    /// // service1 != service2 (new instance created)
+    /// ```
+    public func resetCaches() {
+        storage.resetCaches()
+    }
+
+    /// Clears all cached service instances and removes all registered service providers.
+    /// This completely resets the service environment to its initial state.
+    ///
+    /// After calling this method, all services must be re-registered before they can be resolved.
+    ///
+    /// Usage example:
+    /// ```swift
+    /// // Register services
+    /// ServiceEnv.current.register(DatabaseProtocol.self) {
+    ///     DatabaseService()
+    /// }
+    ///
+    /// // Reset everything
+    /// ServiceEnv.current.resetAll()
+    ///
+    /// // Services must be re-registered
+    /// ServiceEnv.current.register(DatabaseProtocol.self) {
+    ///     DatabaseService()
+    /// }
+    /// ```
+    public func resetAll() {
+        storage.resetAll()
     }
 }
 
@@ -81,8 +124,8 @@ extension ServiceEnv {
     /// Production environment for live application usage.
     public static let online: ServiceEnv = ServiceEnv(name: "online")
 
-    /// Internal testing environment for in-house builds.
-    public static let inhouse: ServiceEnv = ServiceEnv(name: "inhouse")
+    /// Internal testing environment for test builds.
+    public static let test: ServiceEnv = ServiceEnv(name: "test")
 
     /// Development environment for local development and debugging.
     public static let dev: ServiceEnv = ServiceEnv(name: "dev")
