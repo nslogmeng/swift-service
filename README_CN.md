@@ -140,6 +140,42 @@ ServiceEnv.current.register(UserRepositoryProtocol.self) {
 }
 ```
 
+### 5. 服务装配（标准化注册）
+
+为了更好地组织和复用，使用 `ServiceAssembly` 来分组相关的服务注册：
+
+```swift
+// 定义一个装配
+struct DatabaseAssembly: ServiceAssembly {
+    func assemble(env: ServiceEnv) {
+        env.register(DatabaseProtocol.self) {
+            DatabaseService(connectionString: "sqlite://app.db")
+        }
+    }
+}
+
+struct NetworkAssembly: ServiceAssembly {
+    func assemble(env: ServiceEnv) {
+        env.register(NetworkServiceProtocol.self) {
+            let logger = env[LoggerProtocol.self]
+            return NetworkService(baseURL: "https://api.example.com", logger: logger)
+        }
+    }
+}
+
+// 装配服务
+ServiceEnv.current.assemble(DatabaseAssembly())
+
+// 或一次性装配多个服务
+ServiceEnv.current.assemble([
+    DatabaseAssembly(),
+    NetworkAssembly(),
+    RepositoryAssembly()
+])
+```
+
+这提供了一种标准化的、模块化的方式来组织服务注册，类似于 Swinject 的 Assembly 模式。
+
 ## API 参考
 
 ### ServiceEnv
@@ -202,6 +238,35 @@ struct MyService: ServiceKey {
         MyService()
     }
 }
+```
+
+### ServiceAssembly
+
+协议，用于以模块化、可复用的方式组织服务注册。
+
+```swift
+struct MyAssembly: ServiceAssembly {
+    func assemble(env: ServiceEnv) {
+        env.register(MyService.self) {
+            MyService()
+        }
+    }
+}
+
+// 装配单个服务
+ServiceEnv.current.assemble(MyAssembly())
+
+// 装配多个服务
+ServiceEnv.current.assemble([
+    DatabaseAssembly(),
+    NetworkAssembly()
+])
+
+// 或使用可变参数
+ServiceEnv.current.assemble(
+    DatabaseAssembly(),
+    NetworkAssembly()
+)
 ```
 
 ## 为什么选择 Service？
