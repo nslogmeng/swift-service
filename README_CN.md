@@ -140,7 +140,43 @@ ServiceEnv.current.register(UserRepositoryProtocol.self) {
 }
 ```
 
-### 5. 服务装配（标准化注册）
+### 5. MainActor 服务（UI 组件）
+
+对于必须在主线程运行的 UI 相关服务（如视图模型、UI 控制器），swift-service 提供了专门的 MainActor 安全 API。
+
+**背景**：在 Swift 6 的严格并发模型中，`@MainActor` 类是线程安全的（所有访问都在主线程上序列化），但**不会**自动成为 `Sendable`。这意味着它们无法使用需要 `Sendable` 遵循的标准 `register`/`resolve` API。
+
+```swift
+// 定义一个 MainActor 服务（不需要遵循 Sendable）
+@MainActor
+final class ViewModelService {
+    var data: String = ""
+    func loadData() { data = "loaded" }
+}
+
+// 在主 actor 上下文中注册
+await MainActor.run {
+    ServiceEnv.current.registerMain(ViewModelService.self) {
+        ViewModelService()
+    }
+}
+
+// 使用直接方法解析
+@MainActor
+func setupUI() {
+    let viewModel = ServiceEnv.current.resolveMain(ViewModelService.self)
+    viewModel.loadData()
+}
+
+// 或使用 @MainService 属性包装器
+@MainActor
+class MyViewController {
+    @MainService
+    var viewModel: ViewModelService
+}
+```
+
+### 6. 服务装配（标准化注册）
 
 为了更好地组织和复用，使用 `ServiceAssembly` 来分组相关的服务注册：
 
@@ -216,28 +252,59 @@ ServiceEnv.current.register(service)
 // 解析服务
 let service = ServiceEnv.current.resolve(MyService.self)
 
+// 注册 MainActor 服务（用于 UI 组件）
+await MainActor.run {
+    ServiceEnv.current.registerMain(ViewModelService.self) {
+        ViewModelService()
+    }
+}
+
+// 解析 MainActor 服务
+@MainActor
+func example() {
+    let viewModel = ServiceEnv.current.resolveMain(ViewModelService.self)
+}
+
 // 重置缓存的服务（保留已注册的提供者）
 // 服务将在下次解析时重新创建
-ServiceEnv.current.resetCaches()
+// 此方法是异步的，确保所有缓存（包括 MainActor）都已清除
+await ServiceEnv.current.resetCaches()
 
 // 重置所有内容（清除缓存并移除所有提供者）
 // 调用此方法后，所有服务必须重新注册
-ServiceEnv.current.resetAll()
+await ServiceEnv.current.resetAll()
 ```
 
 ### @Service
 
-属性包装器，用于注入服务。
+属性包装器，用于注入 Sendable 服务。
 
 ```swift
 struct MyController {
     // 从属性类型推断服务类型
     @Service
     var myService: MyService
-    
+
     // 显式指定服务类型
     @Service(MyService.self)
     var anotherService: MyService
+}
+```
+
+### @MainService
+
+属性包装器，用于注入 MainActor 隔离的服务。适用于不遵循 `Sendable` 的 UI 组件，如视图模型和控制器。
+
+```swift
+@MainActor
+class MyViewController {
+    // 从属性类型推断服务类型
+    @MainService
+    var viewModel: ViewModelService
+
+    // 显式指定服务类型
+    @MainService(ViewModelService.self)
+    var anotherViewModel: ViewModelService
 }
 ```
 

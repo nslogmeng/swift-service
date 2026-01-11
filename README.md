@@ -140,7 +140,43 @@ ServiceEnv.current.register(UserRepositoryProtocol.self) {
 }
 ```
 
-### 5. Service Assembly (Standardized Registration)
+### 5. MainActor Services (UI Components)
+
+For UI-related services that must run on the main actor (e.g., view models, UI controllers), swift-service provides dedicated MainActor-safe APIs.
+
+**Background**: In Swift 6's strict concurrency model, `@MainActor` classes are thread-safe (all access is serialized on the main thread) but are NOT automatically `Sendable`. This means they cannot be used with the standard `register`/`resolve` APIs which require `Sendable` conformance.
+
+```swift
+// Define a MainActor service (does NOT need to conform to Sendable)
+@MainActor
+final class ViewModelService {
+    var data: String = ""
+    func loadData() { data = "loaded" }
+}
+
+// Register on main actor context
+await MainActor.run {
+    ServiceEnv.current.registerMain(ViewModelService.self) {
+        ViewModelService()
+    }
+}
+
+// Resolve using direct method
+@MainActor
+func setupUI() {
+    let viewModel = ServiceEnv.current.resolveMain(ViewModelService.self)
+    viewModel.loadData()
+}
+
+// Or use the @MainService property wrapper
+@MainActor
+class MyViewController {
+    @MainService
+    var viewModel: ViewModelService
+}
+```
+
+### 6. Service Assembly (Standardized Registration)
 
 For better organization and reusability, use `ServiceAssembly` to group related service registrations:
 
@@ -211,28 +247,59 @@ ServiceEnv.current.register(service)
 // Resolve service
 let service = ServiceEnv.current.resolve(MyService.self)
 
+// Register MainActor service (for UI components)
+await MainActor.run {
+    ServiceEnv.current.registerMain(ViewModelService.self) {
+        ViewModelService()
+    }
+}
+
+// Resolve MainActor service
+@MainActor
+func example() {
+    let viewModel = ServiceEnv.current.resolveMain(ViewModelService.self)
+}
+
 // Reset cached services (keeps registered providers)
 // Services will be recreated on next resolution
-ServiceEnv.current.resetCaches()
+// This is async to ensure all caches (including MainActor) are cleared
+await ServiceEnv.current.resetCaches()
 
 // Reset everything (clears cache and removes all providers)
 // All services must be re-registered after this
-ServiceEnv.current.resetAll()
+await ServiceEnv.current.resetAll()
 ```
 
 ### @Service
 
-Property wrapper for injecting services.
+Property wrapper for injecting Sendable services.
 
 ```swift
 struct MyController {
     // Type inferred from property type
     @Service
     var myService: MyService
-    
+
     // Explicit type specification
     @Service(MyService.self)
     var anotherService: MyService
+}
+```
+
+### @MainService
+
+Property wrapper for injecting MainActor-isolated services. Use this for UI components like view models and controllers that don't conform to `Sendable`.
+
+```swift
+@MainActor
+class MyViewController {
+    // Type inferred from property type
+    @MainService
+    var viewModel: ViewModelService
+
+    // Explicit type specification
+    @MainService(ViewModelService.self)
+    var anotherViewModel: ViewModelService
 }
 ```
 

@@ -6,6 +6,13 @@
 /// This class provides thread-safe service storage and retrieval using locking mechanisms
 /// to ensure safe concurrent access. Service instances are created and cached on first resolution,
 /// and subsequent resolutions return the same instance (singleton behavior).
+///
+/// The storage supports two categories of services:
+/// - **Sendable services**: Thread-safe services that can be shared across concurrent contexts.
+///   These use `@Locked` dictionaries for synchronization.
+/// - **MainActor services**: Services isolated to the main actor, typically UI-related components
+///   like view models. These use `@MainActor`-isolated storage and don't require locks since
+///   all access is serialized on the main thread.
 final class ServiceStorage: @unchecked Sendable {
     /// A cache key that uniquely identifies a service instance in storage.
     /// Uses the service type's ObjectIdentifier as the key.
@@ -21,19 +28,38 @@ final class ServiceStorage: @unchecked Sendable {
         }
     }
 
-    /// Thread-safe cache storage for service instances.
+    // MARK: - Sendable Services Storage
+
+    /// Thread-safe cache storage for Sendable service instances.
     /// Uses a locked dictionary to ensure safe concurrent access.
     @Locked
     private var caches: [CacheKey: any Sendable]
 
-    /// Thread-safe storage for service factory functions.
+    /// Thread-safe storage for Sendable service factory functions.
     @Locked
     private var providers: [CacheKey: @Sendable () -> any Sendable]
+
+    // MARK: - MainActor Services Storage
+
+    /// Cache storage for MainActor-isolated service instances.
+    /// No locking is needed since all access is serialized on the main actor.
+    /// These services are typically UI-related components (view models, controllers)
+    /// that are bound to the main thread but don't conform to Sendable.
+    @MainActor
+    private var mainCaches: [CacheKey: Any] = [:]
+
+    /// Storage for MainActor-isolated service factory functions.
+    /// Factory functions are marked with @MainActor to ensure service creation
+    /// happens on the main thread.
+    @MainActor
+    private var mainProviders: [CacheKey: @MainActor () -> Any] = [:]
 
     /// Creates a new service storage instance.
     init() {}
 
-    /// Resolves a service instance by its type.
+    // MARK: - Sendable Services
+
+    /// Resolves a Sendable service instance by its type.
     /// If not in cache, attempts to create a new instance using the registered factory function and caches it.
     ///
     /// - Parameter type: The service type.
@@ -50,7 +76,7 @@ final class ServiceStorage: @unchecked Sendable {
         return nil
     }
 
-    /// Registers a service factory function.
+    /// Registers a Sendable service factory function.
     ///
     /// - Parameters:
     ///   - type: The service type to register.
@@ -59,17 +85,70 @@ final class ServiceStorage: @unchecked Sendable {
         providers[CacheKey(type)] = factory
     }
 
-    /// Clears all cached service instances.
-    /// Registered service providers remain intact, so services will be recreated
-    /// on the next resolution using their registered factory functions.
-    func resetCaches() {
-        caches.removeAll()
+    // MARK: - MainActor Services
+
+    /// Resolves a MainActor-isolated service instance by its type.
+    /// If not in cache, attempts to create a new instance using the registered factory function and caches it.
+    ///
+    /// This method is designed for services that are bound to the main actor, such as UI view models
+    /// and controllers. These services don't need to conform to Sendable since they're always
+    /// accessed from the main thread.
+    ///
+    /// - Parameter type: The service type.
+    /// - Returns: The service instance, or nil if not registered.
+    @MainActor
+    func resolveMain<Service>(_ type: Service.Type) -> Service? {
+        let key = CacheKey(type)
+        if let service = mainCaches[key] as? Service {
+            return service
+        }
+        if let factory = mainProviders[key], let service = factory() as? Service {
+            mainCaches[key] = service
+            return service
+        }
+        return nil
     }
 
-    /// Clears all cached service instances and removes all registered service providers.
+    /// Registers a MainActor-isolated service factory function.
+    ///
+    /// Use this for services that must run on the main actor, such as UI view models and controllers.
+    /// The factory function is marked with @MainActor to ensure service creation happens on the main thread.
+    ///
+    /// - Parameters:
+    ///   - type: The service type to register.
+    ///   - factory: A MainActor-isolated factory function that creates the service instance.
+    @MainActor
+    func registerMain<Service>(_ type: Service.Type, factory: @escaping @MainActor () -> Service) {
+        mainProviders[CacheKey(type)] = factory
+    }
+
+    // MARK: - Reset
+
+    /// Clears all cached service instances (both Sendable and MainActor services).
+    /// Registered service providers remain intact, so services will be recreated
+    /// on the next resolution using their registered factory functions.
+    ///
+    /// This method is async to ensure MainActor caches are properly cleared
+    /// on the main thread, guaranteeing consistency when the method returns.
+    func resetCaches() async {
+        caches.removeAll()
+        await MainActor.run {
+            mainCaches.removeAll()
+        }
+    }
+
+    /// Clears all cached service instances and removes all registered service providers
+    /// (both Sendable and MainActor services).
     /// This completely resets the storage to its initial state.
-    func resetAll() {
+    ///
+    /// This method is async to ensure MainActor storage is properly cleared
+    /// on the main thread, guaranteeing consistency when the method returns.
+    func resetAll() async {
         caches.removeAll()
         providers.removeAll()
+        await MainActor.run {
+            mainCaches.removeAll()
+            mainProviders.removeAll()
+        }
     }
 }

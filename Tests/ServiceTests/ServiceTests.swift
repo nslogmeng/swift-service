@@ -276,7 +276,7 @@ func testServiceEnvSingletonBehavior() async throws {
 @Test("ServiceEnv resetAll functionality")
 func testServiceResetAll() async throws {
     let env = ServiceEnv(name: "reset-all-test")
-    ServiceEnv.$current.withValue(env) {
+    await ServiceEnv.$current.withValue(env) {
         var serviceId1: String?
         var serviceId2: String?
 
@@ -286,8 +286,8 @@ func testServiceResetAll() async throws {
 
         serviceId1 = ServiceEnv.current.resolve(String.self)
 
-        // resetAll clears cache and providers
-        ServiceEnv.current.resetAll()
+        // resetAll clears cache and providers (async to ensure MainActor caches are cleared)
+        await ServiceEnv.current.resetAll()
 
         // Re-register service
         ServiceEnv.current.register(String.self) {
@@ -304,7 +304,7 @@ func testServiceResetAll() async throws {
 @Test("ServiceEnv resetCaches functionality")
 func testServiceResetCaches() async throws {
     let env = ServiceEnv(name: "reset-caches-test")
-    ServiceEnv.$current.withValue(env) {
+    await ServiceEnv.$current.withValue(env) {
         var serviceId1: String?
         var serviceId2: String?
         var serviceId3: String?
@@ -321,8 +321,8 @@ func testServiceResetCaches() async throws {
         serviceId2 = ServiceEnv.current.resolve(String.self)
         #expect(serviceId1 == serviceId2)
 
-        // resetCaches clears cache but keeps providers
-        ServiceEnv.current.resetCaches()
+        // resetCaches clears cache but keeps providers (async to ensure MainActor caches are cleared)
+        await ServiceEnv.current.resetCaches()
 
         // Third resolution - should create new instance using same provider
         serviceId3 = ServiceEnv.current.resolve(String.self)
@@ -340,7 +340,7 @@ func testServiceResetCaches() async throws {
 @Test("ServiceEnv resetCaches vs resetAll difference")
 func testResetCachesVsResetAll() async throws {
     let env = ServiceEnv(name: "reset-comparison-test")
-    ServiceEnv.$current.withValue(env) {
+    await ServiceEnv.$current.withValue(env) {
         // Register service
         ServiceEnv.current.register(String.self) {
             UUID().uuidString
@@ -348,13 +348,13 @@ func testResetCachesVsResetAll() async throws {
 
         let service1 = ServiceEnv.current.resolve(String.self)
 
-        // resetCaches - provider still exists
-        ServiceEnv.current.resetCaches()
+        // resetCaches - provider still exists (async to ensure MainActor caches are cleared)
+        await ServiceEnv.current.resetCaches()
         let service2 = ServiceEnv.current.resolve(String.self)
         #expect(service1 != service2)  // New instance created
 
-        // resetAll - provider removed
-        ServiceEnv.current.resetAll()
+        // resetAll - provider removed (async to ensure MainActor storage is cleared)
+        await ServiceEnv.current.resetAll()
 
         // Service should no longer be registered
         // This will cause a fatalError, so we can't test it directly
@@ -600,4 +600,239 @@ func testAssemblyWithDifferentEnvironments() async throws {
     #expect(service1 != nil)
     #expect(service2 != nil)
     #expect(service1?.connect() == service2?.connect())  // Same implementation
+}
+
+// MARK: - MainActor Service Tests
+
+/// A MainActor-isolated service for testing.
+/// This class is thread-safe (all access serialized on main thread) but NOT Sendable.
+@MainActor
+final class ViewModelService {
+    var data: String = "initial"
+    var loadCount: Int = 0
+
+    func loadData() {
+        data = "loaded"
+        loadCount += 1
+    }
+}
+
+/// A simple MainActor-isolated class for testing custom factory registration.
+@MainActor
+final class MainActorConfigService {
+    var config: String = "default-config"
+}
+
+@Test("MainActor service registration and resolution")
+func testMainActorServiceRegistration() async throws {
+    let testEnv = ServiceEnv(name: "mainactor-test")
+    await ServiceEnv.$current.withValue(testEnv) {
+        await MainActor.run {
+            // Register MainActor service
+            ServiceEnv.current.registerMain(ViewModelService.self) {
+                ViewModelService()
+            }
+
+            // Resolve and verify
+            let service = ServiceEnv.current.resolveMain(ViewModelService.self)
+            #expect(service.data == "initial")
+
+            // Modify and verify state
+            service.loadData()
+            #expect(service.data == "loaded")
+            #expect(service.loadCount == 1)
+        }
+    }
+}
+
+@Test("MainActor service singleton behavior")
+func testMainActorServiceSingleton() async throws {
+    let testEnv = ServiceEnv(name: "mainactor-singleton-test")
+    await ServiceEnv.$current.withValue(testEnv) {
+        await MainActor.run {
+            // Register MainActor service
+            ServiceEnv.current.registerMain(ViewModelService.self) {
+                ViewModelService()
+            }
+
+            // Resolve twice - should return same instance
+            let service1 = ServiceEnv.current.resolveMain(ViewModelService.self)
+            let service2 = ServiceEnv.current.resolveMain(ViewModelService.self)
+
+            // Verify singleton behavior
+            service1.loadData()
+            #expect(service1.loadCount == 1)
+            #expect(service2.loadCount == 1)  // Same instance
+
+            service2.loadData()
+            #expect(service1.loadCount == 2)  // Same instance
+            #expect(service2.loadCount == 2)
+        }
+    }
+}
+
+@Test("MainActor service with custom factory configuration")
+func testMainActorServiceCustomFactory() async throws {
+    let testEnv = ServiceEnv(name: "mainactor-factory-test")
+    await ServiceEnv.$current.withValue(testEnv) {
+        await MainActor.run {
+            // Register with a custom factory that configures the service
+            ServiceEnv.current.registerMain(MainActorConfigService.self) {
+                let service = MainActorConfigService()
+                service.config = "custom-config"
+                return service
+            }
+
+            // Resolve and verify custom configuration
+            let service = ServiceEnv.current.resolveMain(MainActorConfigService.self)
+            #expect(service.config == "custom-config")
+        }
+    }
+}
+
+@Test("MainActor service direct instance registration")
+func testMainActorServiceDirectInstance() async throws {
+    let testEnv = ServiceEnv(name: "mainactor-instance-test")
+    await ServiceEnv.$current.withValue(testEnv) {
+        await MainActor.run {
+            // Create instance first
+            let instance = ViewModelService()
+            instance.data = "pre-configured"
+
+            // Register instance directly
+            ServiceEnv.current.registerMain(instance)
+
+            // Resolve and verify it's the same instance
+            let resolved = ServiceEnv.current.resolveMain(ViewModelService.self)
+            #expect(resolved.data == "pre-configured")
+        }
+    }
+}
+
+@Test("MainService property wrapper")
+func testMainServicePropertyWrapper() async throws {
+    let testEnv = ServiceEnv(name: "mainservice-wrapper-test")
+    await ServiceEnv.$current.withValue(testEnv) {
+        await MainActor.run {
+            // Register MainActor service
+            ServiceEnv.current.registerMain(ViewModelService.self) {
+                ViewModelService()
+            }
+
+            // Use property wrapper in a MainActor context
+            @MainActor
+            class TestController {
+                @MainService
+                var viewModel: ViewModelService
+            }
+
+            let controller = TestController()
+            #expect(controller.viewModel.data == "initial")
+
+            controller.viewModel.loadData()
+            #expect(controller.viewModel.data == "loaded")
+        }
+    }
+}
+
+@Test("MainActor service environment isolation")
+func testMainActorServiceIsolation() async throws {
+    let env1 = ServiceEnv(name: "mainactor-env1")
+    let env2 = ServiceEnv(name: "mainactor-env2")
+
+    // Register different services in different environments
+    await ServiceEnv.$current.withValue(env1) {
+        await MainActor.run {
+            ServiceEnv.current.registerMain(ViewModelService.self) {
+                let service = ViewModelService()
+                service.data = "env1-data"
+                return service
+            }
+        }
+    }
+
+    await ServiceEnv.$current.withValue(env2) {
+        await MainActor.run {
+            ServiceEnv.current.registerMain(ViewModelService.self) {
+                let service = ViewModelService()
+                service.data = "env2-data"
+                return service
+            }
+        }
+    }
+
+    // Verify isolation
+    await ServiceEnv.$current.withValue(env1) {
+        await MainActor.run {
+            let service = ServiceEnv.current.resolveMain(ViewModelService.self)
+            #expect(service.data == "env1-data")
+        }
+    }
+
+    await ServiceEnv.$current.withValue(env2) {
+        await MainActor.run {
+            let service = ServiceEnv.current.resolveMain(ViewModelService.self)
+            #expect(service.data == "env2-data")
+        }
+    }
+}
+
+@Test("Reset clears MainActor service caches")
+func testResetClearsMainActorCaches() async throws {
+    let testEnv = ServiceEnv(name: "mainactor-reset-test")
+    await ServiceEnv.$current.withValue(testEnv) {
+        await MainActor.run {
+            // Register MainActor service
+            ServiceEnv.current.registerMain(ViewModelService.self) {
+                ViewModelService()
+            }
+
+            // Resolve and modify
+            let service1 = ServiceEnv.current.resolveMain(ViewModelService.self)
+            service1.loadData()
+            #expect(service1.loadCount == 1)
+        }
+
+        // Reset caches (async ensures MainActor caches are cleared)
+        await ServiceEnv.current.resetCaches()
+
+        await MainActor.run {
+            // Resolve again - should be a new instance
+            let service2 = ServiceEnv.current.resolveMain(ViewModelService.self)
+            #expect(service2.loadCount == 0)  // New instance, not modified
+            #expect(service2.data == "initial")
+        }
+    }
+}
+
+@Test("ResetAll clears MainActor service providers")
+func testResetAllClearsMainActorProviders() async throws {
+    let testEnv = ServiceEnv(name: "mainactor-resetall-test")
+    await ServiceEnv.$current.withValue(testEnv) {
+        await MainActor.run {
+            // Register MainActor service
+            ServiceEnv.current.registerMain(ViewModelService.self) {
+                ViewModelService()
+            }
+
+            // Verify registration works
+            let _ = ServiceEnv.current.resolveMain(ViewModelService.self)
+        }
+
+        // Reset all (async ensures MainActor storage is cleared)
+        await ServiceEnv.current.resetAll()
+
+        await MainActor.run {
+            // Re-register service (previous provider was removed)
+            ServiceEnv.current.registerMain(ViewModelService.self) {
+                let service = ViewModelService()
+                service.data = "re-registered"
+                return service
+            }
+
+            // Verify new registration works
+            let service = ServiceEnv.current.resolveMain(ViewModelService.self)
+            #expect(service.data == "re-registered")
+        }
+    }
 }
