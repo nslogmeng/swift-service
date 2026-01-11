@@ -31,31 +31,7 @@ func testCompleteFlow() async throws {
             return NetworkService(baseURL: "https://api.example.com", logger: logger)
         }
 
-        class UserService {
-            @Service
-            var userRepository: UserRepositoryProtocol
-
-            @Service
-            var networkService: NetworkServiceProtocol
-
-            @Service
-            var logger: LoggerProtocol
-
-            func processUser(name: String) async throws -> User {
-                logger.info("Processing user: \(name)")
-
-                // Simulate API call
-                _ = try await networkService.get(url: "/validate-user")
-
-                // Create user
-                let user = userRepository.createUser(name: name)
-
-                logger.info("User processed successfully: \(user.id)")
-                return user
-            }
-        }
-
-        let userService = UserService()
+        let userService = UserServiceClass()
         return try await userService.processUser(name: "Integration Test User")
     }
 
