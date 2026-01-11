@@ -4,6 +4,7 @@
 
 import Foundation
 import Testing
+
 @testable import Service
 
 // MARK: - Property Wrapper Tests
@@ -55,17 +56,17 @@ func testServicePropertyWrapperExplicitType() async throws {
         ServiceEnv.current.register(DatabaseProtocol.self) {
             DatabaseService(connectionString: "sqlite://explicit.db")
         }
-        
+
         struct DatabaseController {
             // Use explicit type initializer
             @Service(DatabaseProtocol.self)
             var database: DatabaseProtocol
-            
+
             func getConnectionInfo() -> String {
                 return database.connect()
             }
         }
-        
+
         let controller = DatabaseController()
         let connectionInfo = controller.getConnectionInfo()
         #expect(connectionInfo.contains("sqlite://explicit.db"))

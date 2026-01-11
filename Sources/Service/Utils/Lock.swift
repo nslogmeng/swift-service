@@ -19,7 +19,7 @@ final class Locked<Value: Sendable>: @unchecked Sendable {
     var projectedValue: Locked<Value> {
         return self
     }
-    
+
     /// Executes a closure with exclusive access to the wrapped value.
     /// This is useful for performing atomic operations that require multiple steps.
     ///

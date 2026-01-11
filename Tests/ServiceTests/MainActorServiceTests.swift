@@ -4,6 +4,7 @@
 
 import Foundation
 import Testing
+
 @testable import Service
 
 // MARK: - MainActor Service Tests
@@ -17,18 +18,18 @@ func testResolveMainReturnsSameInstance() async throws {
             ServiceEnv.current.registerMain(ViewModelService.self) {
                 ViewModelService()
             }
-            
+
             // Resolve multiple times
             let service1 = ServiceEnv.current.resolveMain(ViewModelService.self)
             let service2 = ServiceEnv.current.resolveMain(ViewModelService.self)
             let service3 = ServiceEnv.current.resolveMain(ViewModelService.self)
-            
+
             // All should be the same instance
             service1.loadData()
             #expect(service1.loadCount == 1)
             #expect(service2.loadCount == 1)  // Same instance
             #expect(service3.loadCount == 1)  // Same instance
-            
+
             service2.loadData()
             #expect(service1.loadCount == 2)  // Same instance
             #expect(service2.loadCount == 2)
@@ -46,17 +47,17 @@ func testResolveMainCreatesNewInstanceAfterCacheClear() async throws {
             ServiceEnv.current.registerMain(ViewModelService.self) {
                 ViewModelService()
             }
-            
+
             // Resolve and modify
             let service1 = ServiceEnv.current.resolveMain(ViewModelService.self)
             service1.loadData()
             service1.loadData()
             #expect(service1.loadCount == 2)
         }
-        
+
         // Clear cache
         await ServiceEnv.current.resetCaches()
-        
+
         await MainActor.run {
             // Resolve again - should be new instance
             let service2 = ServiceEnv.current.resolveMain(ViewModelService.self)
@@ -75,39 +76,39 @@ func testResolveMainWithDifferentTypes() async throws {
             class ServiceA {
                 var value: String = "A"
             }
-            
+
             @MainActor
             class ServiceB {
                 var value: String = "B"
             }
-            
+
             @MainActor
             class ServiceC {
                 var value: String = "C"
             }
-            
+
             // Register multiple different types
             ServiceEnv.current.registerMain(ServiceA.self) {
                 ServiceA()
             }
-            
+
             ServiceEnv.current.registerMain(ServiceB.self) {
                 ServiceB()
             }
-            
+
             ServiceEnv.current.registerMain(ServiceC.self) {
                 ServiceC()
             }
-            
+
             // Resolve each type
             let serviceA = ServiceEnv.current.resolveMain(ServiceA.self)
             let serviceB = ServiceEnv.current.resolveMain(ServiceB.self)
             let serviceC = ServiceEnv.current.resolveMain(ServiceC.self)
-            
+
             #expect(serviceA.value == "A")
             #expect(serviceB.value == "B")
             #expect(serviceC.value == "C")
-            
+
             // Verify they are different instances
             serviceA.value = "Modified A"
             #expect(serviceA.value == "Modified A")
@@ -342,20 +343,20 @@ func testMainActorServiceWithServiceKey() async throws {
             @preconcurrency
             final class MainActorKeyService: ServiceKey {
                 var value: String = "default-value"
-                
+
                 nonisolated static var `default`: MainActorKeyService {
                     // This is safe because we're creating a new instance
                     MainActorKeyService()
                 }
             }
-            
+
             // Register using ServiceKey
             ServiceEnv.current.registerMain(MainActorKeyService.self)
-            
+
             // Resolve and verify
             let service = ServiceEnv.current.resolveMain(MainActorKeyService.self)
             #expect(service.value == "default-value")
-            
+
             // Verify singleton behavior
             let service2 = ServiceEnv.current.resolveMain(MainActorKeyService.self)
             service.value = "modified"
@@ -373,17 +374,17 @@ func testMainServicePropertyWrapperExplicitType() async throws {
             ServiceEnv.current.registerMain(ViewModelService.self) {
                 ViewModelService()
             }
-            
+
             // Use explicit type initializer
             @MainActor
             class TestController {
                 @MainService(ViewModelService.self)
                 var viewModel: ViewModelService
             }
-            
+
             let controller = TestController()
             #expect(controller.viewModel.data == "initial")
-            
+
             controller.viewModel.loadData()
             #expect(controller.viewModel.data == "loaded")
         }

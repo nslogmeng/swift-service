@@ -4,6 +4,7 @@
 
 import Foundation
 import Testing
+
 @testable import Service
 
 // MARK: - ServiceEnv Tests
@@ -181,16 +182,16 @@ func testRegisterSendableServiceInstance() async throws {
     ServiceEnv.$current.withValue(testEnv) {
         // Create instance first
         let instance = DatabaseService(connectionString: "sqlite://direct.db")
-        
+
         // Register instance directly as DatabaseProtocol
         // Note: We need to explicitly specify the protocol type
         ServiceEnv.current.register(DatabaseProtocol.self) { instance }
-        
+
         // Resolve and verify it's the same instance
         let resolved = ServiceEnv.current.resolve(DatabaseProtocol.self)
         let connectionInfo = resolved.connect()
         #expect(connectionInfo.contains("sqlite://direct.db"))
-        
+
         // Verify it's the same instance (singleton behavior)
         let resolved2 = ServiceEnv.current.resolve(DatabaseProtocol.self)
         #expect(connectionInfo == resolved2.connect())
@@ -205,20 +206,20 @@ func testServiceReRegistration() async throws {
         ServiceEnv.current.register(String.self) {
             "first-registration"
         }
-        
+
         let service1 = ServiceEnv.current.resolve(String.self)
         #expect(service1 == "first-registration")
-        
+
         // Re-register with different factory
         ServiceEnv.current.register(String.self) {
             "second-registration"
         }
-        
+
         // After re-registration, new resolution should use new factory
         // But existing cached instance should still be returned
         let service2 = ServiceEnv.current.resolve(String.self)
         #expect(service2 == "first-registration")  // Still cached
-        
+
         // Clear cache and resolve again
         await ServiceEnv.current.resetCaches()
         let service3 = ServiceEnv.current.resolve(String.self)

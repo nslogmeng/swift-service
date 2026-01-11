@@ -4,6 +4,7 @@
 
 import Foundation
 import Testing
+
 @testable import Service
 
 // MARK: - Concurrency Tests
@@ -16,7 +17,7 @@ func testConcurrentServiceAccess() async throws {
         ServiceEnv.current.register(String.self) {
             UUID().uuidString
         }
-        
+
         // Create multiple tasks that concurrently resolve the service
         await withTaskGroup(of: String.self) { group in
             for _ in 0..<100 {
@@ -24,13 +25,13 @@ func testConcurrentServiceAccess() async throws {
                     ServiceEnv.current.resolve(String.self)
                 }
             }
-            
+
             // Collect all resolved values
             var resolvedValues: [String] = []
             for await value in group {
                 resolvedValues.append(value)
             }
-            
+
             // All values should be the same (singleton behavior)
             let firstValue = resolvedValues.first!
             for value in resolvedValues {
@@ -53,11 +54,11 @@ func testConcurrentRegistrationAndResolution() async throws {
                     }
                 }
             }
-            
+
             // Wait for all registrations to complete
             for await _ in group {}
         }
-        
+
         // The last registration should win (but we can't predict which)
         // Just verify that resolution doesn't crash
         let resolved = ServiceEnv.current.resolve(Int.self)
@@ -69,7 +70,7 @@ func testConcurrentRegistrationAndResolution() async throws {
 func testConcurrentEnvironmentIsolation() async throws {
     let env1 = ServiceEnv(name: "concurrent-env1")
     let env2 = ServiceEnv(name: "concurrent-env2")
-    
+
     // Register different services in different environments concurrently
     await withTaskGroup(of: Void.self) { group in
         group.addTask {
@@ -79,7 +80,7 @@ func testConcurrentEnvironmentIsolation() async throws {
                 }
             }
         }
-        
+
         group.addTask {
             ServiceEnv.$current.withValue(env2) {
                 ServiceEnv.current.register(String.self) {
@@ -87,16 +88,16 @@ func testConcurrentEnvironmentIsolation() async throws {
                 }
             }
         }
-        
+
         for await _ in group {}
     }
-    
+
     // Verify isolation
     ServiceEnv.$current.withValue(env1) {
         let service1 = ServiceEnv.current.resolve(String.self)
         #expect(service1 == "env1-service")
     }
-    
+
     ServiceEnv.$current.withValue(env2) {
         let service2 = ServiceEnv.current.resolve(String.self)
         #expect(service2 == "env2-service")

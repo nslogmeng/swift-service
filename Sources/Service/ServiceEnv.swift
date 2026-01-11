@@ -5,10 +5,10 @@
 /// Represents a service environment that manages service registration, resolution, and lifecycle.
 /// Each environment maintains its own isolated service registry and storage, allowing for
 /// different configurations in different contexts (e.g., production, testing, development).
-/// 
+///
 /// The environment uses TaskLocal storage to ensure thread-safe access to the current environment
 /// across async contexts.
-/// 
+///
 /// Usage example:
 /// ```swift
 /// // Switch environment in tests
@@ -17,7 +17,7 @@
 ///     let service = MyService()
 ///     // ...
 /// }
-/// 
+///
 /// // Register services
 /// ServiceEnv.current.register(DatabaseProtocol.self) {
 ///     DatabaseService()
