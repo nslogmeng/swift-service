@@ -19,6 +19,15 @@ final class Locked<Value: Sendable>: @unchecked Sendable {
     var projectedValue: Locked<Value> {
         return self
     }
+    
+    /// Executes a closure with exclusive access to the wrapped value.
+    /// This is useful for performing atomic operations that require multiple steps.
+    ///
+    /// - Parameter body: A closure that receives an inout reference to the wrapped value.
+    /// - Returns: The result of the closure.
+    func withLock<R>(_ body: (inout sending Value) throws -> sending R) rethrows -> R {
+        return try storage.withLock(body)
+    }
 
     /// Initializes the wrapper with a default value.
     ///
