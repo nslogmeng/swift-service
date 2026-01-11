@@ -62,12 +62,6 @@ func testMainActorRegisterInstanceDirectly() async throws {
     let testEnv = ServiceEnv(name: "mainactor-instance-direct-test")
     await ServiceEnv.$current.withValue(testEnv) {
         await MainActor.run {
-            @MainActor
-            class MainState {
-                var count: Int = 0
-                var message: String = "initial"
-            }
-
             // Create instance
             let state = MainState()
             state.count = 5
@@ -139,31 +133,6 @@ func testMainActorRegisterWithNestedDependencies() async throws {
     let testEnv = ServiceEnv(name: "mainactor-nested-deps-test")
     await ServiceEnv.$current.withValue(testEnv) {
         await MainActor.run {
-            @MainActor
-            class MainServiceA {
-                var value: String = "A"
-            }
-
-            @MainActor
-            class MainServiceB {
-                let serviceA: MainServiceA
-                var value: String = "B"
-
-                init(serviceA: MainServiceA) {
-                    self.serviceA = serviceA
-                }
-            }
-
-            @MainActor
-            class MainServiceC {
-                let serviceB: MainServiceB
-                var value: String = "C"
-
-                init(serviceB: MainServiceB) {
-                    self.serviceB = serviceB
-                }
-            }
-
             // Register services in dependency order
             ServiceEnv.current.registerMain(MainServiceA.self) {
                 MainServiceA()

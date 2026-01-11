@@ -7,43 +7,6 @@ import Testing
 
 @testable import Service
 
-// MARK: - ServiceAssembly Test Implementations
-
-struct DatabaseAssembly: ServiceAssembly {
-    func assemble(env: ServiceEnv) {
-        env.register(DatabaseProtocol.self) {
-            DatabaseService(connectionString: "sqlite://assembly.db")
-        }
-    }
-}
-
-struct LoggerAssembly: ServiceAssembly {
-    func assemble(env: ServiceEnv) {
-        env.register(LoggerProtocol.self) {
-            LoggerService(level: "ASSEMBLY")
-        }
-    }
-}
-
-struct RepositoryAssembly: ServiceAssembly {
-    func assemble(env: ServiceEnv) {
-        env.register(UserRepositoryProtocol.self) {
-            let database = env.resolve(DatabaseProtocol.self)
-            let logger = env.resolve(LoggerProtocol.self)
-            return UserRepository(database: database, logger: logger)
-        }
-    }
-}
-
-struct NetworkAssembly: ServiceAssembly {
-    func assemble(env: ServiceEnv) {
-        env.register(NetworkServiceProtocol.self) {
-            let logger = env.resolve(LoggerProtocol.self)
-            return NetworkService(baseURL: "https://api.assembly.com", logger: logger)
-        }
-    }
-}
-
 // MARK: - ServiceAssembly Tests
 
 @Test("ServiceAssembly can register services")

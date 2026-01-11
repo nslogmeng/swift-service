@@ -67,15 +67,15 @@ final class LoggerService: LoggerProtocol, @unchecked Sendable {
     }
 
     func info(_ message: String) {
-        print("[\(level)] INFO: \(message)")
+        // print("[\(level)] INFO: \(message)")
     }
 
     func error(_ message: String) {
-        print("[\(level)] ERROR: \(message)")
+        // print("[\(level)] ERROR: \(message)")
     }
 
     func debug(_ message: String) {
-        print("[\(level)] DEBUG: \(message)")
+        // print("[\(level)] DEBUG: \(message)")
     }
 }
 
@@ -161,4 +161,104 @@ final class ViewModelService {
 @MainActor
 final class MainActorConfigService {
     var config: String = "default-config"
+}
+
+// MARK: - Additional MainActor Test Services
+
+/// Simple MainActor service classes for testing different service types.
+@MainActor
+final class ServiceA {
+    var value: String = "A"
+}
+
+@MainActor
+final class ServiceB {
+    var value: String = "B"
+}
+
+@MainActor
+final class ServiceC {
+    var value: String = "C"
+}
+
+/// MainActor service state class for testing direct instance registration.
+@MainActor
+final class MainState {
+    var count: Int = 0
+    var message: String = "initial"
+}
+
+/// MainActor services with nested dependencies for testing dependency resolution.
+@MainActor
+final class MainServiceA {
+    var value: String = "A"
+}
+
+@MainActor
+final class MainServiceB {
+    let serviceA: MainServiceA
+    var value: String = "B"
+
+    init(serviceA: MainServiceA) {
+        self.serviceA = serviceA
+    }
+}
+
+@MainActor
+final class MainServiceC {
+    let serviceB: MainServiceB
+    var value: String = "C"
+
+    init(serviceB: MainServiceB) {
+        self.serviceB = serviceB
+    }
+}
+
+/// MainActor service that conforms to ServiceKey protocol for testing.
+@MainActor
+@preconcurrency
+final class MainActorKeyService: ServiceKey {
+    var value: String = "default-value"
+
+    nonisolated static var `default`: MainActorKeyService {
+        // This is safe because we're creating a new instance
+        MainActorKeyService()
+    }
+}
+
+// MARK: - ServiceAssembly Test Implementations
+
+struct DatabaseAssembly: ServiceAssembly {
+    func assemble(env: ServiceEnv) {
+        env.register(DatabaseProtocol.self) {
+            DatabaseService(connectionString: "sqlite://assembly.db")
+        }
+    }
+}
+
+struct LoggerAssembly: ServiceAssembly {
+    func assemble(env: ServiceEnv) {
+        env.register(LoggerProtocol.self) {
+            LoggerService(level: "ASSEMBLY")
+        }
+    }
+}
+
+struct RepositoryAssembly: ServiceAssembly {
+    func assemble(env: ServiceEnv) {
+        env.register(UserRepositoryProtocol.self) {
+            let database = env.resolve(DatabaseProtocol.self)
+            let logger = env.resolve(LoggerProtocol.self)
+            return UserRepository(database: database, logger: logger)
+        }
+    }
+}
+
+struct NetworkAssembly: ServiceAssembly {
+    func assemble(env: ServiceEnv) {
+        env.register(NetworkServiceProtocol.self) {
+            let logger = env.resolve(LoggerProtocol.self)
+            return NetworkService(baseURL: "https://api.assembly.com", logger: logger)
+        }
+    }
 }
