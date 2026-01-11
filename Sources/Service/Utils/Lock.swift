@@ -30,8 +30,11 @@ final class Locked<Value: Sendable>: @unchecked Sendable {
         return try storage.withLock(body)
     }
     #else
-    func withLock<R>(_ body: (inout sending Value) throws -> sending R) rethrows -> R {
-        return try storage.withLock(body)
+    func withLock<R>(_ body: (inout Value) throws -> R) rethrows -> R {
+        // Adapt closure to match Synchronization.Mutex's sending signature
+        return try storage.withLock { (value: inout sending Value) -> sending R in
+            return try body(&value)
+        }
     }
     #endif
 
@@ -83,7 +86,7 @@ final class Locked<Value: Sendable>: @unchecked Sendable {
         }
 
         @inline(__always)
-        nonisolated func withLock<R>(_ body: (inout Value) throws -> R) rethrows -> R {
+        func withLock<R>(_ body: (inout Value) throws -> R) rethrows -> R {
             pthread_mutex_lock(&mutex)
             defer { pthread_mutex_unlock(&mutex) }
             return try body(&value)
