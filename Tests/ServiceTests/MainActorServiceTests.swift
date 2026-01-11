@@ -72,21 +72,6 @@ func testResolveMainWithDifferentTypes() async throws {
     let testEnv = ServiceEnv(name: "resolvemain-different-types-test")
     await ServiceEnv.$current.withValue(testEnv) {
         await MainActor.run {
-            @MainActor
-            class ServiceA {
-                var value: String = "A"
-            }
-
-            @MainActor
-            class ServiceB {
-                var value: String = "B"
-            }
-
-            @MainActor
-            class ServiceC {
-                var value: String = "C"
-            }
-
             // Register multiple different types
             ServiceEnv.current.registerMain(ServiceA.self) {
                 ServiceA()
@@ -337,19 +322,6 @@ func testMainActorServiceWithServiceKey() async throws {
     let testEnv = ServiceEnv(name: "mainactor-servicekey-test")
     await ServiceEnv.$current.withValue(testEnv) {
         await MainActor.run {
-            // Define a MainActor service that conforms to ServiceKey
-            // Note: ServiceKey requires nonisolated default, so we use @preconcurrency
-            @MainActor
-            @preconcurrency
-            final class MainActorKeyService: ServiceKey {
-                var value: String = "default-value"
-
-                nonisolated static var `default`: MainActorKeyService {
-                    // This is safe because we're creating a new instance
-                    MainActorKeyService()
-                }
-            }
-
             // Register using ServiceKey
             ServiceEnv.current.registerMain(MainActorKeyService.self)
 
