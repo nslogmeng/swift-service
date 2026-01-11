@@ -11,8 +11,34 @@ final class Locked<Value: Sendable>: @unchecked Sendable {
 
     /// Returns the current value, locking for thread safety.
     var wrappedValue: Value {
-        get { storage.withLock { $0 } }
-        set { storage.withLock { $0 = newValue } }
+        get {
+            return _getValue()
+        }
+        set {
+            _setValue(newValue)
+        }
+    }
+
+    /// Internal helper to get value with proper version-specific handling
+    private func _getValue() -> Value {
+        #if compiler(<6.1)
+            return storage.withLock { $0 }
+        #else
+            return storage.withLock { (value: inout sending Value) -> sending Value in
+                return value
+            }
+        #endif
+    }
+
+    /// Internal helper to set value with proper version-specific handling
+    private func _setValue(_ newValue: Value) {
+        #if compiler(<6.1)
+            storage.withLock { $0 = newValue }
+        #else
+            storage.withLock { (value: inout sending Value) -> sending Void in
+                value = newValue
+            }
+        #endif
     }
 
     /// Returns the property wrapper itself.
@@ -26,16 +52,16 @@ final class Locked<Value: Sendable>: @unchecked Sendable {
     /// - Parameter body: A closure that receives an inout reference to the wrapped value.
     /// - Returns: The result of the closure.
     #if compiler(<6.1)
-    func withLock<R>(_ body: (inout Value) throws -> R) rethrows -> R {
-        return try storage.withLock(body)
-    }
-    #else
-    func withLock<R>(_ body: (inout Value) throws -> R) rethrows -> R {
-        // Adapt closure to match Synchronization.Mutex's sending signature
-        return try storage.withLock { (value: inout sending Value) -> sending R in
-            return try body(&value)
+        func withLock<R>(_ body: (inout Value) throws -> R) rethrows -> R {
+            return try storage.withLock(body)
         }
-    }
+    #else
+        func withLock<R>(_ body: (inout Value) throws -> R) rethrows -> R {
+            // Adapt closure to match Synchronization.Mutex's sending signature
+            return try storage.withLock { (value: inout sending Value) -> sending R in
+                return try body(&value)
+            }
+        }
     #endif
 
     /// Initializes the wrapper with a default value.
