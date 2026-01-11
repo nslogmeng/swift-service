@@ -88,7 +88,7 @@ final class ServiceStorage: @unchecked Sendable {
             if let cachedService = caches[key] as? Service {
                 return cachedService
             }
-            
+
             // Store the newly created service
             caches[key] = newService
             return newService

@@ -360,6 +360,62 @@ await MainActor.run {
 }
 ```
 
+## 循环依赖检测
+
+Service 会在运行时自动检测循环依赖，并提供清晰的错误信息帮助你识别和修复依赖循环。
+
+### 工作原理
+
+在解析服务时，Service 会追踪当前的解析链。如果一个服务尝试解析自身（直接或间接），则会检测到循环依赖，程序会终止并显示描述性错误。
+
+```swift
+// 循环依赖示例：
+// A 依赖 B，B 依赖 C，C 依赖 A
+
+ServiceEnv.current.register(AService.self) {
+    let b = ServiceEnv.current.resolve(BService.self)  // 解析 B
+    return AService(b: b)
+}
+
+ServiceEnv.current.register(BService.self) {
+    let c = ServiceEnv.current.resolve(CService.self)  // 解析 C
+    return BService(c: c)
+}
+
+ServiceEnv.current.register(CService.self) {
+    let a = ServiceEnv.current.resolve(AService.self)  // 检测到循环！
+    return CService(a: a)
+}
+```
+
+### 错误信息
+
+检测到循环依赖时，你会看到显示完整依赖链的清晰错误信息：
+
+```
+Circular dependency detected for service 'AService'.
+Dependency chain: AService -> BService -> CService -> AService
+Check your service registration to break the cycle.
+```
+
+### 解析深度限制
+
+为防止过深的依赖链导致栈溢出，Service 强制执行最大解析深度限制（默认 100）。如果超出：
+
+```
+Maximum resolution depth (100) exceeded.
+Current chain: ServiceA -> ServiceB -> ... -> ServiceN
+This may indicate a circular dependency or overly deep dependency graph.
+```
+
+### 打破循环依赖
+
+打破循环依赖的常用策略：
+
+1. **重构服务结构**：将共享逻辑提取到一个新服务中，让两者都依赖它。
+2. **使用延迟解析**：将解析推迟到实际需要服务时。
+3. **使用属性注入**：在构造之后注入依赖，而不是在工厂函数中。
+
 ## 为什么选择 Service？
 
 Service 专为重视简洁性、安全性和灵活性的现代 Swift 项目而设计。  

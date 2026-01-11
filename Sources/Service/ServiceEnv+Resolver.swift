@@ -8,16 +8,21 @@ extension ServiceEnv {
     /// Resolves a Sendable service instance by its type.
     /// If the service is not registered, this will cause a runtime fatalError.
     ///
+    /// This method automatically detects circular dependencies and will terminate
+    /// with a clear error message if a cycle is detected (e.g., A -> B -> C -> A).
+    ///
     /// Use this method for services that conform to `Sendable` and were registered
     /// using the `register` methods.
     ///
     /// - Parameter type: The service type to resolve.
     /// - Returns: The resolved service instance.
     public func resolve<Service: Sendable>(_ type: Service.Type) -> Service {
-        guard let service = storage.resolve(type) else {
-            fatalError("Service: \(Service.self) must register in ServiceEnv")
+        ServiceContext.withResolutionTracking(type) {
+            guard let service = storage.resolve(type) else {
+                fatalError("Service: \(Service.self) must register in ServiceEnv")
+            }
+            return service
         }
-        return service
     }
 }
 
@@ -26,6 +31,9 @@ extension ServiceEnv {
 extension ServiceEnv {
     /// Resolves a MainActor-isolated service instance by its type.
     /// If the service is not registered, this will cause a runtime fatalError.
+    ///
+    /// This method automatically detects circular dependencies and will terminate
+    /// with a clear error message if a cycle is detected (e.g., A -> B -> C -> A).
     ///
     /// Use this method for services that are bound to the main actor and were registered
     /// using the `registerMain` methods. These services don't need to conform to `Sendable`
@@ -44,9 +52,11 @@ extension ServiceEnv {
     /// - Returns: The resolved service instance.
     @MainActor
     public func resolveMain<Service>(_ type: Service.Type) -> Service {
-        guard let service = storage.resolveMain(type) else {
-            fatalError("MainActor Service: \(Service.self) must register in ServiceEnv using registerMain")
+        ServiceContext.withResolutionTracking(type) {
+            guard let service = storage.resolveMain(type) else {
+                fatalError("MainActor Service: \(Service.self) must register in ServiceEnv using registerMain")
+            }
+            return service
         }
-        return service
     }
 }

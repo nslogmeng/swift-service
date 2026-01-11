@@ -355,6 +355,62 @@ await MainActor.run {
 }
 ```
 
+## Circular Dependency Detection
+
+Service automatically detects circular dependencies at runtime and provides clear error messages to help you identify and fix dependency cycles.
+
+### How It Works
+
+When resolving services, Service tracks the current resolution chain. If a service attempts to resolve itself (directly or indirectly), a circular dependency is detected and the program terminates with a descriptive error.
+
+```swift
+// Example of circular dependency:
+// A depends on B, B depends on C, C depends on A
+
+ServiceEnv.current.register(AService.self) {
+    let b = ServiceEnv.current.resolve(BService.self)  // Resolves B
+    return AService(b: b)
+}
+
+ServiceEnv.current.register(BService.self) {
+    let c = ServiceEnv.current.resolve(CService.self)  // Resolves C
+    return BService(c: c)
+}
+
+ServiceEnv.current.register(CService.self) {
+    let a = ServiceEnv.current.resolve(AService.self)  // Cycle detected!
+    return CService(a: a)
+}
+```
+
+### Error Messages
+
+When a circular dependency is detected, you'll see a clear error message showing the full dependency chain:
+
+```
+Circular dependency detected for service 'AService'.
+Dependency chain: AService -> BService -> CService -> AService
+Check your service registration to break the cycle.
+```
+
+### Resolution Depth Limit
+
+To prevent stack overflow from excessively deep dependency chains, Service enforces a maximum resolution depth of 100. If exceeded:
+
+```
+Maximum resolution depth (100) exceeded.
+Current chain: ServiceA -> ServiceB -> ... -> ServiceN
+This may indicate a circular dependency or overly deep dependency graph.
+```
+
+### Breaking Circular Dependencies
+
+Common strategies to break circular dependencies:
+
+1. **Restructure your services**: Extract shared logic into a new service that both can depend on.
+2. **Use lazy resolution**: Defer resolution until the service is actually needed.
+3. **Use property injection**: Inject dependencies after construction instead of in the factory.
+
 ## Why Service?
 
 Service is designed for modern Swift projects that value simplicity, safety, and flexibility.  

@@ -4,6 +4,7 @@
 
 import Foundation
 import Testing
+
 @testable import Service
 
 // MARK: - ServiceAssembly Test Implementations
