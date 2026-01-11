@@ -1,6 +1,9 @@
+//
+//  Copyright © 2025 Service Contributors. All rights reserved.
+//
+
 import Foundation
 import Testing
-
 @testable import Service
 
 // MARK: - Test Service Protocols
