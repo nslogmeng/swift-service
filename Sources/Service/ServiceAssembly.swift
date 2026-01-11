@@ -6,6 +6,9 @@
 /// Similar to Swinject's Assembly, this provides a standardized way to organize
 /// and register services in a modular, reusable manner.
 ///
+/// **Note:** This protocol is marked with `@MainActor` for thread safety.
+/// The `assemble` method and all `assemble` calls must be executed on the main actor.
+///
 /// **Why `@MainActor`?**
 /// Service assembly typically occurs during application initialization, which is a very early
 /// stage of the application lifecycle. Assembly operations are strongly dependent on execution
@@ -13,9 +16,6 @@
 /// the code is already running on the main actor. Constraining assembly operations to the
 /// main actor ensures thread safety and provides a predictable, sequential execution context
 /// for service registration.
-///
-/// **Note:** This protocol is marked with `@MainActor` for thread safety.
-/// The `assemble` method and all `assemble` calls must be executed on the main actor.
 ///
 /// Usage example:
 /// ```swift
