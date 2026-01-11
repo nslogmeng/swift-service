@@ -77,7 +77,7 @@ final class Locked<Value: Sendable>: @unchecked Sendable {
         }
 
         @inline(__always)
-        func withLock<R>(_ body: (inout Value) throws -> R) rethrows -> R {
+        func withLock<R>(_ body: (inout sending Value) throws -> sending R) rethrows -> R {
             pthread_mutex_lock(&mutex)
             defer { pthread_mutex_unlock(&mutex) }
             return try body(&value)
