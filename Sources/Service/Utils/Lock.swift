@@ -25,9 +25,15 @@ final class Locked<Value: Sendable>: @unchecked Sendable {
     ///
     /// - Parameter body: A closure that receives an inout reference to the wrapped value.
     /// - Returns: The result of the closure.
+    #if compiler(<6.1)
+    func withLock<R>(_ body: (inout Value) throws -> R) rethrows -> R {
+        return try storage.withLock(body)
+    }
+    #else
     func withLock<R>(_ body: (inout sending Value) throws -> sending R) rethrows -> R {
         return try storage.withLock(body)
     }
+    #endif
 
     /// Initializes the wrapper with a default value.
     ///
@@ -63,7 +69,7 @@ final class Locked<Value: Sendable>: @unchecked Sendable {
     #endif
 
     /// Minimal mutex box for Linux Swift 6.0.x workaround
-    final class _MutexBox<Value> {
+    final class _MutexBox<Value>: @unchecked Sendable {
         private var value: Value
         private var mutex = pthread_mutex_t()
 
@@ -77,7 +83,7 @@ final class Locked<Value: Sendable>: @unchecked Sendable {
         }
 
         @inline(__always)
-        func withLock<R>(_ body: (inout sending Value) throws -> sending R) rethrows -> R {
+        nonisolated func withLock<R>(_ body: (inout Value) throws -> R) rethrows -> R {
             pthread_mutex_lock(&mutex)
             defer { pthread_mutex_unlock(&mutex) }
             return try body(&value)

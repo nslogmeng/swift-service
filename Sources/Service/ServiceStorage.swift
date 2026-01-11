@@ -83,6 +83,18 @@ final class ServiceStorage: @unchecked Sendable {
         }
 
         // Use withLock to ensure atomic check-and-set operation (double-check pattern)
+        #if compiler(<6.1)
+        return $caches.withLock { (caches: inout [CacheKey: any Sendable]) -> Service in
+            // Double-check: another thread might have cached it while we were creating
+            if let cachedService = caches[key] as? Service {
+                return cachedService
+            }
+
+            // Store the newly created service
+            caches[key] = newService
+            return newService
+        }
+        #else
         return $caches.withLock { (caches: inout sending [CacheKey: any Sendable]) -> sending Service in
             // Double-check: another thread might have cached it while we were creating
             if let cachedService = caches[key] as? Service {
@@ -93,6 +105,7 @@ final class ServiceStorage: @unchecked Sendable {
             caches[key] = newService
             return newService
         }
+        #endif
     }
 
     /// Registers a Sendable service factory function.
