@@ -7,6 +7,22 @@ import Testing
 
 @testable import Service
 
+// MARK: - Test Helper Classes
+
+/// Test controller for MainService property wrapper testing.
+@MainActor
+final class TestController {
+    @MainService
+    var viewModel: ViewModelService
+}
+
+/// Test controller for MainService property wrapper with explicit type initializer.
+@MainActor
+final class TestControllerWithExplicitType {
+    @MainService(ViewModelService.self)
+    var viewModel: ViewModelService
+}
+
 // MARK: - MainActor Service Tests
 
 @Test("MainActor resolveMain returns same instance on multiple calls")
@@ -200,12 +216,6 @@ func testMainServicePropertyWrapper() async throws {
             }
 
             // Use property wrapper in a MainActor context
-            @MainActor
-            class TestController {
-                @MainService
-                var viewModel: ViewModelService
-            }
-
             let controller = TestController()
             #expect(controller.viewModel.data == "initial")
 
@@ -348,13 +358,7 @@ func testMainServicePropertyWrapperExplicitType() async throws {
             }
 
             // Use explicit type initializer
-            @MainActor
-            class TestController {
-                @MainService(ViewModelService.self)
-                var viewModel: ViewModelService
-            }
-
-            let controller = TestController()
+            let controller = TestControllerWithExplicitType()
             #expect(controller.viewModel.data == "initial")
 
             controller.viewModel.loadData()

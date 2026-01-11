@@ -14,9 +14,6 @@ func testRegisterFactoryExecutesOnce() async throws {
     let testEnv = ServiceEnv(name: "factory-once-test")
     await ServiceEnv.$current.withValue(testEnv) {
         // Use a class to track call count (thread-safe for this test)
-        final class CallCounter: @unchecked Sendable {
-            var count: Int = 0
-        }
         let callCount = CallCounter()
 
         // Register service with factory that tracks calls
@@ -48,9 +45,6 @@ func testRegisterFactoryCreatesNewInstances() async throws {
     let testEnv = ServiceEnv(name: "factory-new-instances-test")
     await ServiceEnv.$current.withValue(testEnv) {
         // Use a class to track instance ID (thread-safe for this test)
-        final class InstanceCounter: @unchecked Sendable {
-            var id: Int = 0
-        }
         let instanceId = InstanceCounter()
 
         // Register service with factory that creates unique instances
@@ -79,9 +73,6 @@ func testRegisterFactoryLazyInitialization() async throws {
     let testEnv = ServiceEnv(name: "factory-lazy-test")
     ServiceEnv.$current.withValue(testEnv) {
         // Use a class to track initialization (thread-safe for this test)
-        final class InitFlag: @unchecked Sendable {
-            var value: Bool = false
-        }
         let initialized = InitFlag()
 
         // Register service with factory
@@ -134,11 +125,6 @@ func testRegisterValueTypes() async throws {
 func testRegisterStructTypes() async throws {
     let testEnv = ServiceEnv(name: "struct-types-test")
     ServiceEnv.$current.withValue(testEnv) {
-        struct Config: Sendable {
-            let apiKey: String
-            let timeout: Int
-        }
-
         // Register struct
         ServiceEnv.current.register(Config.self) {
             Config(apiKey: "test-key", timeout: 30)
@@ -270,16 +256,6 @@ func testRegisterWithNestedDependencies() async throws {
         }
 
         // Register another service that depends on the repository
-        struct UserService: Sendable {
-            let repository: UserRepositoryProtocol
-            let logger: LoggerProtocol
-
-            func processUser(name: String) -> User {
-                logger.info("Processing: \(name)")
-                return repository.createUser(name: name)
-            }
-        }
-
         ServiceEnv.current.register(UserService.self) {
             let repo = ServiceEnv.current.resolve(UserRepositoryProtocol.self)
             let logger = ServiceEnv.current.resolve(LoggerProtocol.self)
@@ -297,11 +273,6 @@ func testRegisterWithNestedDependencies() async throws {
 func testRegisterConcreteTypeInstance() async throws {
     let testEnv = ServiceEnv(name: "concrete-instance-test")
     ServiceEnv.$current.withValue(testEnv) {
-        struct AppConfig: Sendable {
-            let version: String
-            let buildNumber: Int
-        }
-
         // Create instance
         let config = AppConfig(version: "1.0.0", buildNumber: 100)
 
@@ -324,10 +295,6 @@ func testRegisterOptionalTypes() async throws {
     let testEnv = ServiceEnv(name: "optional-types-test")
     ServiceEnv.$current.withValue(testEnv) {
         // Register optional String - wrap in Optional
-        struct OptionalString: Sendable {
-            let value: String?
-        }
-
         ServiceEnv.current.register(OptionalString.self) {
             OptionalString(value: "optional-value")
         }
@@ -337,10 +304,6 @@ func testRegisterOptionalTypes() async throws {
         #expect(optionalString.value == "optional-value")
 
         // Register nil optional
-        struct OptionalInt: Sendable {
-            let value: Int?
-        }
-
         ServiceEnv.current.register(OptionalInt.self) {
             OptionalInt(value: nil)
         }

@@ -39,11 +39,6 @@ func testMainActorRegisterStructTypes() async throws {
     let testEnv = ServiceEnv(name: "mainactor-struct-types-test")
     await ServiceEnv.$current.withValue(testEnv) {
         await MainActor.run {
-            struct MainConfig {
-                let theme: String
-                let fontSize: Int
-            }
-
             // Register struct
             ServiceEnv.current.registerMain(MainConfig.self) {
                 MainConfig(theme: "dark", fontSize: 16)
@@ -163,10 +158,6 @@ func testMainActorRegisterOptionalTypes() async throws {
     await ServiceEnv.$current.withValue(testEnv) {
         await MainActor.run {
             // Register optional String - wrap in Optional
-            struct OptionalString {
-                let value: String?
-            }
-
             ServiceEnv.current.registerMain(OptionalString.self) {
                 OptionalString(value: "optional-main-value")
             }
@@ -176,10 +167,6 @@ func testMainActorRegisterOptionalTypes() async throws {
             #expect(optionalString.value == "optional-main-value")
 
             // Register nil optional
-            struct OptionalInt {
-                let value: Int?
-            }
-
             ServiceEnv.current.registerMain(OptionalInt.self) {
                 OptionalInt(value: nil)
             }

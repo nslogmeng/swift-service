@@ -27,19 +27,6 @@ func testServicePropertyWrapper() async throws {
             return UserRepository(database: database, logger: logger)
         }
 
-        struct UserController {
-            @Service
-            var userRepository: UserRepositoryProtocol
-
-            @Service
-            var logger: LoggerProtocol
-
-            func handleCreateUser(name: String) -> User {
-                logger.info("Handling user creation request")
-                return userRepository.createUser(name: name)
-            }
-        }
-
         let controller = UserController()
         let user = controller.handleCreateUser(name: "Test User")
 
@@ -55,16 +42,6 @@ func testServicePropertyWrapperExplicitType() async throws {
         // Register service
         ServiceEnv.current.register(DatabaseProtocol.self) {
             DatabaseService(connectionString: "sqlite://explicit.db")
-        }
-
-        struct DatabaseController {
-            // Use explicit type initializer
-            @Service(DatabaseProtocol.self)
-            var database: DatabaseProtocol
-
-            func getConnectionInfo() -> String {
-                return database.connect()
-            }
         }
 
         let controller = DatabaseController()

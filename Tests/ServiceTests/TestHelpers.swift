@@ -262,3 +262,110 @@ struct NetworkAssembly: ServiceAssembly {
         }
     }
 }
+
+// MARK: - Additional Test Helper Types
+
+/// Counter class for tracking factory call counts in tests.
+final class CallCounter: @unchecked Sendable {
+    var count: Int = 0
+}
+
+/// Counter class for tracking instance IDs in tests.
+final class InstanceCounter: @unchecked Sendable {
+    var id: Int = 0
+}
+
+/// Flag class for tracking initialization state in tests.
+final class InitFlag: @unchecked Sendable {
+    var value: Bool = false
+}
+
+/// Configuration struct for testing struct type registration.
+struct Config: Sendable {
+    let apiKey: String
+    let timeout: Int
+}
+
+/// MainActor configuration struct for testing.
+/// Marked as Sendable so it can be used in both Sendable and MainActor contexts.
+struct MainConfig: Sendable {
+    let theme: String
+    let fontSize: Int
+}
+
+/// Application configuration struct for testing.
+struct AppConfig: Sendable {
+    let version: String
+    let buildNumber: Int
+}
+
+/// Optional string wrapper for testing optional type registration.
+struct OptionalString: Sendable {
+    let value: String?
+}
+
+/// Optional int wrapper for testing optional type registration.
+struct OptionalInt: Sendable {
+    let value: Int?
+}
+
+/// User service struct for testing nested dependencies.
+struct UserService: Sendable {
+    let repository: UserRepositoryProtocol
+    let logger: LoggerProtocol
+
+    func processUser(name: String) -> User {
+        logger.info("Processing: \(name)")
+        return repository.createUser(name: name)
+    }
+}
+
+/// User service class for testing property wrapper with async operations.
+class UserServiceClass {
+    @Service
+    var userRepository: UserRepositoryProtocol
+
+    @Service
+    var networkService: NetworkServiceProtocol
+
+    @Service
+    var logger: LoggerProtocol
+
+    func processUser(name: String) async throws -> User {
+        logger.info("Processing user: \(name)")
+
+        // Simulate API call
+        _ = try await networkService.get(url: "/validate-user")
+
+        // Create user
+        let user = userRepository.createUser(name: name)
+
+        logger.info("User processed successfully: \(user.id)")
+        return user
+    }
+}
+
+/// User controller struct for testing Service property wrapper.
+struct UserController {
+    @Service
+    var userRepository: UserRepositoryProtocol
+
+    @Service
+    var logger: LoggerProtocol
+
+    func handleCreateUser(name: String) -> User {
+        logger.info("Handling user creation request")
+        return userRepository.createUser(name: name)
+    }
+}
+
+/// Database controller struct for testing Service property wrapper with explicit type.
+struct DatabaseController {
+    // Use explicit type initializer
+    @Service(DatabaseProtocol.self)
+    var database: DatabaseProtocol
+
+    func getConnectionInfo() -> String {
+        return database.connect()
+    }
+}
