@@ -66,14 +66,33 @@ final class ServiceStorage: @unchecked Sendable {
     /// - Returns: The service instance, or nil if not registered.
     func resolve<Service: Sendable>(_ type: Service.Type) -> Service? {
         let key = CacheKey(type)
+
+        // First, try to get from cache (fast path)
         if let service = caches[key] as? Service {
             return service
         }
-        if let factory = providers[key], let service = factory() as? Service {
-            caches[key] = service
-            return service
+
+        // Get factory (read-only, safe to do outside lock)
+        guard let factory = providers[key] else {
+            return nil
         }
-        return nil
+
+        // Create service instance (factory may be slow, so we do it outside the lock)
+        guard let newService = factory() as? Service else {
+            return nil
+        }
+
+        // Use withLock to ensure atomic check-and-set operation (double-check pattern)
+        return $caches.withLock { (caches: inout sending [CacheKey: any Sendable]) -> sending Service in
+            // Double-check: another thread might have cached it while we were creating
+            if let cachedService = caches[key] as? Service {
+                return cachedService
+            }
+            
+            // Store the newly created service
+            caches[key] = newService
+            return newService
+        }
     }
 
     /// Registers a Sendable service factory function.
