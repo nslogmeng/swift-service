@@ -2,7 +2,7 @@
 
 几分钟内开始使用 Service。
 
-> Localization: **[English](<doc:GettingStarted>)**  |  **简体中文**
+> Localization: **[English](https://nslogmeng.github.io/swift-service/documentation/service/gettingstarted)**  |  **简体中文**
 
 ## 安装
 

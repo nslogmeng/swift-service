@@ -2,7 +2,7 @@
 
 Service 设计为与 Swift 的并发模型无缝协作，在并发上下文中提供安全高效的依赖注入。
 
-> Localization: **[English](<doc:ConcurrencyModel>)**  |  **简体中文**
+> Localization: **[English](https://nslogmeng.github.io/swift-service/documentation/service/concurrencymodel)**  |  **简体中文**
 
 ## Swift 并发基础
 

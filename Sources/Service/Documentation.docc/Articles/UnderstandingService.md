@@ -2,7 +2,7 @@
 
 A deep dive into Service's architecture, design decisions, and how it works under the hood.
 
-> Localization: **English**  |  **[简体中文](<doc:UnderstandingService.zh-Hans>)**
+> Localization: **English**  |  **[简体中文](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/understandingservice)**
 
 ## Core Concepts
 

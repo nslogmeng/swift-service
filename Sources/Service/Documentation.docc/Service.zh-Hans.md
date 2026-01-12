@@ -5,7 +5,7 @@
 
 一个轻量级、零依赖、类型安全的 Swift 依赖注入框架。
 
-> Localization: **[English](<doc:documentation/Service>)**  |  **简体中文**
+> Localization: **[English](https://nslogmeng.github.io/swift-service/documentation/service/)**  |  **简体中文**
 
 ## 概述
 

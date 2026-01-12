@@ -2,7 +2,7 @@
 
 Service 为处理 `@MainActor` 隔离的服务（如视图模型和 UI 控制器）提供了专门的 API。
 
-> Localization: **[English](<doc:MainActorServices>)**  |  **简体中文**
+> Localization: **[English](https://nslogmeng.github.io/swift-service/documentation/service/mainactorservices)**  |  **简体中文**
 
 ## 背景：为什么需要 MainActor 服务？
 

@@ -2,7 +2,7 @@
 
 深入了解 Service 的架构、设计决策及其工作原理。
 
-> Localization: **[English](<doc:UnderstandingService>)**  |  **简体中文**
+> Localization: **[English](https://nslogmeng.github.io/swift-service/documentation/service/understandingservice)**  |  **简体中文**
 
 ## 核心概念
 

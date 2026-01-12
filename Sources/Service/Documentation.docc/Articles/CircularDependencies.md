@@ -2,7 +2,7 @@
 
 Service automatically detects circular dependencies at runtime and provides clear error messages to help you identify and fix dependency cycles.
 
-> Localization: **English**  |  **[简体中文](<doc:CircularDependencies.zh-Hans>)**
+> Localization: **English**  |  **[简体中文](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/circulardependencies)**
 
 ## What is a Circular Dependency?
 
