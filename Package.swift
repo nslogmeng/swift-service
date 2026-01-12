@@ -27,9 +27,6 @@ let package = Package(
             name: "Service",
             swiftSettings: [
                 .enableUpcomingFeature("MemberImportVisibility")
-            ],
-            plugins: [
-                .plugin(name: "Swift-DocC", package: "swift-docc-plugin")
             ]
         ),
         .testTarget(name: "ServiceTests", dependencies: ["Service"]),
