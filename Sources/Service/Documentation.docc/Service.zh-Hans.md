@@ -60,30 +60,30 @@ let repository = UserRepository()
 let user = repository.fetchUser(id: "123")
 ```
 
-## 链接
+## Links
 
 - [GitHub 仓库](https://github.com/nslogmeng/swift-service)
 - [安装说明](https://github.com/nslogmeng/swift-service#-installation)
 
-## 主题
+## Topics
 
-### 基础
+### Essentials
 
 - <doc:GettingStarted>
 - <doc:BasicUsage>
 - <doc:ServiceEnvironments>
 
-### 高级主题
+### Advanced Topics
 
 - <doc:MainActorServices>
 - <doc:ServiceAssembly>
 - <doc:CircularDependencies>
 
-### 示例
+### Examples
 
 - <doc:RealWorldExamples>
 
-### 深入理解
+### Deep Dive
 
 - <doc:UnderstandingService>
 - <doc:ConcurrencyModel>
