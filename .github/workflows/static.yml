@@ -25,11 +25,20 @@ env:
   SUPPORTED_LANGUAGES: '["en", "zh-Hans"]'
 
 jobs:
+  define-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      langs: ${{ steps.set.outputs.langs }}
+    steps:
+      - id: set
+        run: echo "langs=${SUPPORTED_LANGUAGES}" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: define-matrix
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        lang: ${{ fromJSON(env.SUPPORTED_LANGUAGES) }}
+        lang: ${{ fromJSON(needs.define-matrix.outputs.langs) }}
 
     steps:
       - name: Setup Swift
@@ -53,32 +62,22 @@ jobs:
           LANG_LIST=$(echo "$SUPPORTED_LANGUAGES" | tr -d '[]"' | tr ',' ' ')
           
           if [ "${{ matrix.lang }}" = "$DEFAULT_LANGUAGE" ]; then
-            # Hide all localized docs (format: *.LANG.md) when building default language.
-            # Use SUPPORTED_LANGUAGES for precise matching
+            # Hide all non-default localized docs: *.zh-Hans.md -> *.zh-Hans.md.hidden
             for lang_suffix in $LANG_LIST; do
               if [ "$lang_suffix" != "$DEFAULT_LANGUAGE" ]; then
-                find Sources/Service/Documentation.docc -name "*.$lang_suffix.md" -type f ! -name "*.hidden" -exec mv {} {}.hidden \; || true
+                find Sources/Service/Documentation.docc -name "*.$lang_suffix.md" -type f -exec mv {} {}.hidden \; || true
               fi
             done
           else
-            # Hide default language docs (files without language suffix).
-            find Sources/Service/Documentation.docc/Articles -name "*.md" ! -name "*.*.md" -exec mv {} {}.hidden \; || true
-            if [ -f "Sources/Service/Documentation.docc/Service.md" ]; then
-              mv Sources/Service/Documentation.docc/Service.md Sources/Service/Documentation.docc/Service.md.hidden
-            fi
+            # 1) Hide EVERYTHING except current localized docs (*.zh-Hans.md)
+            find Sources/Service/Documentation.docc -name "*.md" ! -name "*.${{ matrix.lang }}.md" -type f -exec mv {} {}.hidden \; || true
 
-            # Hide other languages (keep only current lang).
-            # Use SUPPORTED_LANGUAGES for precise matching
-            for lang_suffix in $LANG_LIST; do
-              if [ "$lang_suffix" != "${{ matrix.lang }}" ] && [ "$lang_suffix" != "$DEFAULT_LANGUAGE" ]; then
-                find Sources/Service/Documentation.docc -name "*.$lang_suffix.md" -type f ! -name "*.hidden" -exec mv {} {}.hidden \; || true
-              fi
-            done
+            # 2) Promote current localized docs to default names so DocC can see them
+            find Sources/Service/Documentation.docc/Articles -name "*.${{ matrix.lang }}.md" -exec sh -c \
+              'mv "$1" "${1%.${{ matrix.lang }}.md}.md"' _ {} \; || true
 
-            # Rename current language docs to replace default ones.
-            find Sources/Service/Documentation.docc/Articles -name "*.${{ matrix.lang }}.md" -exec sh -c 'base="${1%.${{ matrix.lang }}.md}"; mv "$1" "${base}.md.tmp"' _ {} \; || true
             if [ -f "Sources/Service/Documentation.docc/Service.${{ matrix.lang }}.md" ]; then
-              mv Sources/Service/Documentation.docc/Service.${{ matrix.lang }}.md Sources/Service/Documentation.docc/Service.md.tmp
+              mv "Sources/Service/Documentation.docc/Service.${{ matrix.lang }}.md" "Sources/Service/Documentation.docc/Service.md"
             fi
           fi
 
