@@ -50,9 +50,9 @@ ServiceEnv.current.register(DatabaseService.self)
 
 ## 注入服务
 
-### 使用 @Service 属性包装器
+### 使用 @Service property wrapper
 
-`@Service` 属性包装器在类型初始化时自动解析服务：
+`@Service` property wrapper 在类型初始化时自动解析服务：
 
 ```swift
 struct UserRepository {
@@ -113,7 +113,7 @@ ServiceEnv.current.register(UserRepositoryProtocol.self) {
 
 ## 服务生命周期
 
-默认情况下，服务作为单例缓存。首次解析服务时，会创建并缓存它。后续解析返回同一个实例。
+默认情况下，服务作为 singleton 缓存。首次解析服务时，会创建并缓存它。后续解析返回同一个实例。
 
 要清除缓存的服务（同时保留注册）：
 
