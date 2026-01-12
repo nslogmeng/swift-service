@@ -9,6 +9,7 @@
 [![Platform Support Status](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fnslogmeng%2Fswift-service%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/nslogmeng/swift-service)
 [![Build Status](https://github.com/nslogmeng/swift-service/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/nslogmeng/swift-service/actions/workflows/build.yml)
 [![Test Status](https://github.com/nslogmeng/swift-service/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/nslogmeng/swift-service/actions/workflows/test.yml)
+[![Docs](https://img.shields.io/badge/Docs-available-blue)](https://nslogmeng.github.io/swift-service/documentation/service/)
 
 <div align="center">
     <strong>English</strong> | <a href="./README.zh-Hans.md"><strong>简体中文</strong></a>
@@ -123,16 +124,16 @@ await ServiceEnv.$current.withValue(.test) {
 
 ## 📚 Documentation
 
-For comprehensive documentation, tutorials, and examples, see the [Service Documentation](https://swiftpackageindex.com/nslogmeng/swift-service/documentation/service).
+For comprehensive documentation, tutorials, and examples, see the [Service Documentation](https://nslogmeng.github.io/swift-service/documentation/service/).
 
 ### Topics
 
-- **[Getting Started](https://swiftpackageindex.com/nslogmeng/swift-service/documentation/service/gettingstarted)** - Quick setup guide
-- **[Basic Usage](https://swiftpackageindex.com/nslogmeng/swift-service/documentation/service/basicusage)** - Core patterns and examples
-- **[MainActor Services](https://swiftpackageindex.com/nslogmeng/swift-service/documentation/service/mainactorservices)** - Working with UI components
-- **[Service Assembly](https://swiftpackageindex.com/nslogmeng/swift-service/documentation/service/serviceassembly)** - Organizing service registrations
-- **[Real-World Examples](https://swiftpackageindex.com/nslogmeng/swift-service/documentation/service/realworldexamples)** - Practical use cases
-- **[Understanding Service](https://swiftpackageindex.com/nslogmeng/swift-service/documentation/service/understandingservice)** - Deep dive into architecture
+- **[Getting Started](https://nslogmeng.github.io/swift-service/documentation/service/gettingstarted)** - Quick setup guide
+- **[Basic Usage](https://nslogmeng.github.io/swift-service/documentation/service/basicusage)** - Core patterns and examples
+- **[MainActor Services](https://nslogmeng.github.io/swift-service/documentation/service/mainactorservices)** - Working with UI components
+- **[Service Assembly](https://nslogmeng.github.io/swift-service/documentation/service/serviceassembly)** - Organizing service registrations
+- **[Real-World Examples](https://nslogmeng.github.io/swift-service/documentation/service/realworldexamples)** - Practical use cases
+- **[Understanding Service](https://nslogmeng.github.io/swift-service/documentation/service/understandingservice)** - Deep dive into architecture
 
 ## 💡 Why Service?
 
