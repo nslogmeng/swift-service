@@ -38,15 +38,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Build DocC
+      - name: Generate DocC
         run: |
           rm -rf .build/docs
           mkdir -p .build/docs
           swift package --allow-writing-to-directory .build/docs \
             generate-documentation \
-            --target Service \
             --output-path .build/docs \
             --transform-for-static-hosting \
+            --target Service \
             --hosting-base-path swift-service
           touch .build/docs/.nojekyll
 
