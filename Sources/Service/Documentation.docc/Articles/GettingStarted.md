@@ -2,7 +2,7 @@
 
 Get up and running with Service in minutes.
 
-> Localization: **English**  |  **[简体中文](<doc:GettingStarted.zh-Hans>)**
+> Localization: **English**  |  **[简体中文](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/gettingstarted)**
 
 ## Installation
 

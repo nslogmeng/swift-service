@@ -2,7 +2,7 @@
 
 学习使用 Service 注册和使用服务的基本模式。
 
-> Localization: **[English](<doc:BasicUsage>)**  |  **简体中文**
+> Localization: **[English](https://nslogmeng.github.io/swift-service/documentation/service/basicusage)**  |  **简体中文**
 
 ## 注册服务
 

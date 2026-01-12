@@ -5,7 +5,7 @@
 
 A lightweight, zero-dependency, type-safe dependency injection framework for Swift.
 
-> Localization: **English**  |  **[简体中文](<doc:Service.zh-Hans>)**
+> Localization: **English**  |  **[简体中文](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/)**
 
 ## Overview
 
@@ -73,30 +73,17 @@ let user = repository.fetchUser(id: "123")
 - <doc:BasicUsage>
 - <doc:ServiceEnvironments>
 
-- <doc:GettingStarted.zh-Hans>
-- <doc:BasicUsage.zh-Hans>
-- <doc:ServiceEnvironments.zh-Hans>
-
 ### Advanced Topics
 
 - <doc:MainActorServices>
 - <doc:ServiceAssembly>
 - <doc:CircularDependencies>
 
-- <doc:MainActorServices.zh-Hans>
-- <doc:ServiceAssembly.zh-Hans>
-- <doc:CircularDependencies.zh-Hans>
-
 ### Examples
 
 - <doc:RealWorldExamples>
-
-- <doc:RealWorldExamples.zh-Hans>
 
 ### Deep Dive
 
 - <doc:UnderstandingService>
 - <doc:ConcurrencyModel>
-
-- <doc:UnderstandingService.zh-Hans>
-- <doc:ConcurrencyModel.zh-Hans>

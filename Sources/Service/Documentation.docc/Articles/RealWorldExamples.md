@@ -2,7 +2,7 @@
 
 Practical examples of using Service in real applications, from simple to complex scenarios.
 
-> Localization: **English**  |  **[简体中文](<doc:RealWorldExamples.zh-Hans>)**
+> Localization: **English**  |  **[简体中文](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/realworldexamples)**
 
 ## Example 1: Simple iOS App with Network and Database
 

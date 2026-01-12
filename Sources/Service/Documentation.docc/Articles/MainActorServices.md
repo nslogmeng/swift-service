@@ -2,7 +2,7 @@
 
 Service provides specialized APIs for working with `@MainActor`-isolated services, such as view models and UI controllers.
 
-> Localization: **English**  |  **[简体中文](<doc:MainActorServices.zh-Hans>)**
+> Localization: **English**  |  **[简体中文](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/mainactorservices)**
 
 ## Background: Why MainActor Services?
 

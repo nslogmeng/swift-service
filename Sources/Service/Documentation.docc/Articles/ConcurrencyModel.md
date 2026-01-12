@@ -2,7 +2,7 @@
 
 Service is designed to work seamlessly with Swift's concurrency model, providing safe and efficient dependency injection in concurrent contexts.
 
-> Localization: **English**  |  **[简体中文](<doc:ConcurrencyModel.zh-Hans>)**
+> Localization: **English**  |  **[简体中文](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/concurrencymodel)**
 
 ## Swift Concurrency Basics
 

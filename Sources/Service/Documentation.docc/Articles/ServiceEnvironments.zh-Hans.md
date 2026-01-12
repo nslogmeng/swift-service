@@ -2,7 +2,7 @@
 
 Service 支持多个环境，允许你为生产、开发和测试配置不同的服务实现。
 
-> Localization: **[English](<doc:BasicUsage>)**  |  **简体中文**
+> Localization: **[English](https://nslogmeng.github.io/swift-service/documentation/service/serviceenvironments)**  |  **简体中文**
 
 ## 预定义环境
 

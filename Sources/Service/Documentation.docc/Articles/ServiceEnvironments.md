@@ -2,7 +2,7 @@
 
 Service supports multiple environments, allowing you to configure different service implementations for production, development, and testing.
 
-> Localization: **English**  |  **[简体中文](<doc:ServiceEnvironments.zh-Hans>)**
+> Localization: **English**  |  **[简体中文](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/serviceenvironments)**
 
 ## Predefined Environments
 

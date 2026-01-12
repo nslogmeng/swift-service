@@ -2,7 +2,7 @@
 
 Learn the fundamental patterns for registering and using services with Service.
 
-> Localization: **English**  |  **[简体中文](<doc:BasicUsage.zh-Hans>)**
+> Localization: **English**  |  **[简体中文](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/basicusage)**
 
 ## Registering Services
 

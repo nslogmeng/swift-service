@@ -2,7 +2,7 @@
 
 在实际应用中使用 Service 的实用示例，从简单到复杂的场景。
 
-> Localization: **[English](<doc:RealWorldExamples>)**  |  **简体中文**
+> Localization: **[English](https://nslogmeng.github.io/swift-service/documentation/service/realworldexamples)**  |  **简体中文**
 
 ## 示例 1：带有网络和数据库的简单 iOS 应用
 

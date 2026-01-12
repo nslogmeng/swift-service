@@ -2,7 +2,7 @@
 
 Service Assembly 提供了一种标准化、模块化的方式来组织服务注册，类似于 Swinject 的 Assembly 模式。
 
-> Localization: **[English](<doc:ServiceAssembly>)**  |  **简体中文**
+> Localization: **[English](https://nslogmeng.github.io/swift-service/documentation/service/serviceassembly)**  |  **简体中文**
 
 ## 为什么需要 Service Assembly？
 

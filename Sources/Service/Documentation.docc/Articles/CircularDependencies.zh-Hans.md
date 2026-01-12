@@ -2,7 +2,7 @@
 
 Service 会在运行时自动检测循环依赖，并提供清晰的错误信息帮助你识别和修复依赖循环。
 
-> Localization: **[English](<doc:CircularDependencies>)**  |  **简体中文**
+> Localization: **[English](https://nslogmeng.github.io/swift-service/documentation/service/circulardependencies)**  |  **简体中文**
 
 ## 什么是循环依赖？
 

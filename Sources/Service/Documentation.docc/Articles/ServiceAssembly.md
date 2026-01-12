@@ -2,7 +2,7 @@
 
 Service Assembly provides a standardized, modular way to organize service registrations, similar to Swinject's Assembly pattern.
 
-> Localization: **English**  |  **[简体中文](<doc:ServiceAssembly.zh-Hans>)**
+> Localization: **English**  |  **[简体中文](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/serviceassembly)**
 
 ## Why Service Assembly?
 

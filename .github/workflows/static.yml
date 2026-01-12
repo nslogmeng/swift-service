@@ -38,16 +38,73 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Generate DocC
+      - name: Generate DocC (English)
         run: |
-          rm -rf .build/docs
-          mkdir -p .build/docs
-          swift package --allow-writing-to-directory .build/docs \
+          set -e
+          rm -rf .build/docs-en
+          mkdir -p .build/docs-en
+          # Temporarily hide Chinese docs
+          find Sources/Service/Documentation.docc -name "*.zh-Hans.md" -exec mv {} {}.hidden \; || true
+          swift package --allow-writing-to-directory .build/docs-en \
             generate-documentation \
-            --output-path .build/docs \
+            --output-path .build/docs-en \
             --transform-for-static-hosting \
             --target Service \
             --hosting-base-path swift-service
+          # Restore Chinese docs
+          find Sources/Service/Documentation.docc -name "*.zh-Hans.md.hidden" -exec sh -c 'mv "$1" "${1%.hidden}"' _ {} \; || true
+          touch .build/docs-en/.nojekyll
+
+      - name: Generate DocC (Chinese)
+        run: |
+          set -e
+          rm -rf .build/docs-zh
+          mkdir -p .build/docs-zh
+          # Temporarily hide English docs in Articles
+          find Sources/Service/Documentation.docc/Articles -name "*.md" ! -name "*.zh-Hans.md" -exec mv {} {}.hidden \; || true
+          # Hide root Service.md if exists
+          if [ -f "Sources/Service/Documentation.docc/Service.md" ]; then
+            mv Sources/Service/Documentation.docc/Service.md Sources/Service/Documentation.docc/Service.md.hidden
+          fi
+          # Rename Chinese docs in Articles to replace English ones
+          find Sources/Service/Documentation.docc/Articles -name "*.zh-Hans.md" -exec sh -c 'mv "$1" "${1%.zh-Hans.md}.md.tmp"' _ {} \; || true
+          # Rename Service.zh-Hans.md in root to Service.md if exists
+          if [ -f "Sources/Service/Documentation.docc/Service.zh-Hans.md" ]; then
+            mv Sources/Service/Documentation.docc/Service.zh-Hans.md Sources/Service/Documentation.docc/Service.md.tmp
+          fi
+          swift package --allow-writing-to-directory .build/docs-zh \
+            generate-documentation \
+            --output-path .build/docs-zh \
+            --transform-for-static-hosting \
+            --target Service \
+            --hosting-base-path swift-service
+          touch .build/docs-zh/.nojekyll
+
+      - name: Restore all files
+        if: always()
+        run: |
+          # Restore English docs in Articles
+          find Sources/Service/Documentation.docc/Articles -name "*.md.hidden" -exec sh -c 'mv "$1" "${1%.hidden}"' _ {} \; || true
+          # Restore root Service.md if exists
+          if [ -f "Sources/Service/Documentation.docc/Service.md.hidden" ]; then
+            mv Sources/Service/Documentation.docc/Service.md.hidden Sources/Service/Documentation.docc/Service.md
+          fi
+          # Restore Chinese docs in Articles
+          find Sources/Service/Documentation.docc/Articles -name "*.md.tmp" -exec sh -c 'mv "$1" "${1%.tmp}.zh-Hans.md"' _ {} \; || true
+          # Restore Service.zh-Hans.md in root if exists
+          if [ -f "Sources/Service/Documentation.docc/Service.md.tmp" ]; then
+            mv Sources/Service/Documentation.docc/Service.md.tmp Sources/Service/Documentation.docc/Service.zh-Hans.md
+          fi
+
+      - name: Combine Documentation
+        run: |
+          rm -rf .build/docs
+          mkdir -p .build/docs
+          # Copy English docs to root
+          cp -r .build/docs-en/* .build/docs/
+          # Copy Chinese docs to zh-Hans subdirectory
+          mkdir -p .build/docs/zh-Hans
+          cp -r .build/docs-zh/* .build/docs/zh-Hans/
           touch .build/docs/.nojekyll
 
       - name: Setup Pages
