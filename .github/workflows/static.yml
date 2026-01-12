@@ -147,7 +147,7 @@ jobs:
   deploy:
     needs: [define-matrix, build]
     environment:
-      name: github-pages
+      name: DocC Site
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
 
