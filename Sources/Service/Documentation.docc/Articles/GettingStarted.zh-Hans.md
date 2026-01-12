@@ -57,6 +57,6 @@ struct UserManager {
 
 ## 下一步
 
-- 学习 <doc:BasicUsage.zh-Hans> 了解更多注册模式
-- 探索 <doc:ServiceEnvironments.zh-Hans> 了解基于环境的配置
-- 查看 <doc:RealWorldExamples.zh-Hans> 获取实用示例
+- 学习 <doc:BasicUsage> 了解更多注册模式
+- 探索 <doc:ServiceEnvironments> 了解基于环境的配置
+- 查看 <doc:RealWorldExamples> 获取实用示例

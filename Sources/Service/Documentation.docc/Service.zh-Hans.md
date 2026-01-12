@@ -1,4 +1,4 @@
-# Service
+# ``Service``
 
 ##
 ![Service Logo](logo.png)
@@ -69,21 +69,21 @@ let user = repository.fetchUser(id: "123")
 
 ### 基础
 
-- <doc:GettingStarted.zh-Hans>
-- <doc:BasicUsage.zh-Hans>
-- <doc:ServiceEnvironments.zh-Hans>
+- <doc:GettingStarted>
+- <doc:BasicUsage>
+- <doc:ServiceEnvironments>
 
 ### 高级主题
 
-- <doc:MainActorServices.zh-Hans>
-- <doc:ServiceAssembly.zh-Hans>
-- <doc:CircularDependencies.zh-Hans>
+- <doc:MainActorServices>
+- <doc:ServiceAssembly>
+- <doc:CircularDependencies>
 
 ### 示例
 
-- <doc:RealWorldExamples.zh-Hans>
+- <doc:RealWorldExamples>
 
 ### 深入理解
 
-- <doc:UnderstandingService.zh-Hans>
-- <doc:ConcurrencyModel.zh-Hans>
+- <doc:UnderstandingService>
+- <doc:ConcurrencyModel>
