@@ -15,18 +15,20 @@
 </div>
 <br/>
 
-一个轻量级、零依赖、类型安全的 Swift 依赖注入框架。  
-受 [Swinject](https://github.com/Swinject/Swinject) 和 [swift-dependencies](https://github.com/pointfreeco/swift-dependencies) 启发，Service 利用现代 Swift 特性实现简单、健壮的依赖注入。
+一个专为现代 Swift 项目设计的轻量级、零依赖、类型安全的依赖注入框架。  
+受 [Swinject](https://github.com/Swinject/Swinject) 和 [swift-dependencies](https://github.com/pointfreeco/swift-dependencies) 启发，Service 利用现代 Swift 特性实现简单、健壮的依赖注入。**上手成本极低**，使用熟悉的注册/解析模式，通过属性包装器实现优雅的依赖注入。
 
-## ✨ 特性
+## ✨ 核心特性
 
-- **🚀 现代 Swift**：使用属性包装器、TaskLocal 和并发原语
-- **📦 零依赖**：无第三方依赖，占用空间小
-- **🎯 类型安全**：编译时检查服务注册和解析
-- **🔒 线程安全**：适用于并发和异步代码
-- **🌍 环境支持**：可在生产、开发和测试环境之间切换
-- **🎨 MainActor 支持**：为 UI 组件和视图模型提供专门的 API
-- **🔍 循环依赖检测**：自动检测并提供清晰的错误信息
+- **🚀 现代 Swift**：使用属性包装器、TaskLocal 和并发原语，充分利用 Swift 现代特性
+- **🎯 极简 API，上手即用**：使用 `@Service` 属性包装器，无需手动传递依赖，代码更简洁
+- **📦 零依赖，轻量级**：无第三方依赖，不增加项目负担，适合任何 Swift 项目
+- **🔒 类型安全，编译时检查**：充分利用 Swift 类型系统，在编译时捕获错误
+- **⚡ 线程安全，并发友好**：内置线程安全保证，完美支持 Swift 6 并发模型
+- **🌍 环境隔离，测试无忧**：基于 TaskLocal 的任务级环境切换，测试时轻松切换依赖
+- **🎨 MainActor 专门支持**：为 SwiftUI 视图模型和 UI 组件提供专门的 `@MainService` API
+- **🔍 循环依赖自动检测**：运行时自动检测循环依赖，提供清晰的错误信息
+- **🧩 模块化装配**：通过 ServiceAssembly 模式组织服务注册，代码结构更清晰
 
 ## 📦 安装
 
@@ -48,17 +50,24 @@ targets: [
 
 ## 🚀 快速开始
 
-### 注册和注入
+只需三步，即可开始使用 Service：
+
+### 1. 注册服务
 
 ```swift
 import Service
 
-// 注册服务
+// 注册服务（支持协议和具体类型）
 ServiceEnv.current.register(DatabaseProtocol.self) {
     DatabaseService(connectionString: "sqlite://app.db")
 }
+```
 
-// 使用 @Service 属性包装器
+### 2. 注入依赖
+
+使用 `@Service` 属性包装器，自动解析依赖：
+
+```swift
 struct UserRepository {
     @Service
     var database: DatabaseProtocol
@@ -69,31 +78,46 @@ struct UserRepository {
 }
 ```
 
-### MainActor 服务（UI 组件）
+### 3. 使用服务
+
+```swift
+let repository = UserRepository()
+let user = repository.fetchUser(id: "123")
+// database 已自动注入，无需手动传递！
+```
+
+### 🎨 SwiftUI 视图模型支持
 
 ```swift
 // 注册 MainActor 服务
-await MainActor.run {
-    ServiceEnv.current.registerMain(UserViewModel.self) {
-        UserViewModel()
-    }
+ServiceEnv.current.registerMain(UserViewModel.self) {
+    UserViewModel()
 }
 
 // 在视图中使用 @MainService
-@MainActor
-class UserViewController {
+struct UserView: View {
     @MainService
     var viewModel: UserViewModel
+    
+    var body: some View {
+        Text(viewModel.userName)
+    }
 }
 ```
 
-### 环境切换
+### 🧪 测试环境切换
 
 ```swift
-// 切换到测试环境
+// 在测试中切换到测试环境
 await ServiceEnv.$current.withValue(.test) {
-    // 所有服务都使用测试环境
-    let service = ServiceEnv.current.resolve(MyService.self)
+    // 注册测试用的模拟服务
+    ServiceEnv.current.register(DatabaseProtocol.self) {
+        MockDatabase()
+    }
+    
+    // 所有服务解析都使用测试环境
+    let repository = UserRepository()
+    // 使用模拟数据库进行测试...
 }
 ```
 
@@ -112,14 +136,48 @@ await ServiceEnv.$current.withValue(.test) {
 
 ## 💡 为什么选择 Service？
 
-Service 专为重视以下特性的现代 Swift 项目而设计：
+### 🎯 上手成本极低
 
-- **简洁性**：清晰直观的 API，易于学习和使用
-- **安全性**：设计上类型安全和线程安全
-- **灵活性**：支持 Sendable 和 MainActor 服务
-- **零开销**：无外部依赖，运行时成本最小
+如果你熟悉传统的依赖注入模式（如 Swinject），Service 的使用方式会让你感到非常熟悉。通过属性包装器，你甚至不需要手动传递依赖：
 
-非常适合 SwiftUI 应用、服务端 Swift 以及任何需要依赖注入的 Swift 项目。
+```swift
+// 传统方式：需要手动传递依赖
+class UserService {
+    init(database: DatabaseProtocol, logger: LoggerProtocol) { ... }
+}
+let service = UserService(database: db, logger: logger)
+
+// Service 方式：自动注入，代码更简洁
+class UserService {
+    @Service var database: DatabaseProtocol
+    @Service var logger: LoggerProtocol
+}
+let service = UserService()  // 依赖已自动注入！
+```
+
+### 🚀 专为现代 Swift 设计
+
+- **Swift 6 并发模型**：完美支持 `Sendable` 和 `@MainActor`，提供专门的 API 处理 UI 服务
+- **TaskLocal 环境隔离**：基于任务的环境切换，测试时无需修改全局状态
+- **属性包装器**：利用 Swift 现代特性，提供优雅的依赖注入体验
+
+### 🛡️ 安全可靠
+
+- **编译时类型检查**：充分利用 Swift 类型系统，在编译时捕获错误
+- **线程安全保证**：内置锁机制，支持并发访问
+- **循环依赖检测**：运行时自动检测并报告循环依赖
+
+### 📦 轻量级，零负担
+
+- **零依赖**：不依赖任何第三方库，不会增加项目复杂度
+- **最小运行时成本**：高效的实现，对应用性能影响极小
+- **广泛适用**：适合 SwiftUI 应用、服务端 Swift、命令行工具等任何 Swift 项目
+
+### 🧩 灵活强大
+
+- **多种注册方式**：支持工厂函数、直接实例、ServiceKey 协议
+- **模块化装配**：通过 ServiceAssembly 组织服务注册，代码结构清晰
+- **环境隔离**：生产、开发、测试环境完全隔离，互不干扰
 
 ## 📄 许可证
 

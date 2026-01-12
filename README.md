@@ -15,18 +15,20 @@
 </div>
 <br/>
 
-A lightweight, zero-dependency, type-safe dependency injection framework for Swift.  
-Inspired by [Swinject](https://github.com/Swinject/Swinject) and [swift-dependencies](https://github.com/pointfreeco/swift-dependencies), Service leverages modern Swift features for simple, robust DI.
+A lightweight, zero-dependency, type-safe dependency injection framework designed for modern Swift projects.  
+Inspired by [Swinject](https://github.com/Swinject/Swinject) and [swift-dependencies](https://github.com/pointfreeco/swift-dependencies), Service leverages modern Swift features for simple, robust dependency injection. **Extremely easy to learn** with familiar register/resolve patterns, elegant dependency injection through property wrappers.
 
-## ✨ Features
+## ✨ Core Features
 
-- **🚀 Modern Swift**: Uses property wrappers, TaskLocal, and concurrency primitives
-- **📦 Zero Dependency**: No third-party dependencies, minimal footprint
-- **🎯 Type-safe**: Compile-time checked service registration and resolution
-- **🔒 Thread-safe**: Safe for concurrent and async code
-- **🌍 Environment Support**: Switch between production, development, and testing environments
-- **🎨 MainActor Support**: Dedicated APIs for UI components and view models
-- **🔍 Circular Dependency Detection**: Automatic detection with clear error messages
+- **🚀 Modern Swift**: Uses property wrappers, TaskLocal, and concurrency primitives, fully leverages modern Swift features
+- **🎯 Simple API, Ready to Use**: Use `@Service` property wrapper, no manual dependency passing needed, cleaner code
+- **📦 Zero Dependencies, Lightweight**: No third-party dependencies, adds no burden to your project, perfect for any Swift project
+- **🔒 Type-Safe, Compile-Time Checked**: Leverages Swift's type system to catch errors at compile time
+- **⚡ Thread-Safe, Concurrency-Friendly**: Built-in thread safety guarantees, perfect support for Swift 6 concurrency model
+- **🌍 Environment Isolation, Test-Friendly**: Task-level environment switching based on TaskLocal, easily swap dependencies in tests
+- **🎨 MainActor Support**: Dedicated `@MainService` API for SwiftUI view models and UI components
+- **🔍 Automatic Circular Dependency Detection**: Runtime detection of circular dependencies with clear error messages
+- **🧩 Modular Assembly**: Organize service registrations through ServiceAssembly pattern for clearer code structure
 
 ## 📦 Installation
 
@@ -48,17 +50,24 @@ targets: [
 
 ## 🚀 Quick Start
 
-### Register and Inject
+Get started with Service in just three steps:
+
+### 1. Register Services
 
 ```swift
 import Service
 
-// Register a service
+// Register a service (supports both protocols and concrete types)
 ServiceEnv.current.register(DatabaseProtocol.self) {
     DatabaseService(connectionString: "sqlite://app.db")
 }
+```
 
-// Use the @Service property wrapper
+### 2. Inject Dependencies
+
+Use the `@Service` property wrapper to automatically resolve dependencies:
+
+```swift
 struct UserRepository {
     @Service
     var database: DatabaseProtocol
@@ -69,31 +78,46 @@ struct UserRepository {
 }
 ```
 
-### MainActor Services (UI Components)
+### 3. Use Services
+
+```swift
+let repository = UserRepository()
+let user = repository.fetchUser(id: "123")
+// database is automatically injected, no manual passing needed!
+```
+
+### 🎨 SwiftUI View Model Support
 
 ```swift
 // Register MainActor service
-await MainActor.run {
-    ServiceEnv.current.registerMain(UserViewModel.self) {
-        UserViewModel()
-    }
+ServiceEnv.current.registerMain(UserViewModel.self) {
+    UserViewModel()
 }
 
 // Use @MainService in your views
-@MainActor
-class UserViewController {
+struct UserView: View {
     @MainService
     var viewModel: UserViewModel
+    
+    var body: some View {
+        Text(viewModel.userName)
+    }
 }
 ```
 
-### Environment Switching
+### 🧪 Test Environment Switching
 
 ```swift
-// Switch to test environment
+// Switch to test environment in tests
 await ServiceEnv.$current.withValue(.test) {
-    // All services use test environment
-    let service = ServiceEnv.current.resolve(MyService.self)
+    // Register mock services for testing
+    ServiceEnv.current.register(DatabaseProtocol.self) {
+        MockDatabase()
+    }
+    
+    // All service resolutions use test environment
+    let repository = UserRepository()
+    // Test with mock database...
 }
 ```
 
@@ -112,14 +136,48 @@ For comprehensive documentation, tutorials, and examples, see the [Service Docum
 
 ## 💡 Why Service?
 
-Service is designed for modern Swift projects that value:
+### 🎯 Extremely Easy to Learn
 
-- **Simplicity**: Clean, intuitive API that's easy to learn and use
-- **Safety**: Type-safe and thread-safe by design
-- **Flexibility**: Support for both Sendable and MainActor services
-- **Zero Overhead**: No external dependencies, minimal runtime cost
+If you're familiar with traditional dependency injection patterns (like Swinject), Service will feel very familiar. With property wrappers, you don't even need to manually pass dependencies:
 
-Perfect for SwiftUI apps, server-side Swift, and any Swift project that needs dependency injection.
+```swift
+// Traditional way: need to manually pass dependencies
+class UserService {
+    init(database: DatabaseProtocol, logger: LoggerProtocol) { ... }
+}
+let service = UserService(database: db, logger: logger)
+
+// Service way: automatic injection, cleaner code
+class UserService {
+    @Service var database: DatabaseProtocol
+    @Service var logger: LoggerProtocol
+}
+let service = UserService()  // Dependencies automatically injected!
+```
+
+### 🚀 Built for Modern Swift
+
+- **Swift 6 Concurrency Model**: Perfect support for `Sendable` and `@MainActor`, with dedicated APIs for UI services
+- **TaskLocal Environment Isolation**: Task-based environment switching, no need to modify global state in tests
+- **Property Wrappers**: Leverages modern Swift features for elegant dependency injection
+
+### 🛡️ Safe and Reliable
+
+- **Compile-Time Type Checking**: Leverages Swift's type system to catch errors at compile time
+- **Thread Safety Guarantees**: Built-in locking mechanism, supports concurrent access
+- **Circular Dependency Detection**: Automatic runtime detection and reporting of circular dependencies
+
+### 📦 Lightweight, Zero Burden
+
+- **Zero Dependencies**: No third-party dependencies, won't add complexity to your project
+- **Minimal Runtime Cost**: Efficient implementation with minimal impact on app performance
+- **Wide Applicability**: Perfect for SwiftUI apps, server-side Swift, command-line tools, and any Swift project
+
+### 🧩 Flexible and Powerful
+
+- **Multiple Registration Methods**: Supports factory functions, direct instances, and ServiceKey protocol
+- **Modular Assembly**: Organize service registrations through ServiceAssembly for clearer code structure
+- **Environment Isolation**: Production, development, and test environments are completely isolated
 
 ## 📄 License
 
