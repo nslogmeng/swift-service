@@ -2,8 +2,6 @@
 //  Copyright © 2025 Service Contributors. All rights reserved.
 //
 
-import Foundation
-
 /// A protocol for defining default service implementations.
 /// Types conforming to this protocol can be registered directly using `ServiceEnv.register(_:)`.
 ///
