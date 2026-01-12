@@ -329,6 +329,6 @@ Service 使用粗粒度锁定，这很简单但可能导致争用：
 
 ## 下一步
 
-- 阅读 <doc:MainActorServices.zh-Hans> 了解更多关于 MainActor 服务的详细信息
-- 探索 <doc:UnderstandingService.zh-Hans> 了解架构详细信息
-- 查看 <doc:RealWorldExamples.zh-Hans> 获取实用模式
+- 阅读 <doc:MainActorServices> 了解更多关于 MainActor 服务的详细信息
+- 探索 <doc:UnderstandingService> 了解架构详细信息
+- 查看 <doc:RealWorldExamples> 获取实用模式

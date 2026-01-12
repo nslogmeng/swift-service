@@ -129,6 +129,6 @@ await ServiceEnv.current.resetAll()
 
 ## 下一步
 
-- 学习 <doc:ServiceEnvironments.zh-Hans> 了解基于环境的服务配置
-- 探索 <doc:MainActorServices.zh-Hans> 了解 UI 相关服务
-- 查看 <doc:ServiceAssembly.zh-Hans> 了解如何组织服务注册
+- 学习 <doc:ServiceEnvironments> 了解基于环境的服务配置
+- 探索 <doc:MainActorServices> 了解 UI 相关服务
+- 查看 <doc:ServiceAssembly> 了解如何组织服务注册

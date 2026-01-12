@@ -294,6 +294,6 @@ struct MyAssembly: ServiceAssembly {
 
 ## 下一步
 
-- 阅读 <doc:ConcurrencyModel.zh-Hans> 了解更多关于 Service 并发设计的详细信息
-- 探索 <doc:RealWorldExamples.zh-Hans> 获取实用使用模式
+- 阅读 <doc:ConcurrencyModel> 了解更多关于 Service 并发设计的详细信息
+- 探索 <doc:RealWorldExamples> 获取实用使用模式
 - 查看 API 文档以获取详细的方法描述

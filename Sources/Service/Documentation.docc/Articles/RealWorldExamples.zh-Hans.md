@@ -515,6 +515,6 @@ ServiceEnv.current.register(AnalyticsProtocol.self) {
 
 ## 下一步
 
-- 学习 <doc:ServiceAssembly.zh-Hans> 了解如何组织复杂的服务图
-- 探索 <doc:ServiceEnvironments.zh-Hans> 了解基于环境的配置
-- 阅读 <doc:UnderstandingService.zh-Hans> 深入了解 Service 的架构
+- 学习 <doc:ServiceAssembly> 了解如何组织复杂的服务图
+- 探索 <doc:ServiceEnvironments> 了解基于环境的配置
+- 阅读 <doc:UnderstandingService> 深入了解 Service 的架构

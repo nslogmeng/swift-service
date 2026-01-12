@@ -228,6 +228,6 @@ await MainActor.run {
 
 ## 下一步
 
-- 学习 <doc:ServiceAssembly.zh-Hans> 了解如何组织服务注册
-- 探索 <doc:RealWorldExamples.zh-Hans> 获取更多实用示例
-- 阅读 <doc:ConcurrencyModel.zh-Hans> 深入了解 Service 的并发模型
+- 学习 <doc:ServiceAssembly> 了解如何组织服务注册
+- 探索 <doc:RealWorldExamples> 获取更多实用示例
+- 阅读 <doc:ConcurrencyModel> 深入了解 Service 的并发模型

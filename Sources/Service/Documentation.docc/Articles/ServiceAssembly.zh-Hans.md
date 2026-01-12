@@ -230,6 +230,6 @@ await MainActor.run {
 
 ## 下一步
 
-- 探索 <doc:RealWorldExamples.zh-Hans> 了解更多装配模式
-- 学习 <doc:ServiceEnvironments.zh-Hans> 了解基于环境的配置
-- 阅读 <doc:UnderstandingService.zh-Hans> 深入了解 Service 的架构
+- 探索 <doc:RealWorldExamples> 了解更多装配模式
+- 学习 <doc:ServiceEnvironments> 了解基于环境的配置
+- 阅读 <doc:UnderstandingService> 深入了解 Service 的架构
