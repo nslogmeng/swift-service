@@ -128,12 +128,26 @@ await ServiceEnv.$current.withValue(.test) {
 
 ### 主题
 
+#### 基础
+
 - **[快速开始](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/gettingstarted)** - 快速设置指南
 - **[基本用法](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/basicusage)** - 核心模式和示例
+- **[服务环境](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/serviceenvironments)** - 管理不同的服务配置
+
+#### 高级主题
+
 - **[MainActor 服务](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/mainactorservices)** - 使用 UI 组件
 - **[服务装配](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/serviceassembly)** - 组织服务注册
+- **[循环依赖](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/circulardependencies)** - 理解和避免循环依赖
+
+#### 示例
+
 - **[实际示例](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/realworldexamples)** - 实用用例
+
+#### 深入理解
+
 - **[理解 Service](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/understandingservice)** - 深入架构
+- **[并发模型](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/concurrencymodel)** - 理解 Service 的并发模型
 
 ## 💡 为什么选择 Service？
 

@@ -73,12 +73,9 @@ jobs:
             find Sources/Service/Documentation.docc -name "*.md" ! -name "*.${{ matrix.lang }}.md" -type f -exec mv {} {}.hidden \; || true
 
             # 2) Promote ALL localized Markdown files in the docc catalog
+            # This includes Service.zh-Hans.md -> Service.md and all Articles/*.zh-Hans.md -> Articles/*.md
             find Sources/Service/Documentation.docc -name "*.${{ matrix.lang }}.md" -type f -exec sh -c \
               'mv "$1" "${1%.${{ matrix.lang }}.md}.md"' _ {} \; || true
-
-            if [ -f "Sources/Service/Documentation.docc/Service.${{ matrix.lang }}.md" ]; then
-              mv "Sources/Service/Documentation.docc/Service.${{ matrix.lang }}.md" "Sources/Service/Documentation.docc/Service.md"
-            fi
           fi
 
       - name: Generate DocC (${{ matrix.lang }})

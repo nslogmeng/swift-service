@@ -128,12 +128,26 @@ For comprehensive documentation, tutorials, and examples, see the [Service Docum
 
 ### Topics
 
+#### Essentials
+
 - **[Getting Started](https://nslogmeng.github.io/swift-service/documentation/service/gettingstarted)** - Quick setup guide
 - **[Basic Usage](https://nslogmeng.github.io/swift-service/documentation/service/basicusage)** - Core patterns and examples
+- **[Service Environments](https://nslogmeng.github.io/swift-service/documentation/service/serviceenvironments)** - Managing different service configurations
+
+#### Advanced Topics
+
 - **[MainActor Services](https://nslogmeng.github.io/swift-service/documentation/service/mainactorservices)** - Working with UI components
 - **[Service Assembly](https://nslogmeng.github.io/swift-service/documentation/service/serviceassembly)** - Organizing service registrations
+- **[Circular Dependencies](https://nslogmeng.github.io/swift-service/documentation/service/circulardependencies)** - Understanding and avoiding circular dependencies
+
+#### Examples
+
 - **[Real-World Examples](https://nslogmeng.github.io/swift-service/documentation/service/realworldexamples)** - Practical use cases
+
+#### Deep Dive
+
 - **[Understanding Service](https://nslogmeng.github.io/swift-service/documentation/service/understandingservice)** - Deep dive into architecture
+- **[Concurrency Model](https://nslogmeng.github.io/swift-service/documentation/service/concurrencymodel)** - Understanding Service's concurrency model
 
 ## 💡 Why Service?
 
