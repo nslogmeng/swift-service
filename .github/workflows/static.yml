@@ -1,35 +1,36 @@
-# Simple workflow for deploying static content to GitHub Pages
+# Simple workflow for deploying DocC static site (multi-language) to GitHub Pages
 name: DocC Deployment
 
 on:
-  # Runs on pushes targeting the default branch
   push:
     branches: ["main"]
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+# Grant GITHUB_TOKEN the permissions required by GitHub Pages deployment.
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
-# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+# Ensure only one Pages deployment runs at a time (avoid race/conflicts).
 concurrency:
   group: "pages"
   cancel-in-progress: false
 
 env:
   DEFAULT_LANGUAGE: en
+  # All supported languages (including default language)
+  # This is the single source of truth for all language configurations
+  # Format: JSON array for matrix, easily converted to space-separated in shell
+  SUPPORTED_LANGUAGES: '["en", "zh-Hans"]'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        lang: [en, zh-Hans]
+        lang: ${{ fromJSON(env.SUPPORTED_LANGUAGES) }}
+
     steps:
       - name: Setup Swift
         uses: swift-actions/setup-swift@v3
@@ -42,18 +43,39 @@ jobs:
 
       - name: Prepare Documentation (${{ matrix.lang }})
         run: |
+          # This step temporarily renames/hides markdown files so DocC "sees"
+          # only the requested language during generation.
+          #
+          # NOTE: This modifies the working tree only inside the runner.
+          # It does NOT affect the repository contents.
+          
+          # Convert SUPPORTED_LANGUAGES JSON array to space-separated list
+          LANG_LIST=$(echo "$SUPPORTED_LANGUAGES" | tr -d '[]"' | tr ',' ' ')
+          
           if [ "${{ matrix.lang }}" = "$DEFAULT_LANGUAGE" ]; then
-            # Hide all localized docs (format: *.LANG.md)
-            find Sources/Service/Documentation.docc -name "*.*.md" -type f ! -name "*.hidden" -exec mv {} {}.hidden \; || true
+            # Hide all localized docs (format: *.LANG.md) when building default language.
+            # Use SUPPORTED_LANGUAGES for precise matching
+            for lang_suffix in $LANG_LIST; do
+              if [ "$lang_suffix" != "$DEFAULT_LANGUAGE" ]; then
+                find Sources/Service/Documentation.docc -name "*.$lang_suffix.md" -type f ! -name "*.hidden" -exec mv {} {}.hidden \; || true
+              fi
+            done
           else
-            # Hide default language docs
+            # Hide default language docs (files without language suffix).
             find Sources/Service/Documentation.docc/Articles -name "*.md" ! -name "*.*.md" -exec mv {} {}.hidden \; || true
             if [ -f "Sources/Service/Documentation.docc/Service.md" ]; then
               mv Sources/Service/Documentation.docc/Service.md Sources/Service/Documentation.docc/Service.md.hidden
             fi
-            # Hide other language docs (not current language)
-            find Sources/Service/Documentation.docc -name "*.*.md" ! -name "*.${{ matrix.lang }}.md" -type f ! -name "*.hidden" -exec mv {} {}.hidden \; || true
-            # Rename current language docs to replace default language ones
+
+            # Hide other languages (keep only current lang).
+            # Use SUPPORTED_LANGUAGES for precise matching
+            for lang_suffix in $LANG_LIST; do
+              if [ "$lang_suffix" != "${{ matrix.lang }}" ] && [ "$lang_suffix" != "$DEFAULT_LANGUAGE" ]; then
+                find Sources/Service/Documentation.docc -name "*.$lang_suffix.md" -type f ! -name "*.hidden" -exec mv {} {}.hidden \; || true
+              fi
+            done
+
+            # Rename current language docs to replace default ones.
             find Sources/Service/Documentation.docc/Articles -name "*.${{ matrix.lang }}.md" -exec sh -c 'base="${1%.${{ matrix.lang }}.md}"; mv "$1" "${base}.md.tmp"' _ {} \; || true
             if [ -f "Sources/Service/Documentation.docc/Service.${{ matrix.lang }}.md" ]; then
               mv Sources/Service/Documentation.docc/Service.${{ matrix.lang }}.md Sources/Service/Documentation.docc/Service.md.tmp
@@ -63,44 +85,59 @@ jobs:
       - name: Generate DocC (${{ matrix.lang }})
         run: |
           set -e
+
+          # Output folder for this language build.
           rm -rf .build/docs-${{ matrix.lang }}
           mkdir -p .build/docs-${{ matrix.lang }}
+
+          # hosting-base-path MUST match the final deployed URL path.
+          # - Default language: https://<owner>.github.io/swift-service/
+          # - Other languages:  https://<owner>.github.io/swift-service/<lang>/
           if [ "${{ matrix.lang }}" = "$DEFAULT_LANGUAGE" ]; then
-            # Default language uses root path
             hosting_path="swift-service"
           else
-            # Other languages use language code as subpath
             hosting_path="swift-service/${{ matrix.lang }}"
           fi
+
+          # IMPORTANT: --allow-writing-to-directory must appear before generate-documentation
+          # because it is handled by SwiftPM sandboxing.
           swift package --allow-writing-to-directory .build/docs-${{ matrix.lang }} \
             generate-documentation \
             --output-path .build/docs-${{ matrix.lang }} \
             --transform-for-static-hosting \
             --target Service \
             --hosting-base-path "$hosting_path"
+
+          # Disable Jekyll processing on GitHub Pages.
           touch .build/docs-${{ matrix.lang }}/.nojekyll
 
-      - name: Restore files (${{ matrix.lang }})
-        if: always()
+      # No Need This
+      # - name: Restore files (${{ matrix.lang }})
+      #   if: always()
+      #   run: |
+      #     # Always restore the working tree, even if DocC generation fails.
+      #     if [ "${{ matrix.lang }}" = "$DEFAULT_LANGUAGE" ]; then
+      #       find Sources/Service/Documentation.docc -name "*.md.hidden" -exec sh -c 'mv "$1" "${1%.hidden}"' _ {} \; || true
+      #     else
+      #       find Sources/Service/Documentation.docc -name "*.md.hidden" -exec sh -c 'mv "$1" "${1%.hidden}"' _ {} \; || true
+      #       find Sources/Service/Documentation.docc/Articles -name "*.md.tmp" -exec sh -c 'mv "$1" "${1%.tmp}.${{ matrix.lang }}.md"' _ {} \; || true
+      #       if [ -f "Sources/Service/Documentation.docc/Service.md.tmp" ]; then
+      #         mv Sources/Service/Documentation.docc/Service.md.tmp Sources/Service/Documentation.docc/Service.${{ matrix.lang }}.md
+      #       fi
+      #     fi
+
+      - name: Pack docs as tar.gz (${{ matrix.lang }})
         run: |
-          if [ "${{ matrix.lang }}" = "$DEFAULT_LANGUAGE" ]; then
-            # Restore all hidden non-default language docs
-            find Sources/Service/Documentation.docc -name "*.md.hidden" -exec sh -c 'mv "$1" "${1%.hidden}"' _ {} \; || true
-          else
-            # Restore all hidden docs
-            find Sources/Service/Documentation.docc -name "*.md.hidden" -exec sh -c 'mv "$1" "${1%.hidden}"' _ {} \; || true
-            # Restore renamed current language docs
-            find Sources/Service/Documentation.docc/Articles -name "*.md.tmp" -exec sh -c 'mv "$1" "${1%.tmp}.${{ matrix.lang }}.md"' _ {} \; || true
-            if [ -f "Sources/Service/Documentation.docc/Service.md.tmp" ]; then
-              mv Sources/Service/Documentation.docc/Service.md.tmp Sources/Service/Documentation.docc/Service.${{ matrix.lang }}.md
-            fi
-          fi
+          # Workaround for actions/upload-artifact rejecting paths with ':' (NTFS-safe restriction).
+          # DocC may generate files like "init(_:).json", which would fail directory uploads.
+          tar -czf ".build/docs-${{ matrix.lang }}.tar.gz" -C ".build/docs-${{ matrix.lang }}" .
 
       - name: Upload docs artifact (${{ matrix.lang }})
         uses: actions/upload-artifact@v4
         with:
+          # Artifact names must be unique within a single workflow run in v4.
           name: docs-${{ matrix.lang }}
-          path: .build/docs-${{ matrix.lang }}
+          path: .build/docs-${{ matrix.lang }}.tar.gz
           retention-days: 1
 
   deploy:
@@ -109,38 +146,51 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+
     steps:
       - name: Download docs artifacts
         uses: actions/download-artifact@v4
         with:
+          # Download all artifacts whose names match docs-*
           pattern: docs-*
           merge-multiple: false
 
       - name: Combine Documentation
         run: |
+          set -e
+
           rm -rf .build/docs
           mkdir -p .build/docs
-          # Process each language artifact
-          for lang_dir in docs-*; do
-            lang="${lang_dir#docs-}"
-            if [ "$lang" = "$DEFAULT_LANGUAGE" ]; then
-              # Default language goes to root
-              cp -r "$lang_dir"/* .build/docs/
-            else
-              # Other languages go to subdirectories
-              mkdir -p .build/docs/"$lang"
-              cp -r "$lang_dir"/* .build/docs/"$lang"/
+
+          # Convert SUPPORTED_LANGUAGES JSON array to space-separated list
+          LANG_LIST=$(echo "$SUPPORTED_LANGUAGES" | tr -d '[]"' | tr ',' ' ')
+
+          # Use SUPPORTED_LANGUAGES to process all language artifacts
+          # Each downloaded artifact is placed under a directory named after the artifact.
+          # e.g. docs-en/docs-en.tar.gz, docs-zh-Hans/docs-zh-Hans.tar.gz
+          for lang in $LANG_LIST; do
+            lang_dir="docs-$lang"
+            tarball="$lang_dir/docs-$lang.tar.gz"
+
+            if [ -f "$tarball" ]; then
+              if [ "$lang" = "$DEFAULT_LANGUAGE" ]; then
+                tar -xzf "$tarball" -C .build/docs
+              else
+                mkdir -p ".build/docs/$lang"
+                tar -xzf "$tarball" -C ".build/docs/$lang"
+              fi
             fi
           done
+
           touch .build/docs/.nojekyll
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload artifact
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.build/docs'
+          path: ".build/docs"
 
       - name: Deploy to GitHub Pages
         id: deployment
