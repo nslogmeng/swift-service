@@ -188,60 +188,7 @@ jobs:
               fi
             fi
           done
-
           touch .build/docs/.nojekyll
-
-      - name: Add multilingual redirect index.html
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          # Detect the DocC bundle directory name (usually "service")
-          ENTRY="$(find .build/docs/documentation -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | head -n 1)"
-
-          # Root redirect: choose language based on browser preferences, fallback to DEFAULT_LANGUAGE.
-          cat > .build/docs/index.html <<HTML
-          <!doctype html><meta charset="utf-8">
-          <script>
-          (function () {
-            const supported = ${{ needs.define-matrix.outputs.langs }};
-            const def = "${DEFAULT_LANGUAGE}";
-            const prefs = (navigator.languages && navigator.languages.length) ? navigator.languages : [navigator.language || ""];
-            const norm = s => (s || "").toLowerCase();
-
-            function pick() {
-              for (const p of prefs) {
-                const n = norm(p);
-                if (!n) continue;
-
-                for (const s of supported) if (norm(s) === n) return s;
-                const base = n.split("-")[0];
-                for (const s of supported) if (norm(s) === base) return s;
-              }
-              return def;
-            }
-
-            const lang = pick();
-            const entry = "${ENTRY}";
-            const url = (lang === def)
-              ? ("./documentation/" + entry + "/")
-              : ("./" + lang + "/documentation/" + entry + "/");
-            location.replace(url);
-          })();
-          </script>
-          <noscript><a href="./documentation/${ENTRY}/">Docs</a></noscript>
-          HTML
-
-          # Also add per-language "/<lang>/" redirect pages (nice UX)
-          LANG_LIST=$(echo '${{ needs.define-matrix.outputs.langs }}' | tr -d '[]"' | tr ',' ' ')
-          for lang in $LANG_LIST; do
-            [ "$lang" = "$DEFAULT_LANGUAGE" ] && continue
-            mkdir -p ".build/docs/$lang"
-            cat > ".build/docs/$lang/index.html" <<HTML
-            <!doctype html><meta charset="utf-8">
-            <meta http-equiv="refresh" content="0; url=./documentation/${ENTRY}/">
-            HTML
-          done
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
