@@ -206,7 +206,7 @@ struct MyApp: App {
 
 ## 为什么使用 @MainActor？
 
-Service Assembly 标记为 `@MainActor` 以确保线程安全。服务装配通常发生在应用初始化阶段，这是应用生命周期的非常早期阶段。装配操作强烈依赖于执行顺序，通常在 `main.swift` 或 SwiftUI App 的 `init` 方法中执行，这些代码已经在主 actor 上运行。将装配操作约束到主 actor 可以确保线程安全，并为服务注册提供可预测的、顺序执行的上下文。
+Service Assembly 标记为 `@MainActor` 以确保 thread-safe。Assembly 通常发生在应用初始化阶段，这是应用生命周期的非常早期阶段。Assemble 操作强烈依赖于执行顺序，通常在 `main.swift` 或 SwiftUI App 的 `init` 方法中执行，这些代码已经在 MainActor 上运行。将装配操作约束到 MainActor 可以确保线程安全，并为服务注册提供可预测的、顺序执行的上下文。
 
 ### 从非 MainActor 上下文调用
 
@@ -222,14 +222,14 @@ await MainActor.run {
 
 1. **顺序很重要**：按依赖顺序注册服务。其他服务依赖的服务应该首先注册。
 
-2. **按域分组**：创建将相关服务分组的装配（例如，`DatabaseAssembly`、`NetworkAssembly`）。
+2. **按域分组**：创建将相关服务分组的 Assemble（例如，`DatabaseAssembly`、`NetworkAssembly`）。
 
-3. **保持装配专注**：每个装配应该有一个单一职责。
+3. **保持 Assembly 专注**：每个 Assemble 应该有一个单一职责。
 
-4. **用于可复用性**：如果你有跨多个项目使用的通用服务配置，装配使共享变得容易。
+4. **用于可复用性**：如果你有跨多个项目使用的通用服务配置，Assembly 使共享变得容易。
 
 ## 下一步
 
-- 探索 <doc:RealWorldExamples> 了解更多装配模式
+- 探索 <doc:RealWorldExamples> 了解更多 Assembly 模式
 - 学习 <doc:ServiceEnvironments> 了解基于环境的配置
 - 阅读 <doc:UnderstandingService> 深入了解 Service 的架构

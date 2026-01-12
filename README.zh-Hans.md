@@ -17,7 +17,7 @@
 <br/>
 
 一个专为现代 Swift 项目设计的轻量级、零依赖、类型安全的依赖注入框架。  
-受 [Swinject](https://github.com/Swinject/Swinject) 和 [swift-dependencies](https://github.com/pointfreeco/swift-dependencies) 启发，Service 利用现代 Swift 特性实现简单、健壮的依赖注入。**上手成本极低**，使用熟悉的注册/解析模式，通过属性包装器实现优雅的依赖注入。
+受 [Swinject](https://github.com/Swinject/Swinject) 和 [swift-dependencies](https://github.com/pointfreeco/swift-dependencies) 启发，Service 利用现代 Swift 特性实现简单、健壮的依赖注入。**上手成本极低**，使用熟悉的 register/resolve 模式，通过 property wrapper 实现优雅的依赖注入。
 
 ## ✨ 核心特性
 
@@ -29,7 +29,7 @@
 - **🌍 环境隔离，测试无忧**：基于 TaskLocal 的任务级环境切换，测试时轻松切换依赖
 - **🎨 MainActor 专门支持**：为 SwiftUI 视图模型和 UI 组件提供专门的 `@MainService` API
 - **🔍 循环依赖自动检测**：运行时自动检测循环依赖，提供清晰的错误信息
-- **🧩 模块化装配**：通过 ServiceAssembly 模式组织服务注册，代码结构更清晰
+- **🧩 模块化 Assembly**：通过 ServiceAssembly 模式组织服务注册，代码结构更清晰
 
 ## 📦 安装
 
@@ -191,7 +191,7 @@ let service = UserService()  // 依赖已自动注入！
 ### 🧩 灵活强大
 
 - **多种注册方式**：支持工厂函数、直接实例、ServiceKey 协议
-- **模块化装配**：通过 ServiceAssembly 组织服务注册，代码结构清晰
+- **模块化 Assembly**：通过 ServiceAssembly 组织服务注册，代码结构清晰
 - **环境隔离**：生产、开发、测试环境完全隔离，互不干扰
 
 ## 📄 许可证
