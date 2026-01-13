@@ -58,6 +58,13 @@ runs:
         root: .build/docs
         measurement_id: ${{ inputs.ga_measurement_id }}
 
+    - name: Inject root index.html with language redirect
+      uses: ./.github/actions/inject-root-redirect
+      with:
+        root: .build/docs
+        default_lang: ${{ inputs.default_lang }}
+        langs_json: ${{ inputs.langs_json }}
+
     - name: Setup Pages
       uses: actions/configure-pages@v5
 
