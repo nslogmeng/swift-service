@@ -1,0 +1,112 @@
+name: Build DocC (single language)
+description: Generate DocC static site for one language and upload as artifact (tar.gz).
+
+inputs:
+  lang:
+    required: true
+    description: Language identifier, e.g. en, zh-Hans.
+  default_lang:
+    required: true
+    description: Default language identifier, e.g. en.
+  langs_json:
+    required: true
+    description: JSON array string of all supported languages, e.g. ["en","zh-Hans"].
+  target:
+    required: true
+    description: SwiftPM target to generate DocC for.
+  docc_catalog:
+    required: true
+    description: Path to the Documentation.docc catalog.
+  repo_name:
+    required: true
+    description: Repository name used as Pages base path, e.g. swift-service.
+  swift_version:
+    required: false
+    description: Swift version for swift-actions/setup-swift.
+    default: "6.2"
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Swift
+      uses: swift-actions/setup-swift@v3
+      with:
+        swift-version: ${{ inputs.swift_version }}
+        skip-verify-signature: true
+
+    - name: Prepare Documentation (${{ inputs.lang }})
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        # This step temporarily renames/hides markdown files so DocC "sees"
+        # only the requested language during generation.
+        #
+        # NOTE: This modifies the working tree only inside the runner.
+        # It does NOT affect the repository contents.
+
+        LANG_LIST=$(echo '${{ inputs.langs_json }}' | tr -d '[]"' | tr ',' ' ')
+        DOCC='${{ inputs.docc_catalog }}'
+
+        if [ "${{ inputs.lang }}" = "${{ inputs.default_lang }}" ]; then
+          # Hide all non-default localized docs: *.zh-Hans.md -> *.zh-Hans.md.hidden
+          for lang_suffix in $LANG_LIST; do
+            if [ "$lang_suffix" != "${{ inputs.default_lang }}" ]; then
+              find "$DOCC" -name "*.$lang_suffix.md" -type f -exec mv {} {}.hidden \; || true
+            fi
+          done
+        else
+          # 1) Hide EVERYTHING except current localized docs (*.zh-Hans.md)
+          find "$DOCC" -name "*.md" ! -name "*.${{ inputs.lang }}.md" -type f -exec mv {} {}.hidden \; || true
+
+          # 2) Promote localized Markdown files in the docc catalog
+          # e.g. Service.zh-Hans.md -> Service.md, Articles/*.zh-Hans.md -> Articles/*.md
+          find "$DOCC" -name "*.${{ inputs.lang }}.md" -type f -exec sh -c \
+            'mv "$1" "${1%.${{ inputs.lang }}.md}.md"' _ {} \; || true
+        fi
+
+    - name: Generate DocC (${{ inputs.lang }})
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        out=".build/docs-${{ inputs.lang }}"
+        rm -rf "$out"
+        mkdir -p "$out"
+
+        # hosting-base-path MUST match the final deployed URL path.
+        # - Default language: https://<owner>.github.io/<repo_name>/
+        # - Other languages:  https://<owner>.github.io/<repo_name>/<lang>/
+        if [ "${{ inputs.lang }}" = "${{ inputs.default_lang }}" ]; then
+          hosting_path="${{ inputs.repo_name }}"
+        else
+          hosting_path="${{ inputs.repo_name }}/${{ inputs.lang }}"
+        fi
+
+        # IMPORTANT: --allow-writing-to-directory must appear before generate-documentation
+        # because it is handled by SwiftPM sandboxing.
+        swift package --allow-writing-to-directory "$out" \
+          generate-documentation \
+          --output-path "$out" \
+          --transform-for-static-hosting \
+          --target "${{ inputs.target }}" \
+          --hosting-base-path "$hosting_path"
+
+        # Disable Jekyll processing on GitHub Pages.
+        touch "$out/.nojekyll"
+
+    - name: Pack docs as tar.gz (${{ inputs.lang }})
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        # Workaround for upload-artifact rejecting some file name characters.
+        # DocC may generate files like "init(_:).json", which could fail directory uploads.
+        tar -czf ".build/docs-${{ inputs.lang }}.tar.gz" -C ".build/docs-${{ inputs.lang }}" .
+
+    - name: Upload docs artifact (${{ inputs.lang }})
+      uses: actions/upload-artifact@v4
+      with:
+        name: docs-${{ inputs.lang }}
+        path: .build/docs-${{ inputs.lang }}.tar.gz
+        retention-days: 1
