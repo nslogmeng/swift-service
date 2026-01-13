@@ -57,7 +57,12 @@ runs:
                 let normalizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
                 normalizedBase = normalizedBase || '';
                 if (normalizedPath === normalizedBase || (normalizedBase === '' && normalizedPath === '/')) {
-                  window.location.href = baseUrl + \"${redirect_path}\";
+                  // Ensure no double slashes when concatenating
+                  const redirectPath = \"${redirect_path}\";
+                  const finalPath = (baseUrl.endsWith('/') && redirectPath.startsWith('/')) 
+                    ? baseUrl + redirectPath.slice(1) 
+                    : baseUrl + redirectPath;
+                  window.location.href = finalPath;
                 }
               })();
             </script>"
@@ -74,7 +79,12 @@ runs:
                 normalizedBase = normalizedBase || '';
                 const langPath = normalizedBase + '/${lang_code}';
                 if (normalizedPath === langPath) {
-                  window.location.href = baseUrl + \"${redirect_path}\";
+                  // Ensure no double slashes when concatenating
+                  const redirectPath = \"${redirect_path}\";
+                  const finalPath = (baseUrl.endsWith('/') && redirectPath.startsWith('/')) 
+                    ? baseUrl + redirectPath.slice(1) 
+                    : baseUrl + redirectPath;
+                  window.location.href = finalPath;
                 }
               })();
             </script>"
