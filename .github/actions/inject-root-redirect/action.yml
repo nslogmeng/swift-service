@@ -32,47 +32,50 @@ runs:
           DEFAULT_PATH="/documentation/service/"
           # Insert redirect script right after <head> tag, before other scripts
           python3 <<PY
-        import re
-        from pathlib import Path
+          import re
+          from pathlib import Path
 
-        root_index = Path("$ROOT_INDEX")
-        content = root_index.read_text(encoding="utf-8")
+          root_index = Path("$ROOT_INDEX")
+          content = root_index.read_text(encoding="utf-8")
 
-        # Extract baseUrl from existing script tag if available
-        base_url_match = re.search(r'var baseUrl = "([^"]+)"', content)
-        base_url = base_url_match.group(1) if base_url_match else ""
+          # Extract baseUrl from existing script tag if available
+          base_url_match = re.search(r'var baseUrl = "([^"]+)"', content)
+          base_url = base_url_match.group(1) if base_url_match else ""
 
-        # Redirect script: / -> /documentation/service/
-        redirect_script = f'''    <script>
-            // Redirect root path to documentation
-            (function() {{
-              const pathname = window.location.pathname;
-              const baseUrl = "{base_url}";
-              
-              // Normalize paths (remove trailing slashes)
-              const normalizedPath = pathname.replace(/\\/$/, '') || '/';
-              const normalizedBase = baseUrl.replace(/\\/$/, '') || '';
-              
-              // Check if we're at root: exactly baseUrl (with or without trailing slash)
-              // Handles both /swift-service and /swift-service/
-              if (normalizedPath === normalizedBase || (normalizedBase === '' && normalizedPath === '/')) {{
-                window.location.href = baseUrl + "${DEFAULT_PATH}";
-              }}
-            }})();
-        </script>
-        '''
+          # Redirect script: / -> /documentation/service/
+          default_path = "$DEFAULT_PATH"
+          redirect_script = f'''    <script>
+              // Redirect root path to documentation
+              (function() {{
+                const pathname = window.location.pathname;
+                const baseUrl = "{base_url}";
+                
+                // Normalize paths (remove trailing slashes)
+                let normalizedPath = pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+                normalizedPath = normalizedPath || '/';
+                let normalizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+                normalizedBase = normalizedBase || '';
+                
+                // Check if we're at root: exactly baseUrl (with or without trailing slash)
+                // Handles both /swift-service and /swift-service/
+                if (normalizedPath === normalizedBase || (normalizedBase === '' && normalizedPath === '/')) {{
+                  window.location.href = baseUrl + "{default_path}";
+                }}
+              }})();
+          </script>
+          '''
 
-        # Find the position right after <head> tag
-        head_match = re.search(r'(<head[^>]*>)', content, re.IGNORECASE)
-        if head_match:
-            insert_pos = head_match.end()
-            # Insert redirect script after <head> tag
-            content = content[:insert_pos] + '\n' + redirect_script + content[insert_pos:]
-            root_index.write_text(content, encoding="utf-8")
-            print(f"Added redirect logic to root index.html: / -> {DEFAULT_PATH}")
-        else:
-            print(f"Warning: Could not find <head> tag in root index.html")
-        PY
+          # Find the position right after <head> tag
+          head_match = re.search(r'(<head[^>]*>)', content, re.IGNORECASE)
+          if head_match:
+              insert_pos = head_match.end()
+              # Insert redirect script after <head> tag
+              content = content[:insert_pos] + '\n' + redirect_script + content[insert_pos:]
+              root_index.write_text(content, encoding="utf-8")
+              print(f"Added redirect logic to root index.html: / -> {default_path}")
+          else:
+              print(f"Warning: Could not find <head> tag in root index.html")
+          PY
         fi
 
         # Add redirect logic to language-specific index.html files
@@ -82,47 +85,51 @@ runs:
             lang_index="$ROOT/$lang/index.html"
             if [ -f "$lang_index" ]; then
               python3 <<PY
-        import re
-        from pathlib import Path
+              import re
+              from pathlib import Path
 
-        lang_index = Path("$lang_index")
-        content = lang_index.read_text(encoding="utf-8")
+              lang_index = Path("$lang_index")
+              content = lang_index.read_text(encoding="utf-8")
 
-        # Extract baseUrl from existing script tag if available
-        base_url_match = re.search(r'var baseUrl = "([^"]+)"', content)
-        base_url = base_url_match.group(1) if base_url_match else ""
+              # Extract baseUrl from existing script tag if available
+              base_url_match = re.search(r'var baseUrl = "([^"]+)"', content)
+              base_url = base_url_match.group(1) if base_url_match else ""
 
-        # Redirect script: /zh-Hans/ -> /zh-Hans/documentation/service/
-        redirect_script = f'''    <script>
-            // Redirect language root path to documentation
-            (function() {{
-              const pathname = window.location.pathname;
-              const baseUrl = "{base_url}";
-              
-              // Normalize paths (remove trailing slashes)
-              const normalizedPath = pathname.replace(/\\/$/, '') || '/';
-              const normalizedBase = baseUrl.replace(/\\/$/, '') || '';
-              const langPath = normalizedBase + '/$lang';
-              
-              // Check if we're at language root: baseUrl + /lang (with or without trailing slash)
-              if (normalizedPath === langPath) {{
-                window.location.href = baseUrl + "$lang_path";
-              }}
-            }})();
-        </script>
-        '''
+              # Redirect script: /zh-Hans/ -> /zh-Hans/documentation/service/
+              lang_code = "$lang"
+              lang_path_value = "$lang_path"
+              redirect_script = f'''    <script>
+                  // Redirect language root path to documentation
+                  (function() {{
+                    const pathname = window.location.pathname;
+                    const baseUrl = "{base_url}";
+                    
+                    // Normalize paths (remove trailing slashes)
+                    let normalizedPath = pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+                    normalizedPath = normalizedPath || '/';
+                    let normalizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+                    normalizedBase = normalizedBase || '';
+                    const langPath = normalizedBase + '/{lang_code}';
+                    
+                    // Check if we're at language root: baseUrl + /lang (with or without trailing slash)
+                    if (normalizedPath === langPath) {{
+                      window.location.href = baseUrl + "{lang_path_value}";
+                    }}
+                  }})();
+              </script>
+              '''
 
-        # Find the position right after <head> tag
-        head_match = re.search(r'(<head[^>]*>)', content, re.IGNORECASE)
-        if head_match:
-            insert_pos = head_match.end()
-            # Insert redirect script after <head> tag
-            content = content[:insert_pos] + '\n' + redirect_script + content[insert_pos:]
-            lang_index.write_text(content, encoding="utf-8")
-            print(f"Added redirect logic to $lang/index.html: /$lang/ -> $lang_path")
-        else:
-            print(f"Warning: Could not find <head> tag in $lang/index.html")
-        PY
+              # Find the position right after <head> tag
+              head_match = re.search(r'(<head[^>]*>)', content, re.IGNORECASE)
+              if head_match:
+                  insert_pos = head_match.end()
+                  # Insert redirect script after <head> tag
+                  content = content[:insert_pos] + '\n' + redirect_script + content[insert_pos:]
+                  lang_index.write_text(content, encoding="utf-8")
+                  print(f"Added redirect logic to {lang_code}/index.html: /{lang_code}/ -> {lang_path_value}")
+              else:
+                  print(f"Warning: Could not find <head> tag in {lang_code}/index.html")
+              PY
             fi
           fi
         done
