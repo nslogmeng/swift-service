@@ -9,7 +9,7 @@
 [![Platform Support Status](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fnslogmeng%2Fswift-service%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/nslogmeng/swift-service)
 [![Build Status](https://github.com/nslogmeng/swift-service/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/nslogmeng/swift-service/actions/workflows/build.yml)
 [![Test Status](https://github.com/nslogmeng/swift-service/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/nslogmeng/swift-service/actions/workflows/test.yml)
-[![Documentation](https://img.shields.io/badge/Documentation-available-blue)](https://nslogmeng.github.io/swift-service/documentation/service/)
+[![Documentation](https://nslogmeng.github.io/swift-service/documentation/service/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-badge)
 
 <div align="center">
     <strong>English</strong> | <a href="./README.zh-Hans.md"><strong>简体中文</strong></a>
@@ -124,30 +124,30 @@ await ServiceEnv.$current.withValue(.test) {
 
 ## 📚 Documentation
 
-For comprehensive documentation, tutorials, and examples, see the [Service Documentation](https://nslogmeng.github.io/swift-service/documentation/service/).
+For comprehensive documentation, tutorials, and examples, see the [Service Documentation](https://nslogmeng.github.io/swift-service/documentation/service/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs).
 
 ### Topics
 
 #### Essentials
 
-- **[Getting Started](https://nslogmeng.github.io/swift-service/documentation/service/gettingstarted)** - Quick setup guide
-- **[Basic Usage](https://nslogmeng.github.io/swift-service/documentation/service/basicusage)** - Core patterns and examples
-- **[Service Environments](https://nslogmeng.github.io/swift-service/documentation/service/serviceenvironments)** - Managing different service configurations
+- **[Getting Started](https://nslogmeng.github.io/swift-service/documentation/service/gettingstarted/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - Quick setup guide
+- **[Basic Usage](https://nslogmeng.github.io/swift-service/documentation/service/basicusage/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - Core patterns and examples
+- **[Service Environments](https://nslogmeng.github.io/swift-service/documentation/service/serviceenvironments/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - Managing different service configurations
 
 #### Advanced Topics
 
-- **[MainActor Services](https://nslogmeng.github.io/swift-service/documentation/service/mainactorservices)** - Working with UI components
-- **[Service Assembly](https://nslogmeng.github.io/swift-service/documentation/service/serviceassembly)** - Organizing service registrations
-- **[Circular Dependencies](https://nslogmeng.github.io/swift-service/documentation/service/circulardependencies)** - Understanding and avoiding circular dependencies
+- **[MainActor Services](https://nslogmeng.github.io/swift-service/documentation/service/mainactorservices/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - Working with UI components
+- **[Service Assembly](https://nslogmeng.github.io/swift-service/documentation/service/serviceassembly/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - Organizing service registrations
+- **[Circular Dependencies](https://nslogmeng.github.io/swift-service/documentation/service/circulardependencies/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - Understanding and avoiding circular dependencies
 
 #### Examples
 
-- **[Real-World Examples](https://nslogmeng.github.io/swift-service/documentation/service/realworldexamples)** - Practical use cases
+- **[Real-World Examples](https://nslogmeng.github.io/swift-service/documentation/service/realworldexamples/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - Practical use cases
 
 #### Deep Dive
 
-- **[Understanding Service](https://nslogmeng.github.io/swift-service/documentation/service/understandingservice)** - Deep dive into architecture
-- **[Concurrency Model](https://nslogmeng.github.io/swift-service/documentation/service/concurrencymodel)** - Understanding Service's concurrency model
+- **[Understanding Service](https://nslogmeng.github.io/swift-service/documentation/service/understandingservice/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - Deep dive into architecture
+- **[Concurrency Model](https://nslogmeng.github.io/swift-service/documentation/service/concurrencymodel/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - Understanding Service's concurrency model
 
 ## 💡 Why Service?
 
