@@ -91,11 +91,6 @@ runs:
                   const finalPath = (baseUrl.endsWith('/') && redirectPath.startsWith('/')) 
                     ? baseUrl + redirectPath.slice(1) 
                     : baseUrl + redirectPath;
-                  console.log('normalizedPath', normalizedPath);
-                  console.log('normalizedBase', normalizedBase);
-                  console.log('redirectPath', redirectPath);
-                  console.log('baseUrl', baseUrl);
-                  console.log('finalPath', finalPath);
                   window.location.href = finalPath;
                 }
               })();
