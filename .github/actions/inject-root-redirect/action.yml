@@ -80,15 +80,21 @@ runs:
                 // For language-specific pages, baseUrl already includes the language path
                 // So we check if the current path matches the baseUrl (language root)
                 if (normalizedPath === normalizedBase) {
+                  let redirectPath = \"${redirect_path}\";
+                  // If redirectPath starts with /${lang_code}/, remove the language prefix
+                  // since baseUrl already includes the language path
+                  const langPrefix = \"/${lang_code}/\";
+                  if (redirectPath.startsWith(langPrefix)) {
+                    redirectPath = redirectPath.slice(langPrefix.length - 1); // Remove /zh-Hans, keep the leading /
+                  }
                   // Ensure no double slashes when concatenating
-                  const redirectPath = \"${redirect_path}\";
                   const finalPath = (baseUrl.endsWith('/') && redirectPath.startsWith('/')) 
                     ? baseUrl + redirectPath.slice(1) 
                     : baseUrl + redirectPath;
-
                   console.log('normalizedPath', normalizedPath);
                   console.log('normalizedBase', normalizedBase);
                   console.log('redirectPath', redirectPath);
+                  console.log('baseUrl', baseUrl);
                   console.log('finalPath', finalPath);
                   window.location.href = finalPath;
                 }
