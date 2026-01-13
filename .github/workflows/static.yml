@@ -18,11 +18,39 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      langs_json: ${{ steps.set.outputs.langs_json }}
+      default_lang: ${{ steps.set.outputs.default_lang }}
+    steps:
+      - name: Set defaults
+        id: set
+        env:
+          VAR_LANGS_JSON: ${{ vars.DOCC_LANGS_JSON }}
+          VAR_DEFAULT_LANG: ${{ vars.DOCC_DEFAULT_LANG }}
+        run: |
+          if [ -z "$VAR_LANGS_JSON" ]; then
+            LANGS_JSON='["en","zh-Hans"]'
+          else
+            LANGS_JSON="$VAR_LANGS_JSON"
+          fi
+          
+          if [ -z "$VAR_DEFAULT_LANG" ]; then
+            DEFAULT_LANG="en"
+          else
+            DEFAULT_LANG="$VAR_DEFAULT_LANG"
+          fi
+          
+          echo "langs_json=${LANGS_JSON}" >> "$GITHUB_OUTPUT"
+          echo "default_lang=${DEFAULT_LANG}" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: prepare
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        lang: ${{ fromJSON(vars.DOCC_LANGS_JSON) }}
+        lang: ${{ fromJSON(needs.prepare.outputs.langs_json) }}
 
     steps:
       - name: Checkout
@@ -32,15 +60,15 @@ jobs:
         uses: ./.github/actions/docc-build
         with:
           lang: ${{ matrix.lang }}
-          default_lang: ${{ vars.DOCC_DEFAULT_LANG }}
-          langs_json: ${{ vars.DOCC_LANGS_JSON }}
+          default_lang: ${{ needs.prepare.outputs.default_lang }}
+          langs_json: ${{ needs.prepare.outputs.langs_json }}
           target: Service
           docc_catalog: Sources/Service/Documentation.docc
           repo_name: ${{ github.event.repository.name }}
           swift_version: "6.2"
 
   deploy:
-    needs: build
+    needs: [prepare, build]
     runs-on: ubuntu-latest
     environment:
       name: DocC Site
@@ -55,6 +83,6 @@ jobs:
         id: pages
         uses: ./.github/actions/docc-pages
         with:
-          default_lang: ${{ vars.DOCC_DEFAULT_LANG }}
-          langs_json: ${{ vars.DOCC_LANGS_JSON }}
+          default_lang: ${{ needs.prepare.outputs.default_lang }}
+          langs_json: ${{ needs.prepare.outputs.langs_json }}
           ga_measurement_id: ${{ vars.GA_MEASUREMENT_ID || secrets.GA_MEASUREMENT_ID }}
