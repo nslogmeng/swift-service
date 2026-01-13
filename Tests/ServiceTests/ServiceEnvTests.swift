@@ -226,3 +226,111 @@ func testServiceReRegistration() async throws {
         #expect(service3 == "second-registration")  // Now uses new factory
     }
 }
+
+// MARK: - Hashable Tests
+
+@Test("ServiceEnv conforms to Hashable")
+func testServiceEnvHashable() async throws {
+    // Test equality based on name
+    let env1 = ServiceEnv(name: "test")
+    let env2 = ServiceEnv(name: "test")
+    let env3 = ServiceEnv(name: "dev")
+
+    #expect(env1 == env2)
+    #expect(env1 != env3)
+
+    // Test hash consistency: equal objects must have equal hash values
+    var hasher1 = Hasher()
+    var hasher2 = Hasher()
+    env1.hash(into: &hasher1)
+    env2.hash(into: &hasher2)
+    #expect(hasher1.finalize() == hasher2.finalize())
+
+    var hasher3 = Hasher()
+    env3.hash(into: &hasher3)
+    #expect(hasher1.finalize() != hasher3.finalize())
+}
+
+@Test("ServiceEnv predefined environments are hashable")
+func testPredefinedEnvironmentsHashable() async throws {
+    // Test predefined environments
+    #expect(ServiceEnv.online == ServiceEnv(name: "online"))
+    #expect(ServiceEnv.dev == ServiceEnv(name: "dev"))
+    #expect(ServiceEnv.test == ServiceEnv(name: "test"))
+
+    #expect(ServiceEnv.online != ServiceEnv.dev)
+    #expect(ServiceEnv.online != ServiceEnv.test)
+    #expect(ServiceEnv.dev != ServiceEnv.test)
+}
+
+@Test("ServiceEnv can be used in Set")
+func testServiceEnvInSet() async throws {
+    var environments: Set<ServiceEnv> = []
+
+    environments.insert(ServiceEnv.online)
+    environments.insert(ServiceEnv.dev)
+    environments.insert(ServiceEnv.test)
+    environments.insert(ServiceEnv(name: "custom"))
+
+    #expect(environments.count == 4)
+
+    // Adding duplicate should not increase count
+    environments.insert(ServiceEnv(name: "online"))
+    #expect(environments.count == 4)
+
+    // Adding another custom with same name should not increase count
+    environments.insert(ServiceEnv(name: "custom"))
+    #expect(environments.count == 4)
+}
+
+@Test("ServiceEnv can be used as Dictionary key")
+func testServiceEnvAsDictionaryKey() async throws {
+    var configs: [ServiceEnv: String] = [:]
+
+    configs[ServiceEnv.online] = "production"
+    configs[ServiceEnv.dev] = "development"
+    configs[ServiceEnv.test] = "testing"
+    configs[ServiceEnv(name: "staging")] = "staging"
+
+    #expect(configs.count == 4)
+    #expect(configs[ServiceEnv.online] == "production")
+    #expect(configs[ServiceEnv.dev] == "development")
+    #expect(configs[ServiceEnv.test] == "testing")
+    #expect(configs[ServiceEnv(name: "staging")] == "staging")
+
+    // Accessing with same name should return same value
+    #expect(configs[ServiceEnv(name: "online")] == "production")
+    #expect(configs[ServiceEnv(name: "dev")] == "development")
+}
+
+@Test("ServiceEnv hashable allows environment comparison in Assembly")
+func testServiceEnvHashableInAssembly() async throws {
+    // This test demonstrates the use case described in the documentation
+    struct TestAssembly: ServiceAssembly {
+        func assemble(env: ServiceEnv) {
+            if env == .test {
+                env.register(String.self) { "mock-value" }
+            } else {
+                env.register(String.self) { "real-value" }
+            }
+        }
+    }
+
+    // Test with .test environment
+    await ServiceEnv.$current.withValue(.test) { @MainActor in
+        await MainActor.run {
+            ServiceEnv.current.assemble(TestAssembly())
+        }
+        let value = ServiceEnv.current.resolve(String.self)
+        #expect(value == "mock-value")
+    }
+
+    // Test with .online environment
+    await ServiceEnv.$current.withValue(.online) { @MainActor in
+        await MainActor.run {
+            ServiceEnv.current.assemble(TestAssembly())
+        }
+        let value = ServiceEnv.current.resolve(String.self)
+        #expect(value == "real-value")
+    }
+}

@@ -332,7 +332,97 @@ struct MyApp: App {
 }
 ```
 
-## Example 4: Testing with Different Environments
+## Example 4: Large-Scale App with Environment Switching
+
+A real-world example showing how to maintain Assembly structure while switching environments in large projects.
+
+### App Assembly Structure
+
+```swift
+struct AppAssembly: ServiceAssembly {
+    func assemble(env: ServiceEnv) {
+        env.registerMain(AppContainer.self) { AppContainer() }
+
+        env.register(Localization.self) { Localization() }
+        env.register(ThemeManager.self) { ThemeManager() }
+
+        env.registerMain(Router.self) { Router() }
+        env.registerMain(Overlay.self) { Overlay() }
+    }
+}
+```
+
+### Production App Initialization
+
+```swift
+@main
+struct MyApp: App {
+    init() {
+        ServiceEnv.current.assemble([
+            AppAssembly()
+            // ... other assemblies
+        ])
+    }
+    
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+    }
+}
+```
+
+### Test Environment Setup
+
+In tests, you can switch to the `.test` environment while keeping the exact same Assembly structure:
+
+```swift
+func testAppFlow() async throws {
+    await ServiceEnv.$current.withValue(.test) {
+        // Same assembly structure as production
+        ServiceEnv.current.assemble([
+            AppAssembly()
+            // ... other assemblies
+        ])
+
+        // Run your test logic
+        let container = ServiceEnv.current.resolveMain(AppContainer.self)
+        // ... test assertions
+    }
+}
+```
+
+### Conditional Registration in Assembly
+
+If you need environment-specific implementations, you can conditionally register services within the Assembly while maintaining structure:
+
+```swift
+struct AppAssembly: ServiceAssembly {
+    func assemble(env: ServiceEnv) {
+        env.registerMain(AppContainer.self) { AppContainer() }
+
+        // Conditionally register based on environment
+        if env == .test {
+            env.register(Localization.self) { MockLocalization() }
+        } else {
+            env.register(Localization.self) { Localization() }
+        }
+        
+        // Keep the rest identical
+        env.register(ThemeManager.self) { ThemeManager() }
+        env.registerMain(Router.self) { Router() }
+        env.registerMain(Overlay.self) { Overlay() }
+    }
+}
+```
+
+This approach provides:
+- **Structure consistency**: Same Assembly structure across all environments
+- **Flexibility**: Easy switching between environments at the outermost scope
+- **Maintainability**: Changes to service registration are centralized in Assemblies
+- **Testability**: Tests use the same structure as production, ensuring realistic scenarios
+
+## Example 5: Testing with Different Environments
 
 Using environments for testing with mock services.
 
@@ -400,7 +490,7 @@ func testUserRepository() async throws {
 }
 ```
 
-## Example 5: Complex Dependency Graph
+## Example 6: Complex Dependency Graph
 
 A more complex example with multiple interdependent services.
 
@@ -510,6 +600,8 @@ ServiceEnv.current.register(AnalyticsProtocol.self) {
 3. **Use assemblies for organization**: Group related services together for better maintainability.
 
 4. **Leverage environments for testing**: Use different environments to swap implementations for testing.
+
+5. **Maintain Assembly structure**: Keep the same Assembly structure across environments, switching only at the outermost scope for maximum flexibility and maintainability.
 
 5. **Keep services focused**: Each service should have a single, well-defined responsibility.
 
