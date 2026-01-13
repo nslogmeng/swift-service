@@ -115,6 +115,56 @@ func testUserCreation() async throws {
 }
 ```
 
+## Environment Switching with Assembly Structure
+
+One of the key benefits of Service environments is the ability to switch environments while maintaining the same Assembly structure. This is particularly valuable in large projects where you want to keep service registration organized and consistent across different contexts.
+
+### Switching Environments at the Outermost Scope
+
+In tests, you can switch to a `.test` environment at the outermost scope and keep the same Assembly structure:
+
+```swift
+await ServiceEnv.$current.withValue(.test) {
+    ServiceEnv.current.assemble([
+        AppAssembly()
+        // ... other assemblies
+    ])
+
+    // Run your test logic inside the .test environment
+}
+```
+
+This approach ensures that:
+- The same Assembly structure is used across all environments
+- Service registration logic remains consistent and maintainable
+- Environment-specific behavior is isolated to the environment switch
+- Test setup is clean and straightforward
+
+### Conditional Registration in Assemblies
+
+Inside an Assembly, you can conditionally register services based on the environment while keeping the overall structure identical:
+
+```swift
+struct AppAssembly: ServiceAssembly {
+    func assemble(env: ServiceEnv) {
+        if env == .test {
+            env.register(Localization.self) { MockLocalization() }
+        } else {
+            env.register(Localization.self) { Localization() }
+        }
+
+        // Keep the rest identical across all environments
+        env.register(ThemeManager.self) { ThemeManager() }
+    }
+}
+```
+
+This pattern is especially useful in large projects where:
+- You want to maintain a consistent service registration structure
+- Only a few services need environment-specific implementations
+- The majority of services remain the same across environments
+- You need to easily switch between production and test configurations
+
 ## Thread Safety
 
 Environments use `TaskLocal` storage, ensuring thread-safe access across async contexts. Each task maintains its own environment context, making it safe to use in concurrent code.

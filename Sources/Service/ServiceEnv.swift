@@ -55,6 +55,16 @@ extension ServiceEnv {
     public static let dev: ServiceEnv = ServiceEnv(name: "dev")
 }
 
+extension ServiceEnv: Hashable {
+    public static func == (lhs: ServiceEnv, rhs: ServiceEnv) -> Bool {
+        lhs.name == rhs.name
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(name)
+    }
+}
+
 extension ServiceEnv {
     /// Clears all cached service instances (both Sendable and MainActor services).
     /// Registered service providers remain intact, so services will be recreated

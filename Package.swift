@@ -18,7 +18,7 @@ let package = Package(
         .library(name: "Service", targets: ["Service"])
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-docc-plugin", .upToNextMajor(from: "1.4.5")),
+        .package(url: "https://github.com/apple/swift-docc-plugin", .upToNextMajor(from: "1.4.5"))
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.

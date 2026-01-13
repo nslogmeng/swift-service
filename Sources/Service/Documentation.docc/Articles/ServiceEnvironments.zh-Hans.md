@@ -115,6 +115,56 @@ func testUserCreation() async throws {
 }
 ```
 
+## 环境切换与 Assembly 结构保持
+
+Service 环境的一个关键优势是能够在切换环境的同时保持相同的 Assembly 结构。这在大型项目中特别有价值，因为可以在不同上下文中保持服务注册的组织性和一致性。
+
+### 在最外层作用域切换环境
+
+在测试中，你可以在最外层作用域切换到 `.test` 环境，并保持相同的 Assembly 结构：
+
+```swift
+await ServiceEnv.$current.withValue(.test) {
+    ServiceEnv.current.assemble([
+        AppAssembly()
+        // ... 其他 assemblies
+    ])
+
+    // 在 .test 环境中运行你的测试逻辑
+}
+```
+
+这种方法确保了：
+- 所有环境使用相同的 Assembly 结构
+- 服务注册逻辑保持一致且易于维护
+- 环境特定的行为被隔离到环境切换中
+- 测试设置简洁明了
+
+### 在 Assembly 中条件性注册
+
+在 Assembly 内部，你可以根据环境条件性地注册服务，同时保持整体结构相同：
+
+```swift
+struct AppAssembly: ServiceAssembly {
+    func assemble(env: ServiceEnv) {
+        if env == .test {
+            env.register(Localization.self) { MockLocalization() }
+        } else {
+            env.register(Localization.self) { Localization() }
+        }
+
+        // 在所有环境中保持其余部分相同
+        env.register(ThemeManager.self) { ThemeManager() }
+    }
+}
+```
+
+这种模式在大型项目中特别有用，因为：
+- 你可以保持一致的服务注册结构
+- 只有少数服务需要环境特定的实现
+- 大多数服务在所有环境中保持不变
+- 你需要轻松地在生产和测试配置之间切换
+
 ## 线程安全
 
 环境使用 `TaskLocal` 存储，确保跨异步上下文的线程安全访问。每个任务维护自己的环境上下文，使其在并发代码中安全使用。

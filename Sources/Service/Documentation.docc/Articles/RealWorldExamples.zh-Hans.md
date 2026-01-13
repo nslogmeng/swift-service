@@ -332,7 +332,97 @@ struct MyApp: App {
 }
 ```
 
-## 示例 4：使用不同环境进行测试
+## 示例 4：大型应用中的环境切换
+
+一个实际示例，展示如何在大型项目中切换环境的同时保持 Assembly 结构。
+
+### App Assembly 结构
+
+```swift
+struct AppAssembly: ServiceAssembly {
+    func assemble(env: ServiceEnv) {
+        env.registerMain(AppContainer.self) { AppContainer() }
+
+        env.register(Localization.self) { Localization() }
+        env.register(ThemeManager.self) { ThemeManager() }
+
+        env.registerMain(Router.self) { Router() }
+        env.registerMain(Overlay.self) { Overlay() }
+    }
+}
+```
+
+### 生产环境应用初始化
+
+```swift
+@main
+struct MyApp: App {
+    init() {
+        ServiceEnv.current.assemble([
+            AppAssembly()
+            // ... 其他 assemblies
+        ])
+    }
+    
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+    }
+}
+```
+
+### 测试环境设置
+
+在测试中，你可以切换到 `.test` 环境，同时保持完全相同的 Assembly 结构：
+
+```swift
+func testAppFlow() async throws {
+    await ServiceEnv.$current.withValue(.test) {
+        // 与生产环境相同的 assembly 结构
+        ServiceEnv.current.assemble([
+            AppAssembly()
+            // ... 其他 assemblies
+        ])
+
+        // 运行你的测试逻辑
+        let container = ServiceEnv.current.resolveMain(AppContainer.self)
+        // ... 测试断言
+    }
+}
+```
+
+### Assembly 中的条件性注册
+
+如果你需要环境特定的实现，可以在 Assembly 内条件性地注册服务，同时保持结构：
+
+```swift
+struct AppAssembly: ServiceAssembly {
+    func assemble(env: ServiceEnv) {
+        env.registerMain(AppContainer.self) { AppContainer() }
+
+        // 根据环境条件性注册
+        if env == .test {
+            env.register(Localization.self) { MockLocalization() }
+        } else {
+            env.register(Localization.self) { Localization() }
+        }
+        
+        // 保持其余部分相同
+        env.register(ThemeManager.self) { ThemeManager() }
+        env.registerMain(Router.self) { Router() }
+        env.registerMain(Overlay.self) { Overlay() }
+    }
+}
+```
+
+这种方法提供了：
+- **结构一致性**：所有环境使用相同的 Assembly 结构
+- **灵活性**：在最外层作用域轻松切换环境
+- **可维护性**：服务注册的更改集中在 Assemblies 中
+- **可测试性**：测试使用与生产相同的结构，确保真实的场景
+
+## 示例 5：使用不同环境进行测试
 
 使用环境进行测试，使用模拟服务。
 
@@ -400,7 +490,7 @@ func testUserRepository() async throws {
 }
 ```
 
-## 示例 5：复杂的依赖图
+## 示例 6：复杂的依赖图
 
 一个更复杂的示例，包含多个相互依赖的服务。
 
@@ -510,6 +600,8 @@ ServiceEnv.current.register(AnalyticsProtocol.self) {
 3. **使用装配进行组织**：将相关服务分组以获得更好的可维护性。
 
 4. **利用环境进行测试**：使用不同环境来交换实现以进行测试。
+
+5. **保持 Assembly 结构**：在所有环境中保持相同的 Assembly 结构，仅在最外层作用域切换环境，以获得最大的灵活性和可维护性。
 
 5. **保持服务专注**：每个服务应该有一个单一、明确定义的职责。
 
