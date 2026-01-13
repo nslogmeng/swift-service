@@ -77,8 +77,9 @@ runs:
                 normalizedPath = normalizedPath || '/';
                 let normalizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
                 normalizedBase = normalizedBase || '';
-                const langPath = normalizedBase + '/${lang_code}';
-                if (normalizedPath === langPath) {
+                // For language-specific pages, baseUrl already includes the language path
+                // So we check if the current path matches the baseUrl (language root)
+                if (normalizedPath === normalizedBase) {
                   // Ensure no double slashes when concatenating
                   const redirectPath = \"${redirect_path}\";
                   const finalPath = (baseUrl.endsWith('/') && redirectPath.startsWith('/')) 
