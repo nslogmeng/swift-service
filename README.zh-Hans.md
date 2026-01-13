@@ -9,7 +9,7 @@
 [![Platform Support Status](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fnslogmeng%2Fswift-service%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/nslogmeng/swift-service)
 [![Build Status](https://github.com/nslogmeng/swift-service/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/nslogmeng/swift-service/actions/workflows/build.yml)
 [![Test Status](https://github.com/nslogmeng/swift-service/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/nslogmeng/swift-service/actions/workflows/test.yml)
-[![中文文档](https://img.shields.io/badge/中文文档-available-blue)](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/)
+[![中文文档](https://img.shields.io/badge/中文文档-available-blue)](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-badge)
 
 <div align="center">
     <a href="./README.md"><strong>English</strong></a> | <strong>简体中文</strong>
@@ -124,30 +124,30 @@ await ServiceEnv.$current.withValue(.test) {
 
 ## 📚 文档
 
-完整的文档、教程和示例，请参阅 [Service 文档](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/).
+完整的文档、教程和示例，请参阅 [Service 文档](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs).
 
 ### 主题
 
 #### 基础
 
-- **[快速开始](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/gettingstarted)** - 快速设置指南
-- **[基本用法](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/basicusage)** - 核心模式和示例
-- **[服务环境](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/serviceenvironments)** - 管理不同的服务配置
+- **[快速开始](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/gettingstarted/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - 快速设置指南
+- **[基本用法](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/basicusage/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - 核心模式和示例
+- **[服务环境](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/serviceenvironments/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - 管理不同的服务配置
 
 #### 高级主题
 
-- **[MainActor 服务](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/mainactorservices)** - 使用 UI 组件
-- **[服务装配](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/serviceassembly)** - 组织服务注册
-- **[循环依赖](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/circulardependencies)** - 理解和避免循环依赖
+- **[MainActor 服务](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/mainactorservices/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - 使用 UI 组件
+- **[服务装配](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/serviceassembly/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - 组织服务注册
+- **[循环依赖](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/circulardependencies/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - 理解和避免循环依赖
 
 #### 示例
 
-- **[实际示例](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/realworldexamples)** - 实用用例
+- **[实际示例](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/realworldexamples/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - 实用用例
 
 #### 深入理解
 
-- **[理解 Service](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/understandingservice)** - 深入架构
-- **[并发模型](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/concurrencymodel)** - 理解 Service 的并发模型
+- **[理解 Service](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/understandingservice/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - 深入架构
+- **[并发模型](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/concurrencymodel/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - 理解 Service 的并发模型
 
 ## 💡 为什么选择 Service？
 
