@@ -56,10 +56,12 @@ extension ServiceEnv {
 }
 
 extension ServiceEnv: Hashable {
+    /// Compares two environments for equality based on their names.
     public static func == (lhs: ServiceEnv, rhs: ServiceEnv) -> Bool {
         lhs.name == rhs.name
     }
 
+    /// Hashes the environment based on its name.
     public func hash(into hasher: inout Hasher) {
         hasher.combine(name)
     }
