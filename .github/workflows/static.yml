@@ -17,40 +17,19 @@ concurrency:
   group: "pages"
   cancel-in-progress: false
 
-jobs:
-  prepare:
-    runs-on: ubuntu-latest
-    outputs:
-      langs_json: ${{ steps.set.outputs.langs_json }}
-      default_lang: ${{ steps.set.outputs.default_lang }}
-    steps:
-      - name: Set defaults
-        id: set
-        env:
-          VAR_LANGS_JSON: ${{ vars.DOCC_LANGS_JSON }}
-          VAR_DEFAULT_LANG: ${{ vars.DOCC_DEFAULT_LANG }}
-        run: |
-          if [ -z "$VAR_LANGS_JSON" ]; then
-            LANGS_JSON='["en","zh-Hans"]'
-          else
-            LANGS_JSON="$VAR_LANGS_JSON"
-          fi
-          
-          if [ -z "$VAR_DEFAULT_LANG" ]; then
-            DEFAULT_LANG="en"
-          else
-            DEFAULT_LANG="$VAR_DEFAULT_LANG"
-          fi
-          
-          echo "langs_json=${LANGS_JSON}" >> "$GITHUB_OUTPUT"
-          echo "default_lang=${DEFAULT_LANG}" >> "$GITHUB_OUTPUT"
+# DocC language configuration (can be modified directly in this file)
+# Default language identifier
+env:
+  DOCC_DEFAULT_LANG: en
+  # All supported languages (including default language) as JSON array
+  DOCC_LANGS_JSON: '["en","zh-Hans"]'
 
+jobs:
   build:
-    needs: prepare
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        lang: ${{ fromJSON(needs.prepare.outputs.langs_json) }}
+        lang: ${{ fromJSON(env.DOCC_LANGS_JSON) }}
 
     steps:
       - name: Checkout
@@ -60,15 +39,15 @@ jobs:
         uses: ./.github/actions/docc-build
         with:
           lang: ${{ matrix.lang }}
-          default_lang: ${{ needs.prepare.outputs.default_lang }}
-          langs_json: ${{ needs.prepare.outputs.langs_json }}
+          default_lang: ${{ env.DOCC_DEFAULT_LANG }}
+          langs_json: ${{ env.DOCC_LANGS_JSON }}
           target: Service
           docc_catalog: Sources/Service/Documentation.docc
           repo_name: ${{ github.event.repository.name }}
           swift_version: "6.2"
 
   deploy:
-    needs: [prepare, build]
+    needs: build
     runs-on: ubuntu-latest
     environment:
       name: DocC Site
@@ -83,6 +62,6 @@ jobs:
         id: pages
         uses: ./.github/actions/docc-pages
         with:
-          default_lang: ${{ needs.prepare.outputs.default_lang }}
-          langs_json: ${{ needs.prepare.outputs.langs_json }}
+          default_lang: ${{ env.DOCC_DEFAULT_LANG }}
+          langs_json: ${{ env.DOCC_LANGS_JSON }}
           ga_measurement_id: ${{ vars.GA_MEASUREMENT_ID || secrets.GA_MEASUREMENT_ID }}

@@ -1,72 +1,91 @@
-- name: Inject Google Analytics
-  shell: bash
-  env:
-    ROOT: ${{ inputs.root }}
-    GA_ID: ${{ inputs.measurement_id }}
-  run: |
-    set -euo pipefail
-    if [ -z "${GA_ID:-}" ]; then
-      echo "GA measurement id not set; skipping injection."
-      exit 0
-    fi
+name: Inject Google Analytics (GA4)
+description: Inject GA4 snippet into all index.html under a root directory.
 
-    python3 - <<'PY'
-    import os
-    from pathlib import Path
-    from textwrap import dedent
+inputs:
+  root:
+    required: true
+    description: Root directory containing the built DocC static site.
+  measurement_id:
+    required: false
+    description: GA4 Measurement ID (G-XXXXXXXXXX). If empty, injection is skipped.
 
-    root = Path(os.environ["ROOT"])
-    ga_id = os.environ["GA_ID"].strip()
+runs:
+  using: composite
+  steps:
+    - name: Inject GA4 into index.html
+      shell: bash
+      env:
+        ROOT: ${{ inputs.root }}
+        GA_ID: ${{ inputs.measurement_id }}
+      run: |
+        set -euo pipefail
 
-    snippet = dedent(f"""\
-      <!-- Google tag (gtag.js) -->
-      <script async src="https://www.googletagmanager.com/gtag/js?id={ga_id}"></script>
-      <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){{dataLayer.push(arguments);}}
-        gtag('js', new Date());
+        if [ -z "${GA_ID:-}" ]; then
+          echo "GA measurement id not set; skipping injection."
+          exit 0
+        fi
 
-        // Disable automatic page_view and send manually on route changes (DocC is a SPA).
-        gtag('config', '{ga_id}', {{ send_page_view: false }});
+        python3 - <<'PY'
+        import os
+        from pathlib import Path
+        from textwrap import dedent
 
-        function trackPageView() {{
-          gtag('event', 'page_view', {{
-            page_title: document.title,
-            page_location: location.href
-          }});
-        }}
+        root = Path(os.environ["ROOT"])
+        ga_id = os.environ["GA_ID"].strip()
 
-        trackPageView();
+        snippet = dedent(f"""\
+        <!-- Google tag (gtag.js) -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id={ga_id}"></script>
+        <script>
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){{dataLayer.push(arguments);}}
+          gtag('js', new Date());
 
-        (function() {{
-          const _pushState = history.pushState;
-          const _replaceState = history.replaceState;
+          // Disable automatic page_view and send manually on route changes (DocC is a SPA).
+          gtag('config', '{ga_id}', {{ send_page_view: false }});
 
-          history.pushState = function() {{
-            _pushState.apply(this, arguments);
-            trackPageView();
-          }};
-          history.replaceState = function() {{
-            _replaceState.apply(this, arguments);
-            trackPageView();
-          }};
-          window.addEventListener('popstate', trackPageView);
-        }})();
-      </script>
-    """)
+          function trackPageView() {{
+            gtag('event', 'page_view', {{
+              page_title: document.title,
+              page_location: location.href
+            }});
+          }}
 
-    files = list(root.rglob("index.html"))
-    injected = skipped = 0
-    for f in files:
-      text = f.read_text(encoding="utf-8", errors="ignore")
-      if "googletagmanager.com/gtag/js?id=" in text:
-        skipped += 1
-        continue
-      pos = text.lower().rfind("</head>")
-      if pos == -1:
-        continue
-      f.write_text(text[:pos] + snippet + "\n" + text[pos:], encoding="utf-8")
-      injected += 1
+          trackPageView();
 
-    print(f"GA injected into {injected} files; skipped {skipped}; total index.html: {len(files)}")
-    PY
+          (function() {{
+            const _pushState = history.pushState;
+            const _replaceState = history.replaceState;
+
+            history.pushState = function() {{
+              _pushState.apply(this, arguments);
+              trackPageView();
+            }};
+            history.replaceState = function() {{
+              _replaceState.apply(this, arguments);
+              trackPageView();
+            }};
+            window.addEventListener('popstate', trackPageView);
+          }})();
+        </script>
+        """)
+
+        files = list(root.rglob("index.html"))
+        injected = 0
+        skipped = 0
+
+        for f in files:
+            text = f.read_text(encoding="utf-8", errors="ignore")
+            if "googletagmanager.com/gtag/js?id=" in text:
+                skipped += 1
+                continue
+
+            pos = text.lower().rfind("</head>")
+            if pos == -1:
+                continue
+
+            f.write_text(text[:pos] + snippet + "\n" + text[pos:], encoding="utf-8")
+            injected += 1
+
+        print(f"GA injected into {injected} files; skipped {skipped}; total index.html: {len(files)}")
+        PY
