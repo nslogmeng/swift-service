@@ -1,6 +1,6 @@
-# 服务装配
+# ServiceAssembly
 
-Service Assembly 提供了一种标准化、模块化的方式来组织服务注册，类似于 Swinject 的 Assembly 模式。
+`ServiceAssembly` 提供了一种标准化、模块化的方式来组织服务注册，类似于 Swinject 的 Assembly 模式。
 
 > Localization: **[English](https://nslogmeng.github.io/swift-service/documentation/service/serviceassembly)**  |  **简体中文**
 
@@ -10,12 +10,12 @@ Service Assembly 提供了一种标准化、模块化的方式来组织服务注
 
 - **组织注册**：将相关服务分组
 - **提高可复用性**：在项目之间共享通用服务配置
-- **简化测试**：轻松为不同环境交换装配
+- **简化测试**：轻松为不同环境切换 Assembly 服务
 - **保持清晰**：将注册逻辑与业务逻辑分离
 
-## 创建装配
+## 创建 Assembly
 
-通过遵循 `ServiceAssembly` 协议定义装配：
+通过遵循 `ServiceAssembly` 协议定义 Assembly：
 
 ```swift
 struct DatabaseAssembly: ServiceAssembly {
@@ -27,19 +27,15 @@ struct DatabaseAssembly: ServiceAssembly {
 }
 ```
 
-## 装配服务
+## Service Assembly
 
-### 单个装配
-
-装配单个装配：
+### 单个 Assembly
 
 ```swift
 ServiceEnv.current.assemble(DatabaseAssembly())
 ```
 
-### 多个装配
-
-一次性装配多个装配：
+### 组织多个 Assembly
 
 ```swift
 ServiceEnv.current.assemble([
@@ -64,7 +60,7 @@ ServiceEnv.current.assemble(
 以下是如何在实际应用中组织服务的示例：
 
 ```swift
-// 数据库装配
+// 数据库 Assembly
 struct DatabaseAssembly: ServiceAssembly {
     func assemble(env: ServiceEnv) {
         env.register(DatabaseProtocol.self) {
@@ -73,7 +69,7 @@ struct DatabaseAssembly: ServiceAssembly {
     }
 }
 
-// 网络装配
+// 网络 Assembly
 struct NetworkAssembly: ServiceAssembly {
     func assemble(env: ServiceEnv) {
         env.register(APIClientProtocol.self) {
@@ -83,7 +79,7 @@ struct NetworkAssembly: ServiceAssembly {
     }
 }
 
-// 仓库装配
+// Repo Assembly
 struct RepositoryAssembly: ServiceAssembly {
     func assemble(env: ServiceEnv) {
         env.register(UserRepositoryProtocol.self) {
@@ -94,7 +90,7 @@ struct RepositoryAssembly: ServiceAssembly {
     }
 }
 
-// 日志装配
+// 日志 Assembly
 struct LoggerAssembly: ServiceAssembly {
     func assemble(env: ServiceEnv) {
         env.register(LoggerProtocol.self) {
@@ -123,12 +119,12 @@ struct MyApp: App {
 }
 ```
 
-## 环境特定装配
+## 环境特定 Assembly
 
-你可以为不同环境创建不同的装配：
+你可以为不同环境创建不同的 `ServiceAssembly`：
 
 ```swift
-// 生产装配
+// 生产环境 ServiceAssembly
 struct ProductionDatabaseAssembly: ServiceAssembly {
     func assemble(env: ServiceEnv) {
         env.register(DatabaseProtocol.self) {
@@ -137,7 +133,7 @@ struct ProductionDatabaseAssembly: ServiceAssembly {
     }
 }
 
-// 开发装配
+// 开发环境 ServiceAssembly
 struct DevelopmentDatabaseAssembly: ServiceAssembly {
     func assemble(env: ServiceEnv) {
         env.register(DatabaseProtocol.self) {
@@ -146,7 +142,7 @@ struct DevelopmentDatabaseAssembly: ServiceAssembly {
     }
 }
 
-// 测试装配
+// 测试环境 ServiceAssembly
 struct TestDatabaseAssembly: ServiceAssembly {
     func assemble(env: ServiceEnv) {
         env.register(DatabaseProtocol.self) {
@@ -169,9 +165,9 @@ func setupServices() {
 }
 ```
 
-## 装配中的 MainActor 服务
+## ServiceAssembly 中的 MainActor
 
-你可以在装配中注册 MainActor 服务，但请记住 `assemble` 必须从 `@MainActor` 上下文调用：
+你可以在 ServiceAssembly 中注册 MainActor 服务，但请记住 `assemble` 必须从 `@MainActor` 上下文调用：
 
 ```swift
 struct ViewModelAssembly: ServiceAssembly {
@@ -206,7 +202,7 @@ struct MyApp: App {
 
 ## 为什么使用 @MainActor？
 
-Service Assembly 标记为 `@MainActor` 以确保 thread-safe。Assembly 通常发生在应用初始化阶段，这是应用生命周期的非常早期阶段。Assemble 操作强烈依赖于执行顺序，通常在 `main.swift` 或 SwiftUI App 的 `init` 方法中执行，这些代码已经在 MainActor 上运行。将装配操作约束到 MainActor 可以确保线程安全，并为服务注册提供可预测的、顺序执行的上下文。
+`ServiceAssembly` 标记为 `@MainActor` 以确保 thread-safe。Assembly 通常发生在应用初始化阶段，这是应用生命周期的非常早期阶段。Assemble 操作强烈依赖于执行顺序，通常在 `main.swift` 或 SwiftUI App 的 `init` 方法中执行，这些代码已经在 MainActor 上运行。将 Assembly 操作约束到 MainActor 可以确保线程安全，并为服务注册提供可预测的、顺序执行的上下文。
 
 ### 从非 MainActor 上下文调用
 

@@ -267,9 +267,9 @@ struct UserListView: View {
 
 ## 示例 3：使用 Service Assembly
 
-使用装配组织服务以获得更好的结构。
+使用 Assembly 组织服务以获得更好的结构。
 
-### 装配
+### 实现 `ServiceAssembly`
 
 ```swift
 struct NetworkAssembly: ServiceAssembly {
@@ -597,7 +597,7 @@ ServiceEnv.current.register(AnalyticsProtocol.self) {
 
 2. **按依赖顺序注册**：先注册其他服务依赖的服务。
 
-3. **使用装配进行组织**：将相关服务分组以获得更好的可维护性。
+3. **使用 Assembly 进行组织**：将相关服务分组以获得更好的可维护性。
 
 4. **利用环境进行测试**：使用不同环境来交换实现以进行测试。
 

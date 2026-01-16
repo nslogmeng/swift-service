@@ -206,11 +206,11 @@ Swift 6 的严格并发模型要求跨 actor 通信需要 `Sendable`。但是，
 - **Sendable 服务**：使用标准的 `register`/`resolve` API
 - **MainActor 服务**：使用 `registerMain`/`resolveMain` API
 
-### 为什么装配使用 @MainActor？
+### 为什么 `ServiceAssembly` 使用 @MainActor？
 
-Service Assembly 标记为 `@MainActor`，因为：
+`ServiceAssembly` 被标记为 `@MainActor`，因为：
 
-1. 装配通常发生在应用初始化期间（已经在主 actor 上）
+1. Service Assembly 通常发生在应用初始化期间（已经在主 actor 上）
 2. 确保线程安全、顺序执行注册
 3. 提供可预测的执行上下文
 
@@ -272,9 +272,9 @@ struct MyService: ServiceKey {
 }
 ```
 
-### ServiceAssembly 协议
+### `ServiceAssembly` 协议
 
-通过装配组织注册：
+通过 `ServiceAssembly` 组织注册：
 
 ```swift
 struct MyAssembly: ServiceAssembly {
@@ -288,7 +288,7 @@ struct MyAssembly: ServiceAssembly {
 
 1. **使用协议**：定义服务协议以实现灵活性和可测试性
 2. **按顺序注册**：在依赖项之前注册依赖
-3. **使用装配**：组织注册以提高可维护性
+3. **使用 ServiceAssembly**：组织注册以提高可维护性
 4. **利用环境**：在不同上下文使用不同环境
 5. **在测试中清除缓存**：使用 `resetCaches()` 确保测试中的新实例
 
