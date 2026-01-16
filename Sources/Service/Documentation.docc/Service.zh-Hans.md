@@ -78,6 +78,7 @@ let user = repository.fetchUser(id: "123")
 - <doc:MainActorServices>
 - <doc:ServiceAssembly>
 - <doc:CircularDependencies>
+- <doc:ResettingServices>
 
 ### Examples
 
