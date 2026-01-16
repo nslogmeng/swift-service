@@ -137,7 +137,7 @@ await ServiceEnv.$current.withValue(.test) {
 #### 高级主题
 
 - **[MainActor 服务](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/mainactorservices/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - 使用 UI 组件
-- **[服务装配](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/serviceassembly/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - 组织服务注册
+- **[Service Assembly](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/serviceassembly/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - 组织服务注册
 - **[循环依赖](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/circulardependencies/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - 理解和避免循环依赖
 
 #### 示例
