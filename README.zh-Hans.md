@@ -4,12 +4,12 @@
 
 # Service
 
-[![GitHub License](https://img.shields.io/github/license/nslogmeng/swift-service)](./LICENSE)
 [![Swift Version Status](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fnslogmeng%2Fswift-service%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/nslogmeng/swift-service)
 [![Platform Support Status](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fnslogmeng%2Fswift-service%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/nslogmeng/swift-service)
 [![Build Status](https://github.com/nslogmeng/swift-service/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/nslogmeng/swift-service/actions/workflows/build.yml)
 [![Test Status](https://github.com/nslogmeng/swift-service/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/nslogmeng/swift-service/actions/workflows/test.yml)
 [![中文文档](https://img.shields.io/badge/中文文档-available-blue)](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-badge)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/nslogmeng/swift-service)
 
 <div align="center">
     <a href="./README.md"><strong>English</strong></a> | <strong>简体中文</strong>
