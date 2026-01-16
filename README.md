@@ -139,6 +139,7 @@ For comprehensive documentation, tutorials, and examples, see the [Service Docum
 - **[MainActor Services](https://nslogmeng.github.io/swift-service/documentation/service/mainactorservices/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - Working with UI components
 - **[Service Assembly](https://nslogmeng.github.io/swift-service/documentation/service/serviceassembly/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - Organizing service registrations
 - **[Circular Dependencies](https://nslogmeng.github.io/swift-service/documentation/service/circulardependencies/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - Understanding and avoiding circular dependencies
+- **[Resetting Services](https://nslogmeng.github.io/swift-service/documentation/service/resettingservices/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - Clearing caches and resetting service environments
 
 #### Examples
 
