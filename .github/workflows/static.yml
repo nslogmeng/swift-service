@@ -34,8 +34,7 @@ jobs:
 
       - name: Build DocC (all languages)
         run: |
-          ./scripts/build-docc.sh --all \
-            --ga-id "${{ vars.GA_MEASUREMENT_ID || secrets.GA_MEASUREMENT_ID }}"
+          ./scripts/build-docc.sh --all --ga-id "${{ vars.GA_MEASUREMENT_ID || secrets.GA_MEASUREMENT_ID }}"
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
