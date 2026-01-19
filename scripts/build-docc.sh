@@ -153,18 +153,22 @@ generate_symbol_graph() {
     echo "Swift version: $(swift --version | head -1)"
     echo "Generating symbol graph..."
 
-    if ! swift package dump-symbol-graph --minimum-access-level public 2>&1; then
-      echo "Error: Failed to generate symbol graph" >&2
-      exit 1
-    fi
+    # Run dump-symbol-graph, ignore exit code (test targets may fail but main target succeeds)
+    swift package dump-symbol-graph --minimum-access-level public 2>&1 || true
 
     # Find the symbol graph directory
     SYMBOL_GRAPH_DIR=$(find .build -type d \( -name "symbol-graph" -o -name "symbolgraph" \) 2>/dev/null | head -1)
 
     if [[ -z "$SYMBOL_GRAPH_DIR" || ! -d "$SYMBOL_GRAPH_DIR" ]]; then
       echo "Error: Could not find symbol graph directory" >&2
-      echo "Searching in .build for symbol graph directories..." >&2
       find .build -type d -name "*symbol*" 2>/dev/null || true
+      exit 1
+    fi
+
+    # Verify the target module's symbol graph exists
+    if ! ls "$SYMBOL_GRAPH_DIR"/${TARGET}*.json &>/dev/null; then
+      echo "Error: Symbol graph for $TARGET not found in $SYMBOL_GRAPH_DIR" >&2
+      ls -la "$SYMBOL_GRAPH_DIR" || true
       exit 1
     fi
   else
