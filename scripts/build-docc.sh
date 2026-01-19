@@ -150,19 +150,25 @@ echo "Using docc: $DOCC_CMD"
 generate_symbol_graph() {
   if [[ "$SKIP_BUILD" != "true" ]]; then
     echo ""
+    echo "Swift version: $(swift --version | head -1)"
     echo "Generating symbol graph..."
 
-    DUMP_OUTPUT=$(swift package dump-symbol-graph --minimum-access-level public 2>&1)
-    echo "$DUMP_OUTPUT"
+    if ! swift package dump-symbol-graph --minimum-access-level public 2>&1; then
+      echo "Error: Failed to generate symbol graph" >&2
+      exit 1
+    fi
 
-    SYMBOL_GRAPH_DIR=$(echo "$DUMP_OUTPUT" | grep "Files written to" | sed 's/Files written to //')
+    # Find the symbol graph directory
+    SYMBOL_GRAPH_DIR=$(find .build -type d \( -name "symbol-graph" -o -name "symbolgraph" \) 2>/dev/null | head -1)
 
     if [[ -z "$SYMBOL_GRAPH_DIR" || ! -d "$SYMBOL_GRAPH_DIR" ]]; then
-      echo "Error: Could not determine symbol graph directory" >&2
+      echo "Error: Could not find symbol graph directory" >&2
+      echo "Searching in .build for symbol graph directories..." >&2
+      find .build -type d -name "*symbol*" 2>/dev/null || true
       exit 1
     fi
   else
-    SYMBOL_GRAPH_DIR=$(find .build -type d -name "symbolgraph" 2>/dev/null | head -1)
+    SYMBOL_GRAPH_DIR=$(find .build -type d \( -name "symbol-graph" -o -name "symbolgraph" \) 2>/dev/null | head -1)
     if [[ -z "$SYMBOL_GRAPH_DIR" ]]; then
       echo "Error: No symbol graph found. Run without --skip-build first." >&2
       exit 1
