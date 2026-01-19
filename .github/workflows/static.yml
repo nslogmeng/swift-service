@@ -15,67 +15,36 @@ concurrency:
   group: "pages"
   cancel-in-progress: false
 
-# DocC language configuration (can be modified directly in this file)
-env:
-  DOCC_DEFAULT_LANG: en
-  DOCC_LANGS_JSON: '["en","zh-Hans"]'
-
 jobs:
-  prepare:
-    runs-on: ubuntu-latest
-    outputs:
-      langs_json: ${{ steps.set.outputs.langs_json }}
-      default_lang: ${{ steps.set.outputs.default_lang }}
-    steps:
-      - name: Export workflow config
-        id: set
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          # strategy.matrix cannot read env context directly.
-          # Export workflow-level env as job outputs for later jobs.
-          printf 'langs_json=%s\n' "$DOCC_LANGS_JSON" >> "$GITHUB_OUTPUT"
-          printf 'default_lang=%s\n' "$DOCC_DEFAULT_LANG" >> "$GITHUB_OUTPUT"
-
-  build:
-    needs: prepare
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        lang: ${{ fromJSON(needs.prepare.outputs.langs_json) }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Build DocC (${{ matrix.lang }})
-        uses: ./.github/actions/docc-build
-        with:
-          lang: ${{ matrix.lang }}
-          default_lang: ${{ needs.prepare.outputs.default_lang }}
-          langs_json: ${{ needs.prepare.outputs.langs_json }}
-          target: Service
-          docc_catalog: Sources/Service/Documentation.docc
-          repo_name: ${{ github.event.repository.name }}
-          swift_version: "6.2"
-
-  deploy:
-    needs: [prepare, build]
+  build-and-deploy:
     runs-on: ubuntu-latest
     environment:
       name: DocC Site
-      url: ${{ steps.pages.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      # Required for local actions (./.github/actions/*).
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Deploy Pages
-        id: pages
-        uses: ./.github/actions/docc-pages
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v3
         with:
-          default_lang: ${{ needs.prepare.outputs.default_lang }}
-          langs_json: ${{ needs.prepare.outputs.langs_json }}
-          ga_measurement_id: ${{ vars.GA_MEASUREMENT_ID || secrets.GA_MEASUREMENT_ID }}
+          swift-version: "6.2"
+          skip-verify-signature: true
+
+      - name: Build DocC (all languages)
+        run: |
+          ./scripts/build-docc.sh --all \
+            --ga-id "${{ vars.GA_MEASUREMENT_ID || secrets.GA_MEASUREMENT_ID }}"
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .build/docs
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
