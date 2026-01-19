@@ -154,7 +154,7 @@ generate_symbol_graph() {
     echo "Generating symbol graph..."
 
     # Run dump-symbol-graph, ignore exit code (test targets may fail but main target succeeds)
-    swift package dump-symbol-graph --minimum-access-level public 2>&1 || true
+    swift package dump-symbol-graph --minimum-access-level public 2>/dev/null || true
 
     # Find the symbol graph directory
     SYMBOL_GRAPH_DIR=$(find .build -type d \( -name "symbol-graph" -o -name "symbolgraph" \) 2>/dev/null | head -1)
@@ -305,19 +305,17 @@ inject_google_analytics() {
   local skipped=0
 
   while IFS= read -r -d '' file; do
-    if grep -q 'googletagmanager.com/gtag/js' "$file" 2>/dev/null; then
-      ((skipped++))
+    if grep -q 'gtag/js' "$file" 2>/dev/null; then
+      skipped=$((skipped + 1))
       continue
     fi
 
-    # Inject GA script before </head>
-    # Note: sed uses # as delimiter, & escaped as \&
     if [[ "$(uname)" == "Darwin" ]]; then
-      sed -i '' "s#</head>#<script async src=\"https://www.googletagmanager.com/gtag/js?id=${ga_id}\"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${ga_id}',{send_page_view:false});function trackPageView(){gtag('event','page_view',{page_title:document.title,page_location:location.href})}trackPageView();(function(){var p=history.pushState,r=history.replaceState;history.pushState=function(){p.apply(this,arguments);trackPageView()};history.replaceState=function(){r.apply(this,arguments);trackPageView()};window.addEventListener('popstate',trackPageView)})();</script></head>#" "$file"
+      sed -i '' 's~</head>~<script async src="https://www.googletagmanager.com/gtag/js?id='"${ga_id}"'"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date());gtag("config","'"${ga_id}"'");</script></head>~' "$file"
     else
-      sed -i "s#</head>#<script async src=\"https://www.googletagmanager.com/gtag/js?id=${ga_id}\"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${ga_id}',{send_page_view:false});function trackPageView(){gtag('event','page_view',{page_title:document.title,page_location:location.href})}trackPageView();(function(){var p=history.pushState,r=history.replaceState;history.pushState=function(){p.apply(this,arguments);trackPageView()};history.replaceState=function(){r.apply(this,arguments);trackPageView()};window.addEventListener('popstate',trackPageView)})();</script></head>#" "$file"
+      sed -i 's~</head>~<script async src="https://www.googletagmanager.com/gtag/js?id='"${ga_id}"'"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date());gtag("config","'"${ga_id}"'");</script></head>~' "$file"
     fi
-    ((injected++))
+    injected=$((injected + 1))
   done < <(find "$root" -name "index.html" -print0)
 
   echo "  GA injected: $injected files, skipped: $skipped"
@@ -371,7 +369,7 @@ inject_local_navigation() {
       else
         sed -i 's#</head>#<script data-id="local-nav-handler">document.addEventListener("click",function(e){var a=e.target.closest("a");if(!a)return;var h=a.getAttribute("href");if(!h)return;var prefix="https://nslogmeng.github.io/swift-service";if(h.startsWith(prefix)){e.preventDefault();e.stopPropagation();window.location.href=h.slice(prefix.length)||"/"}},true);</script></head>#' "$file"
       fi
-      ((count++))
+      count=$((count + 1))
     fi
   done < <(find "$root" -name "*.html" -print0)
 
