@@ -267,75 +267,24 @@ build_single_lang() {
 inject_redirect() {
   local file="$1"
   local redirect_path="$2"
-  local lang_code="${3:-}"
 
   if [[ ! -f "$file" ]]; then
     return
   fi
 
-  if grep -q "Redirect.*path to documentation" "$file"; then
+  if grep -q 'redirect-script' "$file"; then
     return
   fi
 
-  local base_url=""
-  if grep -q 'var baseUrl =' "$file"; then
-    base_url=$(grep -o 'var baseUrl = "[^"]*"' "$file" | sed 's/var baseUrl = "\([^"]*\)"/\1/')
-  fi
+  # Simple redirect: if at root of this index.html's directory, go to documentation
+  # redirect_path is like "/documentation/service/" or "/zh-Hans/documentation/service/"
+  local script="<script data-id=\"redirect-script\">(function(){var b=document.baseURI||location.href;if(b.endsWith('index.html'))b=b.slice(0,-10);if(location.href===b||location.href===b.slice(0,-1)){location.replace(b+'${redirect_path#/}')}})();</script>"
 
-  local redirect_script
-  if [[ -z "$lang_code" ]]; then
-    redirect_script="    <script>
-      // Redirect root path to documentation
-      (function() {
-        const pathname = window.location.pathname;
-        const baseUrl = \"${base_url}\";
-        let normalizedPath = pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
-        normalizedPath = normalizedPath || '/';
-        let normalizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-        normalizedBase = normalizedBase || '';
-        if (normalizedPath === normalizedBase || (normalizedBase === '' && normalizedPath === '/')) {
-          const redirectPath = \"${redirect_path}\";
-          const finalPath = (baseUrl.endsWith('/') && redirectPath.startsWith('/'))
-            ? baseUrl + redirectPath.slice(1)
-            : baseUrl + redirectPath;
-          window.location.href = finalPath;
-        }
-      })();
-    </script>"
+  if [[ "$(uname)" == "Darwin" ]]; then
+    sed -i '' "s#</head>#${script}</head>#" "$file"
   else
-    redirect_script="    <script>
-      // Redirect language root path to documentation
-      (function() {
-        const pathname = window.location.pathname;
-        const baseUrl = \"${base_url}\";
-        let normalizedPath = pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
-        normalizedPath = normalizedPath || '/';
-        let normalizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-        normalizedBase = normalizedBase || '';
-        if (normalizedPath === normalizedBase) {
-          let redirectPath = \"${redirect_path}\";
-          const langPrefix = \"/${lang_code}/\";
-          if (redirectPath.startsWith(langPrefix)) {
-            redirectPath = redirectPath.slice(langPrefix.length - 1);
-          }
-          const finalPath = (baseUrl.endsWith('/') && redirectPath.startsWith('/'))
-            ? baseUrl + redirectPath.slice(1)
-            : baseUrl + redirectPath;
-          window.location.href = finalPath;
-        }
-      })();
-    </script>"
+    sed -i "s#</head>#${script}</head>#" "$file"
   fi
-
-  local temp_file
-  temp_file=$(mktemp)
-  local script_file
-  script_file=$(mktemp)
-  echo "$redirect_script" > "$script_file"
-
-  sed -E '/<[Hh][Ee][Aa][Dd][^>]*>/r '"$script_file" "$file" > "$temp_file"
-  mv "$temp_file" "$file"
-  rm -f "$script_file"
 
   echo "  Added redirect: $file"
 }
@@ -385,7 +334,7 @@ inject_all_redirects() {
 
   # Root redirect
   if [[ -f "$root/index.html" ]]; then
-    inject_redirect "$root/index.html" "/documentation/$target_lower/" ""
+    inject_redirect "$root/index.html" "documentation/$target_lower/"
   fi
 
   # Language-specific redirects
@@ -393,7 +342,7 @@ inject_all_redirects() {
     if [[ "$lang" != "$DEFAULT_LANG" ]]; then
       local lang_index="$root/$lang/index.html"
       if [[ -f "$lang_index" ]]; then
-        inject_redirect "$lang_index" "/$lang/documentation/$target_lower/" "$lang"
+        inject_redirect "$lang_index" "documentation/$target_lower/"
       fi
     fi
   done
@@ -475,11 +424,7 @@ else
   if [[ -f "$SINGLE_OUTPUT/index.html" ]]; then
     echo ""
     echo "Injecting redirect..."
-    if [[ "$LANG" == "$DEFAULT_LANG" ]]; then
-      inject_redirect "$SINGLE_OUTPUT/index.html" "/documentation/$TARGET_LOWER/" ""
-    else
-      inject_redirect "$SINGLE_OUTPUT/index.html" "/$LANG/documentation/$TARGET_LOWER/" "$LANG"
-    fi
+    inject_redirect "$SINGLE_OUTPUT/index.html" "documentation/$TARGET_LOWER/"
   fi
 
   # Rewrite links for local preview
