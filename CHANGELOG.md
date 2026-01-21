@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.8]
+
+### Changed
+- **Zero Dependencies**: Removed all external package dependencies
+  - Eliminated DocC-related dependencies from `Package.swift`
+  - Removed `Package.resolved` file
+  - Replaced dependency-based documentation build with standalone script
+  - Service is now truly zero-dependency with no external dependencies required
+
+### Added
+- **Resetting Services Documentation**: Comprehensive guide on service lifecycle management
+  - Complete documentation for `resetCaches()` and `resetAll()` methods
+  - Detailed examples for testing scenarios and state management
+  - Bilingual support (English and Simplified Chinese)
+
+### Improved
+- Enhanced documentation terminology consistency in Chinese translations
+  - Unified terminology for ServiceAssembly and related concepts
+  - Improved clarity and consistency across documentation
+- Improved cross-platform compatibility for documentation builds
+- Streamlined GitHub Actions workflows for documentation deployment
+
+---
+
 ## [1.0.7]
 
 ### Added
@@ -144,8 +168,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.1]
 
+### Fixed
+- Fixed Swift 6.0 compiler compatibility issues
+- Fixed build errors
+- Added support for both Linux and Darwin platforms
+
+### Improved
+- Refactored thread lock implementation for better Linux compatibility and thread safety
+- Adjusted Swift tools version to 6.0
+
+### Documentation
+- Updated README with project logo and badges
+
+---
+
+## [1.0.0]
+
 ### Added
-- Initial stable release of Service - a lightweight, zero-dependency, type-safe dependency injection framework for modern Swift
+- **Initial Stable Release**: First stable release of Service - a lightweight, zero-dependency, type-safe dependency injection framework for modern Swift
 
 ### Features
 - **Modern Swift**: Built with property wrappers, TaskLocal, and Swift 6 concurrency
@@ -167,10 +207,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[1.0.8]: https://github.com/nslogmeng/swift-service/compare/1.0.7...1.0.8
 [1.0.7]: https://github.com/nslogmeng/swift-service/compare/1.0.6...1.0.7
 [1.0.6]: https://github.com/nslogmeng/swift-service/compare/1.0.5...1.0.6
 [1.0.5]: https://github.com/nslogmeng/swift-service/compare/1.0.4...1.0.5
 [1.0.4]: https://github.com/nslogmeng/swift-service/compare/1.0.3...1.0.4
 [1.0.3]: https://github.com/nslogmeng/swift-service/compare/1.0.2...1.0.3
 [1.0.2]: https://github.com/nslogmeng/swift-service/compare/1.0.1...1.0.2
-[1.0.1]: https://github.com/nslogmeng/swift-service/releases/tag/1.0.1
+[1.0.1]: https://github.com/nslogmeng/swift-service/compare/1.0.0...1.0.1
+[1.0.0]: https://github.com/nslogmeng/swift-service/releases/tag/1.0.0
