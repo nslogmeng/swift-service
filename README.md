@@ -16,8 +16,9 @@
 </div>
 <br/>
 
-A lightweight, zero-dependency, type-safe dependency injection framework designed for modern Swift projects.  
-Inspired by [Swinject](https://github.com/Swinject/Swinject) and [swift-dependencies](https://github.com/pointfreeco/swift-dependencies), Service leverages modern Swift features for simple, robust dependency injection. **Extremely easy to learn** with familiar register/resolve patterns, elegant dependency injection through property wrappers.
+A lightweight, zero-dependency, type-safe dependency injection framework designed for modern Swift projects.
+
+Elegant dependency injection through `@Service` property wrapper with familiar register/resolve patterns. Built for Swift 6 concurrency with TaskLocal-based environment isolation. Get started in minutes.
 
 ## ✨ Core Features
 
@@ -194,6 +195,10 @@ let service = UserService()  // Dependencies automatically injected!
 - **Multiple Registration Methods**: Supports factory functions, direct instances, and ServiceKey protocol
 - **Modular Assembly**: Organize service registrations through ServiceAssembly for clearer code structure
 - **Environment Isolation**: Production, development, and test environments are completely isolated
+
+## 🙏 Acknowledgments
+
+Service was inspired by the excellent work of [Swinject](https://github.com/Swinject/Swinject) and [swift-dependencies](https://github.com/pointfreeco/swift-dependencies).
 
 ## 📄 License
 
