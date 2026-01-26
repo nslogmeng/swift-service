@@ -16,6 +16,7 @@ extension ServiceEnv {
     ///
     /// - Parameter type: The service type to resolve.
     /// - Returns: The resolved service instance.
+    @discardableResult
     public func resolve<Service: Sendable>(_ type: Service.Type) -> Service {
         ServiceContext.withResolutionTracking(type) {
             guard let service = storage.resolve(type) else {
@@ -51,6 +52,7 @@ extension ServiceEnv {
     /// - Parameter type: The service type to resolve.
     /// - Returns: The resolved service instance.
     @MainActor
+    @discardableResult
     public func resolveMain<Service>(_ type: Service.Type) -> Service {
         ServiceContext.withResolutionTracking(type) {
             guard let service = storage.resolveMain(type) else {

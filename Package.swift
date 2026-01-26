@@ -21,13 +21,16 @@ let package = Package(
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
-        .target(
-            name: "Service",
-            swiftSettings: [
-                .enableUpcomingFeature("MemberImportVisibility")
-            ]
-        ),
-        .testTarget(name: "ServiceTests", dependencies: ["Service"]),
+        .target(name: "Service", swiftSettings: [
+            .strictMemorySafety(),
+            .enableUpcomingFeature("ExistentialAny"),
+            .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
+            .enableUpcomingFeature("MemberImportVisibility"),
+            .enableUpcomingFeature("InternalImportsByDefault")
+        ]),
+        .testTarget(name: "ServiceTests", dependencies: ["Service"], swiftSettings: [
+            .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
+        ]),
     ],
     swiftLanguageModes: [.v6]
 )
