@@ -51,7 +51,7 @@ extension ServiceEnv {
     /// ServiceEnv.current.assemble(DatabaseAssembly())
     /// ```
     @MainActor
-    public func assemble(_ assembly: ServiceAssembly) {
+    public func assemble(_ assembly: any ServiceAssembly) {
         assembly.assemble(env: self)
     }
 
@@ -71,7 +71,7 @@ extension ServiceEnv {
     /// ])
     /// ```
     @MainActor
-    public func assemble(_ assemblies: [ServiceAssembly]) {
+    public func assemble(_ assemblies: [any ServiceAssembly]) {
         for assembly in assemblies {
             assembly.assemble(env: self)
         }
@@ -92,7 +92,7 @@ extension ServiceEnv {
     /// )
     /// ```
     @MainActor
-    public func assemble(_ assemblies: ServiceAssembly...) {
+    public func assemble(_ assemblies: any ServiceAssembly...) {
         assemble(assemblies)
     }
 }

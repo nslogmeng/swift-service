@@ -42,7 +42,8 @@ enum ServiceContext {
 
     /// Maximum allowed resolution depth to prevent stack overflow from deep dependencies.
     /// Default is 100, which should be sufficient for most applications.
-    static let maxResolutionDepth: Int = 100
+    @TaskLocal
+    static var maxResolutionDepth: Int = 100
 
     /// Executes a service resolution with circular dependency tracking.
     ///
