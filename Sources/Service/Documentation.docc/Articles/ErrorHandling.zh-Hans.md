@@ -2,6 +2,8 @@
 
 了解如何处理服务解析时的错误。
 
+> Localization: **[English](https://nslogmeng.github.io/swift-service/documentation/service/errorhandling)**  |  **简体中文**
+
 ## 概述
 
 Service 框架使用 Swift 原生的错误处理机制，在服务解析失败时提供清晰、可操作的错误信息。`resolve()` 和 `resolveMain()` 方法使用 **typed throws**（`throws(ServiceError)`）在编译时保证错误类型，支持使用 switch 语句进行穷尽的错误处理。
