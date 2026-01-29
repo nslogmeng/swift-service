@@ -30,18 +30,28 @@ public struct Service<S: Sendable>: Sendable {
     /// Initializes the service by resolving it from the current service environment.
     /// The service type is inferred from the property type.
     ///
-    /// - Note: If the service is not registered, this will cause a runtime fatalError.
+    /// - Note: If the service is not registered or resolution fails, this will cause a runtime fatalError.
+    ///         For error handling, use `ServiceEnv.current.resolve()` directly with try-catch.
     public init() {
-        self.wrappedValue = ServiceEnv.current.resolve(S.self)
+        do {
+            self.wrappedValue = try ServiceEnv.current.resolve(S.self)
+        } catch {
+            fatalError("\(error)")
+        }
     }
 
     /// Initializes the service by resolving it from the current service environment.
     /// Allows explicit specification of the service type.
     ///
     /// - Parameter type: The service type to resolve.
-    /// - Note: If the service is not registered, this will cause a runtime fatalError.
+    /// - Note: If the service is not registered or resolution fails, this will cause a runtime fatalError.
+    ///         For error handling, use `ServiceEnv.current.resolve()` directly with try-catch.
     public init(_ type: S.Type) {
-        self.wrappedValue = ServiceEnv.current.resolve(type)
+        do {
+            self.wrappedValue = try ServiceEnv.current.resolve(type)
+        } catch {
+            fatalError("\(error)")
+        }
     }
 }
 
@@ -88,17 +98,27 @@ public struct MainService<S> {
     /// Initializes the service by resolving it from the current service environment.
     /// The service type is inferred from the property type.
     ///
-    /// - Note: If the service is not registered, this will cause a runtime fatalError.
+    /// - Note: If the service is not registered or resolution fails, this will cause a runtime fatalError.
+    ///         For error handling, use `ServiceEnv.current.resolveMain()` directly with try-catch.
     public init() {
-        self.wrappedValue = ServiceEnv.current.resolveMain(S.self)
+        do {
+            self.wrappedValue = try ServiceEnv.current.resolveMain(S.self)
+        } catch {
+            fatalError("\(error)")
+        }
     }
 
     /// Initializes the service by resolving it from the current service environment.
     /// Allows explicit specification of the service type.
     ///
     /// - Parameter type: The service type to resolve.
-    /// - Note: If the service is not registered, this will cause a runtime fatalError.
+    /// - Note: If the service is not registered or resolution fails, this will cause a runtime fatalError.
+    ///         For error handling, use `ServiceEnv.current.resolveMain()` directly with try-catch.
     public init(_ type: S.Type) {
-        self.wrappedValue = ServiceEnv.current.resolveMain(type)
+        do {
+            self.wrappedValue = try ServiceEnv.current.resolveMain(type)
+        } catch {
+            fatalError("\(error)")
+        }
     }
 }

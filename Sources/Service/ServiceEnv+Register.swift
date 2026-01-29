@@ -10,12 +10,23 @@ extension ServiceEnv {
     /// Use this method for services that conform to `Sendable` and can be safely
     /// shared across concurrent contexts.
     ///
+    /// The factory function can throw errors, which will be propagated when
+    /// `resolve()` is called. This allows natural error handling when creating
+    /// services with dependencies:
+    ///
+    /// ```swift
+    /// ServiceEnv.current.register(UserRepository.self) {
+    ///     let database = try ServiceEnv.current.resolve(DatabaseProtocol.self)
+    ///     return UserRepository(database: database)
+    /// }
+    /// ```
+    ///
     /// - Parameters:
     ///   - type: The service type to register.
-    ///   - factory: A factory function that creates the service instance.
+    ///   - factory: A factory function that creates the service instance. Can throw errors.
     public func register<Service: Sendable>(
         _ type: Service.Type,
-        factory: @escaping @Sendable () -> Service
+        factory: @escaping @Sendable () throws -> Service
     ) {
         storage.register(type, factory: factory)
     }
@@ -45,34 +56,28 @@ extension ServiceEnv {
     /// and controllers. These services don't need to conform to `Sendable` since they're
     /// always accessed from the main thread.
     ///
+    /// The factory function can throw errors, which will be propagated when
+    /// `resolveMain()` is called:
+    ///
+    /// ```swift
+    /// ServiceEnv.current.registerMain(ViewModel.self) {
+    ///     let config = try ServiceEnv.current.resolveMain(ConfigService.self)
+    ///     return ViewModel(config: config)
+    /// }
+    /// ```
+    ///
     /// **Background**: In Swift 6's strict concurrency model, `@MainActor` classes are
     /// thread-safe (all access is serialized on the main thread) but are NOT automatically
     /// `Sendable`. This method provides a way to register and resolve such services without
     /// requiring `Sendable` conformance.
     ///
-    /// Usage example:
-    /// ```swift
-    /// @MainActor
-    /// final class ViewModelService {
-    ///     var data: String = ""
-    ///     func loadData() { /* ... */ }
-    /// }
-    ///
-    /// // Register on main actor context
-    /// await MainActor.run {
-    ///     ServiceEnv.current.registerMain(ViewModelService.self) {
-    ///         ViewModelService()
-    ///     }
-    /// }
-    /// ```
-    ///
     /// - Parameters:
     ///   - type: The service type to register.
-    ///   - factory: A MainActor-isolated factory function that creates the service instance.
+    ///   - factory: A MainActor-isolated factory function that creates the service instance. Can throw errors.
     @MainActor
     public func registerMain<Service>(
         _ type: Service.Type,
-        factory: @escaping @MainActor () -> Service
+        factory: @escaping @MainActor () throws -> Service
     ) {
         storage.registerMain(type, factory: factory)
     }

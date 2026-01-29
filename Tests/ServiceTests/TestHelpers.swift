@@ -247,8 +247,8 @@ struct LoggerAssembly: ServiceAssembly {
 struct RepositoryAssembly: ServiceAssembly {
     func assemble(env: ServiceEnv) {
         env.register(UserRepositoryProtocol.self) {
-            let database = env.resolve(DatabaseProtocol.self)
-            let logger = env.resolve(LoggerProtocol.self)
+            let database = try env.resolve(DatabaseProtocol.self)
+            let logger = try env.resolve(LoggerProtocol.self)
             return UserRepository(database: database, logger: logger)
         }
     }
@@ -257,7 +257,7 @@ struct RepositoryAssembly: ServiceAssembly {
 struct NetworkAssembly: ServiceAssembly {
     func assemble(env: ServiceEnv) {
         env.register(NetworkServiceProtocol.self) {
-            let logger = env.resolve(LoggerProtocol.self)
+            let logger = try env.resolve(LoggerProtocol.self)
             return NetworkService(baseURL: "https://api.assembly.com", logger: logger)
         }
     }

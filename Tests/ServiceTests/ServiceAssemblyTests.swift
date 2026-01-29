@@ -12,14 +12,14 @@ import Testing
 @Test("ServiceAssembly can register services")
 func testServiceAssembly() async throws {
     let testEnv = ServiceEnv(name: "assembly-test")
-    await ServiceEnv.$current.withValue(testEnv) {
+    try await ServiceEnv.$current.withValue(testEnv) {
         // Assemble a single assembly
         await MainActor.run {
             ServiceEnv.current.assemble(DatabaseAssembly())
         }
 
         // Verify service is registered
-        let database = ServiceEnv.current.resolve(DatabaseProtocol.self)
+        let database = try ServiceEnv.current.resolve(DatabaseProtocol.self)
         let connectionInfo = database.connect()
         #expect(connectionInfo.contains("sqlite://assembly.db"))
     }
@@ -28,7 +28,7 @@ func testServiceAssembly() async throws {
 @Test("ServiceAssembly can apply multiple assemblies")
 func testMultipleAssemblies() async throws {
     let testEnv = ServiceEnv(name: "multi-assembly-test")
-    await ServiceEnv.$current.withValue(testEnv) { @MainActor in
+    try await ServiceEnv.$current.withValue(testEnv) { @MainActor in
         // Assemble multiple assemblies using array
         await MainActor.run {
             ServiceEnv.current.assemble([
@@ -38,8 +38,8 @@ func testMultipleAssemblies() async throws {
         }
 
         // Verify both services are registered
-        let database = ServiceEnv.current.resolve(DatabaseProtocol.self)
-        let logger = ServiceEnv.current.resolve(LoggerProtocol.self)
+        let database = try ServiceEnv.current.resolve(DatabaseProtocol.self)
+        let logger = try ServiceEnv.current.resolve(LoggerProtocol.self)
 
         #expect(database.connect().contains("sqlite://assembly.db"))
         logger.info("Testing logger from assembly")
@@ -49,7 +49,7 @@ func testMultipleAssemblies() async throws {
 @Test("ServiceAssembly can apply multiple assemblies using variadic arguments")
 func testVariadicAssemblies() async throws {
     let testEnv = ServiceEnv(name: "variadic-assembly-test")
-    await ServiceEnv.$current.withValue(testEnv) {
+    try await ServiceEnv.$current.withValue(testEnv) {
         // Assemble multiple assemblies using variadic arguments
         await MainActor.run {
             ServiceEnv.current.assemble(
@@ -60,7 +60,7 @@ func testVariadicAssemblies() async throws {
         }
 
         // Verify all services are registered and can work together
-        let userRepository = ServiceEnv.current.resolve(UserRepositoryProtocol.self)
+        let userRepository = try ServiceEnv.current.resolve(UserRepositoryProtocol.self)
         let user = userRepository.createUser(name: "Assembly User")
 
         #expect(user.name == "Assembly User")
@@ -71,7 +71,7 @@ func testVariadicAssemblies() async throws {
 @Test("ServiceAssembly supports dependency injection between assemblies")
 func testAssemblyDependencyInjection() async throws {
     let testEnv = ServiceEnv(name: "assembly-di-test")
-    try await ServiceEnv.$current.withValue(testEnv) {
+    try try await ServiceEnv.$current.withValue(testEnv) {
         // Assemble assemblies in order (dependencies first)
         await MainActor.run {
             ServiceEnv.current.assemble(
@@ -83,8 +83,8 @@ func testAssemblyDependencyInjection() async throws {
         }
 
         // Verify services with dependencies work correctly
-        let networkService = ServiceEnv.current.resolve(NetworkServiceProtocol.self)
-        let userRepository = ServiceEnv.current.resolve(UserRepositoryProtocol.self)
+        let networkService = try ServiceEnv.current.resolve(NetworkServiceProtocol.self)
+        let userRepository = try ServiceEnv.current.resolve(UserRepositoryProtocol.self)
 
         // Test network service (depends on logger)
         let response = try await networkService.get(url: "/test")
@@ -104,18 +104,18 @@ func testAssemblyWithDifferentEnvironments() async throws {
     var service1: DatabaseProtocol?
     var service2: DatabaseProtocol?
 
-    await ServiceEnv.$current.withValue(env1) {
+    try await ServiceEnv.$current.withValue(env1) {
         await MainActor.run {
             ServiceEnv.current.assemble(DatabaseAssembly())
         }
-        service1 = ServiceEnv.current.resolve(DatabaseProtocol.self)
+        service1 = try ServiceEnv.current.resolve(DatabaseProtocol.self)
     }
 
-    await ServiceEnv.$current.withValue(env2) {
+    try await ServiceEnv.$current.withValue(env2) {
         await MainActor.run {
             ServiceEnv.current.assemble(DatabaseAssembly())
         }
-        service2 = ServiceEnv.current.resolve(DatabaseProtocol.self)
+        service2 = try ServiceEnv.current.resolve(DatabaseProtocol.self)
     }
 
     // Verify services are isolated per environment

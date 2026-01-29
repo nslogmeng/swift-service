@@ -37,7 +37,7 @@ final class ServiceStorage: @unchecked Sendable {
 
     /// Thread-safe storage for Sendable service factory functions.
     @Locked
-    private var providers: [CacheKey: @Sendable () -> any Sendable]
+    private var providers: [CacheKey: @Sendable () throws -> any Sendable]
 
     // MARK: - MainActor Services Storage
 
@@ -52,7 +52,7 @@ final class ServiceStorage: @unchecked Sendable {
     /// Factory functions are marked with @MainActor to ensure service creation
     /// happens on the main thread.
     @MainActor
-    private var mainProviders: [CacheKey: @MainActor () -> Any] = [:]
+    private var mainProviders: [CacheKey: @MainActor () throws -> Any] = [:]
 
     /// Creates a new service storage instance.
     init() {}
@@ -64,7 +64,8 @@ final class ServiceStorage: @unchecked Sendable {
     ///
     /// - Parameter type: The service type.
     /// - Returns: The service instance, or nil if not registered.
-    func resolve<Service: Sendable>(_ type: Service.Type) -> Service? {
+    /// - Throws: Rethrows any error from the factory function.
+    func resolve<Service: Sendable>(_ type: Service.Type) throws -> Service? {
         let key = CacheKey(type)
 
         // First, try to get from cache (fast path)
@@ -78,7 +79,8 @@ final class ServiceStorage: @unchecked Sendable {
         }
 
         // Create service instance (factory may be slow, so we do it outside the lock)
-        guard let newService = factory() as? Service else {
+        // Factory can throw, so we propagate the error
+        guard let newService = try factory() as? Service else {
             return nil
         }
 
@@ -99,8 +101,8 @@ final class ServiceStorage: @unchecked Sendable {
     ///
     /// - Parameters:
     ///   - type: The service type to register.
-    ///   - factory: A factory function that creates the service instance.
-    func register<Service: Sendable>(_ type: Service.Type, factory: @escaping @Sendable () -> any Sendable) {
+    ///   - factory: A factory function that creates the service instance. Can throw errors.
+    func register<Service: Sendable>(_ type: Service.Type, factory: @escaping @Sendable () throws -> any Sendable) {
         providers[CacheKey(type)] = factory
     }
 
@@ -115,13 +117,14 @@ final class ServiceStorage: @unchecked Sendable {
     ///
     /// - Parameter type: The service type.
     /// - Returns: The service instance, or nil if not registered.
+    /// - Throws: Rethrows any error from the factory function.
     @MainActor
-    func resolveMain<Service>(_ type: Service.Type) -> Service? {
+    func resolveMain<Service>(_ type: Service.Type) throws -> Service? {
         let key = CacheKey(type)
         if let service = mainCaches[key] as? Service {
             return service
         }
-        if let factory = mainProviders[key], let service = factory() as? Service {
+        if let factory = mainProviders[key], let service = try factory() as? Service {
             mainCaches[key] = service
             return service
         }
@@ -135,9 +138,9 @@ final class ServiceStorage: @unchecked Sendable {
     ///
     /// - Parameters:
     ///   - type: The service type to register.
-    ///   - factory: A MainActor-isolated factory function that creates the service instance.
+    ///   - factory: A MainActor-isolated factory function that creates the service instance. Can throw errors.
     @MainActor
-    func registerMain<Service>(_ type: Service.Type, factory: @escaping @MainActor () -> Service) {
+    func registerMain<Service>(_ type: Service.Type, factory: @escaping @MainActor () throws -> Service) {
         mainProviders[CacheKey(type)] = factory
     }
 

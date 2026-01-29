@@ -82,12 +82,14 @@ struct UserRepository {
 
 ### 手动解析
 
-你也可以手动解析服务：
+你也可以使用 `try` 手动解析服务：
 
 ```swift
-let database = ServiceEnv.current.resolve(DatabaseProtocol.self)
-let logger = ServiceEnv.current.resolve(LoggerProtocol.self)
+let database = try ServiceEnv.current.resolve(DatabaseProtocol.self)
+let logger = try ServiceEnv.current.resolve(LoggerProtocol.self)
 ```
+
+有关错误处理的详细信息，请参阅 <doc:ErrorHandling>。
 
 ## 依赖注入
 
@@ -105,8 +107,8 @@ ServiceEnv.current.register(LoggerProtocol.self) {
 
 // 注册依赖其他服务的服务
 ServiceEnv.current.register(UserRepositoryProtocol.self) {
-    let database = ServiceEnv.current.resolve(DatabaseProtocol.self)
-    let logger = ServiceEnv.current.resolve(LoggerProtocol.self)
+    let database = try ServiceEnv.current.resolve(DatabaseProtocol.self)
+    let logger = try ServiceEnv.current.resolve(LoggerProtocol.self)
     return UserRepository(database: database, logger: logger)
 }
 ```
