@@ -32,7 +32,7 @@ import Testing
 
         @Test func testPropertyWrapperMaxResolutionDepth() async {
             await #expect(processExitsWith: .failure) { @MainActor in
-                ServiceContext.$maxResolutionDepth.withValue(3) {
+                ServiceEnv.$maxResolutionDepth.withValue(3) {
                     ServiceEnv.current.assemble(FatalErrorTestAssembly())
 
                     struct TestStruct: Sendable {

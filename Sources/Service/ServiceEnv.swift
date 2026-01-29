@@ -29,6 +29,29 @@ public struct ServiceEnv: Sendable {
     @TaskLocal
     public static var current: ServiceEnv = .online
 
+    /// Maximum allowed resolution depth to prevent stack overflow from deep dependencies.
+    ///
+    /// When resolving services with nested dependencies, the framework tracks the resolution
+    /// depth. If the depth exceeds this limit, a ``ServiceError/maxDepthExceeded(depth:chain:)``
+    /// error is thrown.
+    ///
+    /// The default value of 100 should be sufficient for most applications. You can customize
+    /// this value using `withValue` for specific scenarios:
+    ///
+    /// ```swift
+    /// // Use a smaller depth for testing to catch issues early
+    /// ServiceEnv.$maxResolutionDepth.withValue(10) {
+    ///     let service = try ServiceEnv.current.resolve(MyService.self)
+    /// }
+    ///
+    /// // Use a larger depth for complex dependency graphs
+    /// await ServiceEnv.$maxResolutionDepth.withValue(200) {
+    ///     let service = try ServiceEnv.current.resolve(ComplexService.self)
+    /// }
+    /// ```
+    @TaskLocal
+    public static var maxResolutionDepth: Int = 100
+
     /// A unique identifier for this environment.
     public let name: String
 

@@ -247,6 +247,45 @@ ServiceEnv.current.register(DatabaseProtocol.self) {
 }
 ```
 
+## 配置解析深度
+
+Service 提供了 `maxResolutionDepth` 设置，用于防止过深的依赖图导致栈溢出。默认值为 100，对于大多数应用程序来说足够了。
+
+### 自定义深度限制
+
+使用 `withValue` 为特定上下文临时更改最大解析深度：
+
+```swift
+// 在测试中使用较小的深度以尽早发现问题
+ServiceEnv.$maxResolutionDepth.withValue(10) {
+    let service = try ServiceEnv.current.resolve(MyService.self)
+}
+
+// 对于复杂的依赖图使用较大的深度
+await ServiceEnv.$maxResolutionDepth.withValue(200) {
+    let service = try ServiceEnv.current.resolve(ComplexService.self)
+}
+```
+
+### 当深度超限时
+
+当解析深度超过配置的限制时，会抛出 ``ServiceError/maxDepthExceeded(depth:chain:)`` 错误。这通常表示：
+
+- 未被检测到的意外循环依赖
+- 可能需要重构的过深依赖图
+- 对于你的用例配置的深度限制不合适
+
+```swift
+do {
+    let service = try ServiceEnv.current.resolve(DeepService.self)
+} catch ServiceError.maxDepthExceeded(let depth, let chain) {
+    print("解析超过深度 \(depth)")
+    print("链路：\(chain.joined(separator: " -> "))")
+}
+```
+
+> Tip: 在测试中，考虑使用较小的 `maxResolutionDepth` 值以尽早发现潜在问题。对于设计良好的依赖图，深度 10-20 通常就足够了。
+
 ## 线程安全
 
 环境使用 `TaskLocal` 存储，确保跨异步上下文的线程安全访问。每个任务维护自己的环境上下文，使其在并发代码中安全使用。
