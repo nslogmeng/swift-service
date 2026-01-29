@@ -2,6 +2,8 @@
 
 Learn how to handle errors when resolving services.
 
+> Localization: **English**  |  **[简体中文](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/errorhandling)**
+
 ## Overview
 
 The Service framework uses Swift's native error handling to provide clear and actionable error messages when service resolution fails. The `resolve()` and `resolveMain()` methods use **typed throws** (`throws(ServiceError)`) to guarantee the error type at compile time, enabling exhaustive error handling with switch statements.
