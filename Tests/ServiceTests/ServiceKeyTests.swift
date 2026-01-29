@@ -7,17 +7,33 @@ import Testing
 
 @testable import Service
 
-// MARK: - ServiceKey Tests
+@Suite("ServiceKey Tests")
+struct ServiceKeyTests {
+    @Test func registersAndResolvesServiceWithServiceKey() async throws {
+        let testEnv = ServiceEnv(name: "servicekey-test")
+        try ServiceEnv.$current.withValue(testEnv) {
+            ServiceEnv.current.register(DatabaseServiceKey.self)
 
-@Test("ServiceKey protocol can define default services")
-func testServiceKeyProtocol() async throws {
-    let testEnv = ServiceEnv(name: "test")
-    try ServiceEnv.$current.withValue(testEnv) {
-        // Register service using ServiceKey
-        ServiceEnv.current.register(DatabaseServiceKey.self)
+            _ = try ServiceEnv.current.resolve(DatabaseServiceKey.self)
+        }
+    }
 
-        // Verify service can be accessed by type
-        try ServiceEnv.current.resolve(DatabaseServiceKey.self)
-        // If resolution succeeds, registration and resolution work correctly
+    @Test func registersAndResolvesLoggerServiceKey() async throws {
+        let testEnv = ServiceEnv(name: "servicekey-logger-test")
+        try ServiceEnv.$current.withValue(testEnv) {
+            ServiceEnv.current.register(LoggerServiceKey.self)
+
+            _ = try ServiceEnv.current.resolve(LoggerServiceKey.self)
+        }
+    }
+
+    @Test func maintainsSingletonBehavior() async throws {
+        let testEnv = ServiceEnv(name: "servicekey-singleton-test")
+        try ServiceEnv.$current.withValue(testEnv) {
+            ServiceEnv.current.register(DatabaseServiceKey.self)
+
+            _ = try ServiceEnv.current.resolve(DatabaseServiceKey.self)
+            _ = try ServiceEnv.current.resolve(DatabaseServiceKey.self)
+        }
     }
 }

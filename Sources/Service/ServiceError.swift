@@ -1,5 +1,4 @@
 //
-//  Created by Meng on 2025.
 //  Copyright © 2025 Service Contributors. All rights reserved.
 //
 

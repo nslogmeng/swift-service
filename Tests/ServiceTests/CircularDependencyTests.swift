@@ -7,181 +7,154 @@ import Testing
 
 @testable import Service
 
-// MARK: - Circular Dependency Detection Tests
+@Suite("Circular Dependency Detection Tests")
+struct CircularDependencyTests {
+    // MARK: - Normal Resolution
 
-/// Tests for circular dependency detection functionality.
-/// Note: Actual circular dependencies would cause fatalError, which cannot be tested directly.
-/// These tests verify that normal resolution works correctly and the resolution stack is managed properly.
-
-@Test("Normal dependency chain resolves without false positives")
-func testNormalDependencyChain() async throws {
-    let testEnv = ServiceEnv(name: "circular-test-normal")
-    try ServiceEnv.$current.withValue(testEnv) {
-        // Register a chain: String depends on Int
-        ServiceEnv.current.register(Int.self) { 42 }
-        ServiceEnv.current.register(String.self) {
-            let num = try ServiceEnv.current.resolve(Int.self)
-            return "Value: \(num)"
-        }
-
-        // Should resolve the chain correctly without detecting false circular dependency
-        let result = try ServiceEnv.current.resolve(String.self)
-        #expect(result == "Value: 42")
-    }
-}
-
-@Test("Deep dependency chain resolves correctly")
-func testDeepDependencyChain() async throws {
-    let testEnv = ServiceEnv(name: "circular-test-deep")
-    try ServiceEnv.$current.withValue(testEnv) {
-        // Register a deeper chain: A -> B -> C -> D
-        ServiceEnv.current.register(Int.self) { 1 }
-        ServiceEnv.current.register(Double.self) {
-            Double(try ServiceEnv.current.resolve(Int.self))
-        }
-        ServiceEnv.current.register(Float.self) {
-            Float(try ServiceEnv.current.resolve(Double.self))
-        }
-        ServiceEnv.current.register(String.self) {
-            String(try ServiceEnv.current.resolve(Float.self))
-        }
-
-        // Should resolve the entire chain
-        let result = try ServiceEnv.current.resolve(String.self)
-        #expect(result == "1.0")
-    }
-}
-
-@Test("Independent services resolve without interference")
-func testIndependentServices() async throws {
-    let testEnv = ServiceEnv(name: "circular-test-independent")
-    try ServiceEnv.$current.withValue(testEnv) {
-        // Register independent services (no dependencies between them)
-        ServiceEnv.current.register(String.self) { "ServiceA" }
-        ServiceEnv.current.register(Int.self) { 100 }
-        ServiceEnv.current.register(Double.self) { 3.14 }
-
-        // Should resolve all without issues
-        let strService = try ServiceEnv.current.resolve(String.self)
-        let intService = try ServiceEnv.current.resolve(Int.self)
-        let doubleService = try ServiceEnv.current.resolve(Double.self)
-
-        #expect(strService == "ServiceA")
-        #expect(intService == 100)
-        #expect(doubleService == 3.14)
-    }
-}
-
-@Test("Same service resolved multiple times returns cached instance")
-func testSameServiceMultipleResolutions() async throws {
-    let testEnv = ServiceEnv(name: "circular-test-cached")
-    try ServiceEnv.$current.withValue(testEnv) {
-        // Use UUID to verify singleton behavior
-        ServiceEnv.current.register(String.self) {
-            UUID().uuidString
-        }
-
-        // First resolution creates the instance
-        let first = try ServiceEnv.current.resolve(String.self)
-
-        // Subsequent resolutions return cached instance (no circular dependency false positive)
-        let second = try ServiceEnv.current.resolve(String.self)
-        let third = try ServiceEnv.current.resolve(String.self)
-
-        // All resolutions should return the same instance
-        #expect(first == second)
-        #expect(second == third)
-    }
-}
-
-@Test("MainActor service dependency chain resolves correctly")
-func testMainActorDependencyChain() async throws {
-    let testEnv = ServiceEnv(name: "circular-test-mainactor")
-    try await ServiceEnv.$current.withValue(testEnv) {
-        try await MainActor.run {
-            // Register MainActor services with dependencies
-            ServiceEnv.current.registerMain(MainActorConfigService.self) {
-                let service = MainActorConfigService()
-                service.config = "base-config"
-                return service
+    @Test func resolvesNormalDependencyChain() async throws {
+        let testEnv = ServiceEnv(name: "circular-test-normal")
+        try ServiceEnv.$current.withValue(testEnv) {
+            ServiceEnv.current.register(Int.self) { 42 }
+            ServiceEnv.current.register(String.self) {
+                let num = try ServiceEnv.current.resolve(Int.self)
+                return "Value: \(num)"
             }
 
-            ServiceEnv.current.registerMain(ViewModelService.self) {
-                // This depends on MainActorConfigService
-                let config = try ServiceEnv.current.resolveMain(MainActorConfigService.self)
-                let vm = ViewModelService()
-                vm.data = config.config
-                return vm
-            }
-
-            // Should resolve the chain correctly
-            let viewModel = try ServiceEnv.current.resolveMain(ViewModelService.self)
-            #expect(viewModel.data == "base-config")
-        }
-    }
-}
-
-@Test("Mixed Sendable and MainActor dependency chain")
-func testMixedDependencyChain() async throws {
-    let testEnv = ServiceEnv(name: "circular-test-mixed")
-    try await ServiceEnv.$current.withValue(testEnv) {
-        // Register Sendable service
-        ServiceEnv.current.register(String.self) { "config-value" }
-
-        try await MainActor.run {
-            // Register MainActor service that depends on Sendable service
-            ServiceEnv.current.registerMain(ViewModelService.self) {
-                let config = try ServiceEnv.current.resolve(String.self)
-                let vm = ViewModelService()
-                vm.data = config
-                return vm
-            }
-
-            // Should resolve correctly
-            let viewModel = try ServiceEnv.current.resolveMain(ViewModelService.self)
-            #expect(viewModel.data == "config-value")
-        }
-    }
-}
-
-// MARK: - Resolution Stack Verification
-
-@Test("Resolution completes cleanly without stack pollution")
-func testResolutionStackCleanup() async throws {
-    let testEnv = ServiceEnv(name: "circular-test-stack")
-    try ServiceEnv.$current.withValue(testEnv) {
-        ServiceEnv.current.register(String.self) { "test" }
-
-        // Resolve multiple times
-        try ServiceEnv.current.resolve(String.self)
-        try ServiceEnv.current.resolve(String.self)
-        try ServiceEnv.current.resolve(String.self)
-
-        // Stack should be clean after each resolution
-        // (If stack wasn't cleaned, we might see false circular dependency errors)
-        let result = try ServiceEnv.current.resolve(String.self)
-        #expect(result == "test")
-    }
-}
-
-@Test("Nested resolution in different environments")
-func testNestedResolutionDifferentEnvironments() async throws {
-    let env1 = ServiceEnv(name: "circular-env1")
-    let env2 = ServiceEnv(name: "circular-env2")
-
-    try ServiceEnv.$current.withValue(env1) {
-        ServiceEnv.current.register(String.self) { "env1-value" }
-
-        try ServiceEnv.$current.withValue(env2) {
-            ServiceEnv.current.register(String.self) { "env2-value" }
-
-            // Should resolve env2's service
             let result = try ServiceEnv.current.resolve(String.self)
-            #expect(result == "env2-value")
+            #expect(result == "Value: 42")
         }
+    }
 
-        // Should resolve env1's service
-        let result = try ServiceEnv.current.resolve(String.self)
-        #expect(result == "env1-value")
+    @Test func resolvesDeepDependencyChain() async throws {
+        let testEnv = ServiceEnv(name: "circular-test-deep")
+        try ServiceEnv.$current.withValue(testEnv) {
+            ServiceEnv.current.register(Int.self) { 1 }
+            ServiceEnv.current.register(Double.self) {
+                Double(try ServiceEnv.current.resolve(Int.self))
+            }
+            ServiceEnv.current.register(Float.self) {
+                Float(try ServiceEnv.current.resolve(Double.self))
+            }
+            ServiceEnv.current.register(String.self) {
+                String(try ServiceEnv.current.resolve(Float.self))
+            }
+
+            let result = try ServiceEnv.current.resolve(String.self)
+            #expect(result == "1.0")
+        }
+    }
+
+    @Test func resolvesIndependentServicesWithoutInterference() async throws {
+        let testEnv = ServiceEnv(name: "circular-test-independent")
+        try ServiceEnv.$current.withValue(testEnv) {
+            ServiceEnv.current.register(String.self) { "ServiceA" }
+            ServiceEnv.current.register(Int.self) { 100 }
+            ServiceEnv.current.register(Double.self) { 3.14 }
+
+            let strService = try ServiceEnv.current.resolve(String.self)
+            let intService = try ServiceEnv.current.resolve(Int.self)
+            let doubleService = try ServiceEnv.current.resolve(Double.self)
+
+            #expect(strService == "ServiceA")
+            #expect(intService == 100)
+            #expect(doubleService == 3.14)
+        }
+    }
+
+    // MARK: - Caching Behavior
+
+    @Test func returnsCachedInstanceOnMultipleResolutions() async throws {
+        let testEnv = ServiceEnv(name: "circular-test-cached")
+        try ServiceEnv.$current.withValue(testEnv) {
+            ServiceEnv.current.register(String.self) {
+                UUID().uuidString
+            }
+
+            let first = try ServiceEnv.current.resolve(String.self)
+            let second = try ServiceEnv.current.resolve(String.self)
+            let third = try ServiceEnv.current.resolve(String.self)
+
+            #expect(first == second)
+            #expect(second == third)
+        }
+    }
+
+    // MARK: - MainActor Dependencies
+
+    @Test func resolvesMainActorDependencyChain() async throws {
+        let testEnv = ServiceEnv(name: "circular-test-mainactor")
+        try await ServiceEnv.$current.withValue(testEnv) {
+            try await MainActor.run {
+                ServiceEnv.current.registerMain(MainActorConfigService.self) {
+                    let service = MainActorConfigService()
+                    service.config = "base-config"
+                    return service
+                }
+
+                ServiceEnv.current.registerMain(ViewModelService.self) {
+                    let config = try ServiceEnv.current.resolveMain(MainActorConfigService.self)
+                    let vm = ViewModelService()
+                    vm.data = config.config
+                    return vm
+                }
+
+                let viewModel = try ServiceEnv.current.resolveMain(ViewModelService.self)
+                #expect(viewModel.data == "base-config")
+            }
+        }
+    }
+
+    @Test func resolvesMixedSendableAndMainActorDependencyChain() async throws {
+        let testEnv = ServiceEnv(name: "circular-test-mixed")
+        try await ServiceEnv.$current.withValue(testEnv) {
+            ServiceEnv.current.register(String.self) { "config-value" }
+
+            try await MainActor.run {
+                ServiceEnv.current.registerMain(ViewModelService.self) {
+                    let config = try ServiceEnv.current.resolve(String.self)
+                    let vm = ViewModelService()
+                    vm.data = config
+                    return vm
+                }
+
+                let viewModel = try ServiceEnv.current.resolveMain(ViewModelService.self)
+                #expect(viewModel.data == "config-value")
+            }
+        }
+    }
+
+    // MARK: - Stack Cleanup
+
+    @Test func cleansResolutionStackAfterCompletion() async throws {
+        let testEnv = ServiceEnv(name: "circular-test-stack")
+        try ServiceEnv.$current.withValue(testEnv) {
+            ServiceEnv.current.register(String.self) { "test" }
+
+            try ServiceEnv.current.resolve(String.self)
+            try ServiceEnv.current.resolve(String.self)
+            try ServiceEnv.current.resolve(String.self)
+
+            let result = try ServiceEnv.current.resolve(String.self)
+            #expect(result == "test")
+        }
+    }
+
+    @Test func isolatesResolutionAcrossNestedEnvironments() async throws {
+        let env1 = ServiceEnv(name: "circular-env1")
+        let env2 = ServiceEnv(name: "circular-env2")
+
+        try ServiceEnv.$current.withValue(env1) {
+            ServiceEnv.current.register(String.self) { "env1-value" }
+
+            try ServiceEnv.$current.withValue(env2) {
+                ServiceEnv.current.register(String.self) { "env2-value" }
+
+                let result = try ServiceEnv.current.resolve(String.self)
+                #expect(result == "env2-value")
+            }
+
+            let result = try ServiceEnv.current.resolve(String.self)
+            #expect(result == "env1-value")
+        }
     }
 }
