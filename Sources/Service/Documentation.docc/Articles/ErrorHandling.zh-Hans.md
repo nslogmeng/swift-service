@@ -133,7 +133,7 @@ ServiceEnv.current.register(DatabaseService.self) {
 
 ## 最佳实践
 
-### 1. 尽早注册所有服务
+### 尽早注册所有服务
 
 在应用初始化期间注册所有服务，以便尽早捕获配置错误：
 
@@ -150,7 +150,9 @@ struct MyApp: App {
 }
 ```
 
-### 2. 对必需依赖使用属性包装器
+有关组织注册的更多信息，请参阅 <doc:ServiceAssembly>。
+
+### 对必需依赖使用属性包装器
 
 对于必须存在的服务，使用属性包装器：
 
@@ -160,7 +162,7 @@ struct UserController {
 }
 ```
 
-### 3. 对可选依赖使用直接解析
+### 对可选依赖使用直接解析
 
 对于可能未注册的服务，使用直接解析配合错误处理：
 
@@ -175,17 +177,19 @@ func loadAnalytics() {
 }
 ```
 
-### 4. 在测试中验证配置
+### 在测试中验证配置
 
 在测试中验证所有必需服务都已注册：
 
 ```swift
 @Test func testServiceConfiguration() throws {
     // 正确配置的服务不应抛出错误
-    try ServiceEnv.current.resolve(DatabaseProtocol.self)
-    try ServiceEnv.current.resolve(LoggerProtocol.self)
+    _ = try ServiceEnv.current.resolve(DatabaseProtocol.self)
+    _ = try ServiceEnv.current.resolve(LoggerProtocol.self)
 }
 ```
+
+有关测试策略的更多信息，请参阅 <doc:ServiceEnvironments>。
 
 ## 错误信息
 

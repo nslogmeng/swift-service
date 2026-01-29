@@ -133,7 +133,7 @@ When a factory throws:
 
 ## Best Practices
 
-### 1. Register All Services Early
+### Register All Services Early
 
 Register all services during app initialization to catch configuration errors early:
 
@@ -150,7 +150,9 @@ struct MyApp: App {
 }
 ```
 
-### 2. Use Property Wrappers for Required Dependencies
+For organizing registrations, see <doc:ServiceAssembly>.
+
+### Use Property Wrappers for Required Dependencies
 
 For services that must exist, use property wrappers:
 
@@ -160,7 +162,7 @@ struct UserController {
 }
 ```
 
-### 3. Use Direct Resolution for Optional Dependencies
+### Use Direct Resolution for Optional Dependencies
 
 For services that may not be registered, use direct resolution with error handling:
 
@@ -175,17 +177,19 @@ func loadAnalytics() {
 }
 ```
 
-### 4. Validate Configuration in Tests
+### Validate Configuration in Tests
 
 In tests, validate that all required services are registered:
 
 ```swift
 @Test func testServiceConfiguration() throws {
     // Should not throw for properly configured services
-    try ServiceEnv.current.resolve(DatabaseProtocol.self)
-    try ServiceEnv.current.resolve(LoggerProtocol.self)
+    _ = try ServiceEnv.current.resolve(DatabaseProtocol.self)
+    _ = try ServiceEnv.current.resolve(LoggerProtocol.self)
 }
 ```
+
+For testing strategies, see <doc:ServiceEnvironments>.
 
 ## Error Messages
 

@@ -1,41 +1,51 @@
 # Concurrency Model
 
-Service is designed to work seamlessly with Swift's concurrency model, providing safe and efficient dependency injection in concurrent contexts.
+Learn how to use Service safely in concurrent and async contexts.
 
 > Localization: **English**  |  **[简体中文](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/concurrencymodel)**
 
-## Swift Concurrency Basics
+## Prerequisites
 
-Swift 6 introduces strict concurrency checking, requiring types to be explicitly marked as `Sendable` to be safely shared across concurrent contexts. Service respects these requirements while providing convenient APIs for both `Sendable` and `@MainActor`-isolated services.
+This guide assumes familiarity with:
+- Swift's `Sendable` protocol and data race safety
+- The `@MainActor` attribute and actor isolation
+- Swift's structured concurrency (`async`/`await`, `Task`)
+
+For background on these concepts, see [Swift Concurrency](https://docs.swift.org/swift-book/documentation/the-swift-programming-language/concurrency/).
+
+## Overview
+
+Service provides two distinct APIs for dependency injection based on thread-safety requirements:
+
+| Service Type | Registration | Resolution | Property Wrapper |
+|-------------|--------------|------------|------------------|
+| Sendable | `register()` | `resolve()` | `@Service` |
+| MainActor | `registerMain()` | `resolveMain()` | `@MainService` |
 
 ## Sendable Services
 
-Services that conform to `Sendable` can be safely shared across concurrent contexts. These are the default services in Service.
+Services conforming to `Sendable` can be safely shared across concurrent contexts.
 
-### Registration
+### Registration and Resolution
 
 ```swift
-// Service must conform to Sendable
+// Define a Sendable service
 struct DatabaseService: Sendable {
     let connectionString: String
 }
 
-// Register as Sendable service
+// Register
 ServiceEnv.current.register(DatabaseService.self) {
     DatabaseService(connectionString: "sqlite://app.db")
 }
-```
 
-### Resolution
+// Resolve from any context
+let database = try ServiceEnv.current.resolve(DatabaseService.self)
 
-```swift
-// Can be resolved from any context
-let database = ServiceEnv.current.resolve(DatabaseService.self)
-
-// Can be used in async contexts
+// Use in async contexts
 Task {
-    let database = ServiceEnv.current.resolve(DatabaseService.self)
-    // Use database...
+    let db = try ServiceEnv.current.resolve(DatabaseService.self)
+    // Use db...
 }
 ```
 
@@ -43,26 +53,15 @@ Task {
 
 ```swift
 struct UserRepository: Sendable {
-    @Service
-    var database: DatabaseService  // Automatically resolved
+    @Service var database: DatabaseService
 }
 ```
 
 ## MainActor Services
 
-Services that are `@MainActor`-isolated are thread-safe (all access is serialized on the main thread) but are **not** automatically `Sendable`. Service provides separate APIs for these services.
+Services isolated to `@MainActor` are thread-safe but not `Sendable`. Use separate APIs for these services.
 
-### Why Not Sendable?
-
-In Swift 6, `@MainActor` classes are not automatically `Sendable` because:
-
-1. They have mutable state
-2. They're isolated to a specific actor (main actor)
-3. Cross-actor communication requires explicit `Sendable` conformance
-
-However, they're still thread-safe because all access is serialized on the main thread.
-
-### Registration
+### Registration and Resolution
 
 ```swift
 @MainActor
@@ -71,21 +70,17 @@ final class ViewModelService {
 }
 
 // Must register from @MainActor context
-await MainActor.run {
+@MainActor
+func setupServices() {
     ServiceEnv.current.registerMain(ViewModelService.self) {
         ViewModelService()
     }
 }
-```
 
-### Resolution
-
-```swift
 // Must resolve from @MainActor context
 @MainActor
 func setupUI() {
-    let viewModel = ServiceEnv.current.resolveMain(ViewModelService.self)
-    viewModel.loadData()
+    let viewModel = try ServiceEnv.current.resolveMain(ViewModelService.self)
 }
 ```
 
@@ -94,104 +89,46 @@ func setupUI() {
 ```swift
 @MainActor
 class MyViewController {
-    @MainService
-    var viewModel: ViewModelService  // Automatically resolved
+    @MainService var viewModel: ViewModelService
 }
 ```
 
-## TaskLocal and Environment Context
+> Important: Never call `resolveMain()` from a non-`@MainActor` context. The compiler will prevent this in strict concurrency mode.
 
-Service uses `TaskLocal` to maintain environment context across async boundaries:
+## Environment Context with TaskLocal
 
-```swift
-@TaskLocal
-public static var current: ServiceEnv = .online
-```
-
-### How It Works
-
-1. **Task-scoped**: Each async task maintains its own environment context
-2. **Inheritance**: Child tasks inherit the parent's environment
-3. **Isolation**: Environment switches are isolated to the current task
-
-### Example
+Service uses `TaskLocal` to maintain environment context across async boundaries.
 
 ```swift
-// Default environment
-let service1 = ServiceEnv.current.resolve(MyService.self)  // Uses .online
+// Default: uses .online environment
+let service1 = try ServiceEnv.current.resolve(MyService.self)
 
 // Switch environment for this task
 await ServiceEnv.$current.withValue(.dev) {
-    let service2 = ServiceEnv.current.resolve(MyService.self)  // Uses .dev
-    
-    // Child task inherits environment
+    let service2 = try ServiceEnv.current.resolve(MyService.self)  // Uses .dev
+
+    // Child tasks inherit the environment
     Task {
-        let service3 = ServiceEnv.current.resolve(MyService.self)  // Uses .dev
+        let service3 = try ServiceEnv.current.resolve(MyService.self)  // Also uses .dev
     }
 }
 
-// Back to default environment
-let service4 = ServiceEnv.current.resolve(MyService.self)  // Uses .online
-```
-
-## Thread Safety
-
-Service ensures thread safety through:
-
-### Internal Locking
-
-Service uses internal locks to protect shared state:
-
-```swift
-class ServiceStorage {
-    private let lock = Lock()
-    private var providers: [String: Any] = [:]
-    private var cache: [String: Any] = [:]
-    
-    func register<Service: Sendable>(...) {
-        lock.lock()
-        defer { lock.unlock() }
-        // Register service...
-    }
-}
-```
-
-### Sendable Requirements
-
-All public APIs that work with `Sendable` services require `Sendable` conformance:
-
-```swift
-public func register<Service: Sendable>(
-    _ type: Service.Type,
-    factory: @escaping @Sendable () -> Service
-)
-```
-
-### MainActor Isolation
-
-MainActor services are isolated to the main actor, ensuring thread safety:
-
-```swift
-@MainActor
-public func registerMain<Service>(
-    _ type: Service.Type,
-    factory: @escaping @MainActor () -> Service
-)
+// Back to .online
+let service4 = try ServiceEnv.current.resolve(MyService.self)
 ```
 
 ## Concurrent Resolution
 
-Service supports concurrent resolution of services:
+Service safely handles multiple concurrent resolutions:
 
 ```swift
-// Multiple concurrent resolutions
 await withTaskGroup(of: MyService.self) { group in
     for _ in 0..<10 {
         group.addTask {
-            ServiceEnv.current.resolve(MyService.self)
+            try ServiceEnv.current.resolve(MyService.self)
         }
     }
-    
+
     // All tasks resolve the same cached instance
     for await service in group {
         // Use service...
@@ -201,61 +138,51 @@ await withTaskGroup(of: MyService.self) { group in
 
 ## Best Practices
 
-### 1. Use Sendable for Concurrent Services
-
-If your service needs to be used across concurrent contexts, make it `Sendable`:
+### Use Sendable for Shared Services
 
 ```swift
 struct DatabaseService: Sendable {
-    // Immutable or thread-safe state
-    let connectionString: String
+    let connectionString: String  // Immutable state is automatically Sendable
 }
 ```
 
-### 2. Use MainActor for UI Services
-
-For UI-related services, use `@MainActor`:
+### Use MainActor for UI Services
 
 ```swift
 @MainActor
 final class ViewModelService {
-    // UI state that must be on main thread
-    @Published var data: String = ""
+    @Published var data: String = ""  // UI state on main thread
 }
 ```
 
-### 3. Avoid Mixing Contexts
-
-Don't try to use `@MainActor` services from non-`@MainActor` contexts:
+### Avoid Context Mixing
 
 ```swift
 // ❌ Don't do this
 func badExample() {
-    let viewModel = ServiceEnv.current.resolveMain(ViewModelService.self)  // Error!
+    let viewModel = try ServiceEnv.current.resolveMain(ViewModelService.self)  // Compiler error!
 }
 
 // ✅ Do this
 @MainActor
 func goodExample() {
-    let viewModel = ServiceEnv.current.resolveMain(ViewModelService.self)  // OK
+    let viewModel = try ServiceEnv.current.resolveMain(ViewModelService.self)  // OK
 }
 ```
 
-### 4. Use TaskLocal for Environment Switching
-
-Use `TaskLocal` for environment switching in tests:
+### Use TaskLocal for Test Isolation
 
 ```swift
-func testExample() async {
+@Test func testServiceBehavior() async throws {
     await ServiceEnv.$current.withValue(.test) {
-        // Test code uses test environment
+        // Test code uses isolated test environment
     }
 }
 ```
 
 ## Common Patterns
 
-### Pattern 1: Sendable Service with MainActor Dependency
+### Sendable Service Used by MainActor Service
 
 ```swift
 // Sendable service
@@ -263,72 +190,45 @@ struct APIClient: Sendable {
     func fetchData() async -> Data { /* ... */ }
 }
 
-// MainActor service that uses Sendable service
+// MainActor service using Sendable dependency
 @MainActor
 final class ViewModel {
     let api: APIClient
-    
+
     init(api: APIClient) {
         self.api = api
     }
-    
+
     func loadData() async {
-        let data = await api.fetchData()  // OK - async call
+        let data = await api.fetchData()
         // Update UI state...
     }
 }
 
 // Registration
-ServiceEnv.current.register(APIClient.self) {
-    APIClient()
-}
+ServiceEnv.current.register(APIClient.self) { APIClient() }
 
 await MainActor.run {
     ServiceEnv.current.registerMain(ViewModel.self) {
-        let api = ServiceEnv.current.resolve(APIClient.self)
+        let api = try ServiceEnv.current.resolve(APIClient.self)
         return ViewModel(api: api)
     }
 }
 ```
 
-### Pattern 2: Multiple Environments
+## Thread Safety Guarantees
 
-```swift
-// Register in different environments
-ServiceEnv.online.register(APIClient.self) {
-    APIClient(baseURL: "https://api.example.com")
-}
+Service provides these thread-safety guarantees:
 
-ServiceEnv.dev.register(APIClient.self) {
-    APIClient(baseURL: "https://dev-api.example.com")
-}
+- **Registration**: Thread-safe through internal locking
+- **Resolution**: Thread-safe through internal locking
+- **Environment switching**: Thread-safe through `TaskLocal` storage
+- **Cache management**: Thread-safe through internal locking
 
-// Use in code
-await ServiceEnv.$current.withValue(.dev) {
-    let client = ServiceEnv.current.resolve(APIClient.self)  // Uses dev
-}
-```
+For implementation details, see <doc:UnderstandingService>.
 
-## Performance Considerations
+## See Also
 
-### Caching
-
-Service caches resolved instances, which is safe for concurrent access:
-
-- **Thread-safe cache**: Protected by internal locks
-- **Singleton behavior**: Same instance returned for concurrent resolutions
-- **Memory trade-off**: Cached instances consume memory
-
-### Lock Contention
-
-Service uses coarse-grained locking, which is simple but may cause contention:
-
-- **Low contention**: Typical use cases have minimal contention
-- **Simple design**: Easier to reason about and maintain
-- **Future optimization**: Could be optimized with fine-grained locking if needed
-
-## Next Steps
-
-- Read <doc:MainActorServices> for more details on MainActor services
-- Explore <doc:UnderstandingService> for architecture details
-- Check out <doc:RealWorldExamples> for practical patterns
+- <doc:MainActorServices>
+- <doc:UnderstandingService>
+- <doc:RealWorldExamples>

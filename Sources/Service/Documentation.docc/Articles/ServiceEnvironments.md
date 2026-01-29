@@ -165,6 +165,99 @@ This pattern is especially useful in large projects where:
 - The majority of services remain the same across environments
 - You need to easily switch between production and test configurations
 
+## Resetting Services
+
+Service provides two methods to reset service state, which are essential for testing scenarios and environment management.
+
+### resetCaches()
+
+The `resetCaches()` method clears all cached service instances while preserving registered service providers. Services will be recreated on the next resolution using their registered factory functions.
+
+```swift
+// Register a service
+ServiceEnv.current.register(String.self) {
+    UUID().uuidString
+}
+
+// Resolve and cache the service
+let service1 = try ServiceEnv.current.resolve(String.self)
+
+// Clear cache - next resolution will create a new instance
+await ServiceEnv.current.resetCaches()
+let service2 = try ServiceEnv.current.resolve(String.self)
+// service1 != service2 (new instance created)
+```
+
+**When to use:**
+- Force services to be recreated without re-registering them
+- Get fresh instances in testing scenarios
+- Clear cached state while maintaining service registration
+
+### resetAll()
+
+The `resetAll()` method clears all cached service instances and removes all registered service providers. This completely resets the service environment to its initial state.
+
+```swift
+// Reset everything
+await ServiceEnv.current.resetAll()
+
+// Services must be re-registered before they can be resolved
+ServiceEnv.current.register(DatabaseProtocol.self) {
+    DatabaseService(connectionString: "sqlite://app.db")
+}
+```
+
+**When to use:**
+- Completely reset the service environment
+- Start fresh in tests with a clean slate
+- Remove all service registrations and instances
+
+> Important: After calling `resetAll()`, all services must be re-registered before they can be resolved. Attempting to resolve a service that hasn't been re-registered will throw an error.
+
+### Comparison
+
+| Feature | `resetCaches()` | `resetAll()` |
+|---------|----------------|--------------|
+| Clears cached instances | ✅ | ✅ |
+| Removes registered providers | ❌ | ✅ |
+| Services need re-registration | ❌ | ✅ |
+| Typical scenario | Testing with same setup | Clean test environment |
+
+### Testing Best Practices
+
+```swift
+@Test func testServiceRecreation() async throws {
+    let testEnv = ServiceEnv(name: "reset-test")
+    try await ServiceEnv.$current.withValue(testEnv) {
+        var creationCount = 0
+        ServiceEnv.current.register(Int.self) {
+            creationCount += 1
+            return creationCount
+        }
+
+        let service1 = try ServiceEnv.current.resolve(Int.self)
+        #expect(service1 == 1)
+
+        // Clear cache for fresh instance
+        await ServiceEnv.current.resetCaches()
+
+        let service2 = try ServiceEnv.current.resolve(Int.self)
+        #expect(service2 == 2) // New instance
+    }
+}
+```
+
 ## Thread Safety
 
 Environments use `TaskLocal` storage, ensuring thread-safe access across async contexts. Each task maintains its own environment context, making it safe to use in concurrent code.
+
+Both `resetCaches()` and `resetAll()` are thread-safe and properly handle concurrent access:
+- Sendable services are cleared using thread-safe operations
+- MainActor services are cleared on the main thread
+- The async nature ensures all cleanup completes before the method returns
+
+## See Also
+
+- <doc:BasicUsage>
+- <doc:ServiceAssembly>
+- <doc:ErrorHandling>
