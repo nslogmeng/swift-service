@@ -165,6 +165,99 @@ struct AppAssembly: ServiceAssembly {
 - 大多数服务在所有环境中保持不变
 - 你需要轻松地在生产和测试配置之间切换
 
+## 重置服务
+
+Service 提供了两个方法来重置服务状态，这些方法在测试场景和环境管理中非常重要。
+
+### resetCaches()
+
+`resetCaches()` 方法清除所有缓存的服务实例，同时保留已注册的服务提供者。服务将在下次解析时使用其已注册的工厂函数重新创建。
+
+```swift
+// 注册服务
+ServiceEnv.current.register(String.self) {
+    UUID().uuidString
+}
+
+// 解析并缓存服务
+let service1 = try ServiceEnv.current.resolve(String.self)
+
+// 清除缓存 - 下次解析将创建新实例
+await ServiceEnv.current.resetCaches()
+let service2 = try ServiceEnv.current.resolve(String.self)
+// service1 != service2（创建了新实例）
+```
+
+**何时使用：**
+- 强制重新创建服务而无需重新注册
+- 在测试场景中获取新实例
+- 清除缓存状态同时保持服务注册
+
+### resetAll()
+
+`resetAll()` 方法清除所有缓存的服务实例并移除所有已注册的服务提供者。这将完全重置服务环境到初始状态。
+
+```swift
+// 重置所有内容
+await ServiceEnv.current.resetAll()
+
+// 服务必须重新注册才能被解析
+ServiceEnv.current.register(DatabaseProtocol.self) {
+    DatabaseService(connectionString: "sqlite://app.db")
+}
+```
+
+**何时使用：**
+- 完全重置服务环境
+- 在测试中从干净的状态开始
+- 移除所有服务注册和实例
+
+> Important: 调用 `resetAll()` 后，所有服务必须重新注册才能被解析。尝试解析未重新注册的服务将抛出错误。
+
+### 对比
+
+| 特性 | `resetCaches()` | `resetAll()` |
+|------|----------------|-------------|
+| 清除缓存实例 | ✅ | ✅ |
+| 移除已注册的提供者 | ❌ | ✅ |
+| 服务需要重新注册 | ❌ | ✅ |
+| 典型场景 | 使用相同设置的测试 | 干净的测试环境 |
+
+### 测试最佳实践
+
+```swift
+@Test func testServiceRecreation() async throws {
+    let testEnv = ServiceEnv(name: "reset-test")
+    try await ServiceEnv.$current.withValue(testEnv) {
+        var creationCount = 0
+        ServiceEnv.current.register(Int.self) {
+            creationCount += 1
+            return creationCount
+        }
+
+        let service1 = try ServiceEnv.current.resolve(Int.self)
+        #expect(service1 == 1)
+
+        // 清除缓存以获取新实例
+        await ServiceEnv.current.resetCaches()
+
+        let service2 = try ServiceEnv.current.resolve(Int.self)
+        #expect(service2 == 2) // 新实例
+    }
+}
+```
+
 ## 线程安全
 
 环境使用 `TaskLocal` 存储，确保跨异步上下文的线程安全访问。每个任务维护自己的环境上下文，使其在并发代码中安全使用。
+
+`resetCaches()` 和 `resetAll()` 都是线程安全的，并正确处理并发访问：
+- Sendable 服务使用线程安全操作清除
+- MainActor 服务在主线程上清除
+- 异步特性确保所有清理在方法返回前完成
+
+## 另请参阅
+
+- <doc:BasicUsage>
+- <doc:ServiceAssembly>
+- <doc:ErrorHandling>

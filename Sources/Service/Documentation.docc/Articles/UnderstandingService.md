@@ -4,296 +4,261 @@ A deep dive into Service's architecture, design decisions, and how it works unde
 
 > Localization: **English**  |  **[简体中文](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/understandingservice)**
 
-## Core Concepts
+## Architecture Overview
 
-### Service Environment
+Service is built around three core concepts:
 
-Service uses the concept of a "service environment" to manage service registrations and resolutions. Each environment maintains its own isolated registry, allowing you to have different service configurations for different contexts (production, development, testing).
+1. **ServiceEnv**: The service environment that manages registrations and resolutions
+2. **ServiceStorage**: The storage layer for providers and cached instances
+3. **Property Wrappers**: Convenient syntax for dependency injection
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    ServiceEnv                        │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
+│  │   .online   │  │    .dev     │  │    .test    │  │
+│  │  (default)  │  │             │  │             │  │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  │
+│         │                │                │         │
+│         └────────────────┼────────────────┘         │
+│                          │                          │
+│              ┌───────────▼───────────┐              │
+│              │    ServiceStorage     │              │
+│              │  • providers (locked) │              │
+│              │  • cache (locked)     │              │
+│              │  • mainProviders      │              │
+│              │  • mainCache          │              │
+│              └───────────────────────┘              │
+└─────────────────────────────────────────────────────┘
+```
+
+## Service Resolution Flow
+
+When you call `resolve()`, this is what happens:
+
+```
+resolve(MyService.self)
+         │
+         ▼
+┌─────────────────────┐
+│  1. Check cache     │──── Found? ──▶ Return cached instance
+└─────────────────────┘
+         │ Not found
+         ▼
+┌─────────────────────┐
+│  2. Get provider    │──── Not found? ──▶ Throw notRegistered
+└─────────────────────┘
+         │ Found
+         ▼
+┌─────────────────────┐
+│  3. Check for cycle │──── In chain? ──▶ Throw circularDependency
+└─────────────────────┘
+         │ OK
+         ▼
+┌─────────────────────┐
+│  4. Track in chain  │
+└─────────────────────┘
+         │
+         ▼
+┌─────────────────────┐
+│  5. Call factory    │──── Throws? ──▶ Propagate error
+└─────────────────────┘
+         │ Success
+         ▼
+┌─────────────────────┐
+│  6. Cache instance  │
+└─────────────────────┘
+         │
+         ▼
+    Return instance
+```
+
+## Design Decisions
+
+### Why TaskLocal for Environment Context?
+
+Service uses `@TaskLocal` to store the current environment:
 
 ```swift
 public struct ServiceEnv: Sendable {
     @TaskLocal
     public static var current: ServiceEnv = .online
-    
-    public let name: String
-    let storage = ServiceStorage()
 }
 ```
 
-### TaskLocal Storage
+**Benefits:**
+- **Async-safe**: Automatically maintained across `await` boundaries
+- **Task-scoped**: Environment switches are isolated to the current task and its children
+- **Thread-safe**: No additional synchronization needed
+- **Inheritance**: Child tasks automatically inherit the parent's environment
 
-Service uses Swift's `TaskLocal` property wrapper to maintain environment context across async boundaries. This ensures that:
+**Trade-offs:**
+- Cannot change environment from within a synchronous context without `withValue`
+- Each task switch creates a small overhead
 
-1. Each async task maintains its own environment context
-2. Environment switches are scoped to the current task
-3. Thread-safe access across concurrent contexts
+### Why Separate MainActor APIs?
 
-```swift
-// Switch environment for this task
-await ServiceEnv.$current.withValue(.dev) {
-    // All service resolutions in this block use .dev environment
-    let service = ServiceEnv.current.resolve(MyService.self)
-}
-```
+Swift 6 requires `Sendable` for values crossing actor boundaries. However, `@MainActor` classes:
+- Have mutable state (not automatically `Sendable`)
+- Are thread-safe through actor isolation
+- Cannot be safely passed to other actors
 
-### Service Storage
+Service solves this with separate APIs:
 
-Each environment has its own `ServiceStorage` instance that manages:
+| API | Use Case | Thread Safety |
+|-----|----------|---------------|
+| `register`/`resolve` | Sendable services | Mutex-based locking |
+| `registerMain`/`resolveMain` | MainActor services | Actor isolation |
 
-- **Service providers**: Factory functions that create service instances
-- **Service cache**: Cached instances for singleton behavior
-- **Resolution tracking**: Tracks the current resolution chain for cycle detection
-
-## Service Resolution Flow
-
-When you resolve a service, here's what happens:
-
-1. **Check cache**: If the service has been resolved before and cached, return the cached instance
-2. **Get provider**: Look up the factory function for this service type
-3. **Track resolution**: Add this service to the resolution chain (for cycle detection)
-4. **Create instance**: Call the factory function to create the service
-5. **Cache instance**: Store the instance in the cache for future resolutions
-6. **Return instance**: Return the newly created (or cached) instance
-
-### Resolution Tracking
-
-Service tracks the resolution chain to detect circular dependencies:
-
-```swift
-// When resolving AService:
-// 1. Add AService to chain: [AService]
-// 2. Factory function resolves BService
-// 3. Add BService to chain: [AService, BService]
-// 4. Factory function resolves CService
-// 5. Add CService to chain: [AService, BService, CService]
-// 6. Factory function tries to resolve AService
-// 7. AService is already in chain - CYCLE DETECTED!
-```
-
-## Concurrency Model
-
-Service is designed to be thread-safe and work seamlessly with Swift's concurrency model.
-
-### Sendable Services
-
-Regular services must conform to `Sendable`, ensuring they can be safely shared across concurrent contexts:
-
-```swift
-extension ServiceEnv {
-    public func register<Service: Sendable>(
-        _ type: Service.Type,
-        factory: @escaping @Sendable () -> Service
-    ) {
-        storage.register(type, factory: factory)
-    }
-}
-```
-
-### MainActor Services
-
-For `@MainActor`-isolated services (like view models), Service provides separate APIs that don't require `Sendable`:
+### Why @MainActor for ServiceAssembly?
 
 ```swift
 @MainActor
-extension ServiceEnv {
-    public func registerMain<Service>(
-        _ type: Service.Type,
-        factory: @escaping @MainActor () -> Service
-    ) {
-        storage.registerMain(type, factory: factory)
-    }
+public protocol ServiceAssembly {
+    func assemble(env: ServiceEnv)
 }
 ```
 
-### Thread Safety
+**Reasons:**
+1. Assembly typically runs during app initialization (already on main actor)
+2. Ensures sequential, predictable registration order
+3. Simplifies mental model for developers
+4. Allows registering both Sendable and MainActor services in one place
 
-- **Service registration**: Thread-safe through internal locking
-- **Service resolution**: Thread-safe through internal locking
-- **Environment switching**: Thread-safe through `TaskLocal` storage
-- **Cache management**: Thread-safe through internal locking
+### Why fatalError in Property Wrappers?
 
-## Service Lifecycle
-
-### Singleton Behavior
-
-By default, services are cached as singletons:
-
-```swift
-// First resolution creates and caches the instance
-let service1 = ServiceEnv.current.resolve(MyService.self)
-
-// Subsequent resolutions return the cached instance
-let service2 = ServiceEnv.current.resolve(MyService.self)
-// service1 === service2 (same instance)
-```
-
-### Cache Management
-
-You can clear the cache to force services to be recreated:
-
-```swift
-// Clear cache - services will be recreated on next resolution
-await ServiceEnv.current.resetCaches()
-
-// Now this creates a new instance
-let service3 = ServiceEnv.current.resolve(MyService.self)
-// service1 !== service3 (different instance)
-```
-
-### Complete Reset
-
-You can also reset everything, including registrations:
-
-```swift
-// Reset everything - cache and registrations
-await ServiceEnv.current.resetAll()
-
-// Services must be re-registered before they can be resolved
-ServiceEnv.current.register(MyService.self) {
-    MyService()
-}
-```
-
-## Property Wrappers
-
-Service provides property wrappers for convenient dependency injection:
-
-### @Service
-
-The `@Service` property wrapper resolves services eagerly when the property is initialized:
+Property wrappers use `fatalError` for missing services:
 
 ```swift
 @propertyWrapper
 public struct Service<S: Sendable>: Sendable {
-    public let wrappedValue: S
-    
     public init() {
-        self.wrappedValue = ServiceEnv.current.resolve(S.self)
+        // Uses fatalError if service not registered
+        self.wrappedValue = try! ServiceEnv.current.resolve(S.self)
     }
 }
 ```
 
-### @MainService
+**Rationale:**
+- Missing services indicate **configuration errors**, not runtime conditions
+- Fail-fast behavior catches issues during development
+- Clear error messages help diagnose the problem
+- For optional dependencies, use manual `resolve()` with error handling
 
-The `@MainService` property wrapper works similarly but for `@MainActor` services:
+### Why Singleton by Default?
 
-```swift
-@MainActor
-@propertyWrapper
-public struct MainService<S> {
-    public let wrappedValue: S
-    
-    public init() {
-        self.wrappedValue = ServiceEnv.current.resolveMain(S.self)
-    }
-}
-```
-
-## Design Decisions
-
-### Why TaskLocal?
-
-`TaskLocal` provides the perfect mechanism for environment scoping:
-
-- **Async-safe**: Works seamlessly across async boundaries
-- **Task-scoped**: Environment switches are automatically scoped to the current task
-- **Thread-safe**: No additional synchronization needed
-
-### Why Separate MainActor APIs?
-
-Swift 6's strict concurrency model requires `Sendable` for cross-actor communication. However, `@MainActor` classes are thread-safe but not automatically `Sendable`. Separate APIs allow Service to work with both:
-
-- **Sendable services**: Use standard `register`/`resolve` APIs
-- **MainActor services**: Use `registerMain`/`resolveMain` APIs
-
-### Why @MainActor for Assembly?
-
-Service Assembly is marked with `@MainActor` because:
-
-1. Assembly typically happens during app initialization (already on main actor)
-2. Ensures thread-safe, sequential execution of registrations
-3. Provides predictable execution context
-
-### Why Fatal Errors?
-
-Service uses `fatalError` when services are not registered because:
-
-1. **Fail-fast**: Catch configuration errors early
-2. **Type safety**: Compile-time checking isn't always possible
-3. **Clear errors**: Provides descriptive error messages
-
-## Performance Considerations
-
-### Caching
-
-Service caches resolved instances to avoid repeated creation:
-
-- **Memory**: Cached instances consume memory
-- **Performance**: Subsequent resolutions are O(1) lookups
-- **Trade-off**: Balance between memory and performance
-
-### Resolution Tracking
-
-Cycle detection adds overhead to resolution:
-
-- **Memory**: Resolution chain tracking
-- **Performance**: Minimal overhead for cycle detection
-- **Benefit**: Prevents infinite loops and stack overflow
-
-### Locking
-
-Service uses internal locks for thread safety:
-
-- **Coarse-grained**: Simple locking strategy
-- **Performance**: Minimal contention in typical use cases
-- **Trade-off**: Simplicity over fine-grained locking
-
-## Extension Points
-
-Service is designed to be extensible:
-
-### Custom Environments
-
-Create custom environments for specific use cases:
+Services are cached as singletons:
 
 ```swift
-let stagingEnv = ServiceEnv(name: "staging")
+let service1 = try ServiceEnv.current.resolve(MyService.self)
+let service2 = try ServiceEnv.current.resolve(MyService.self)
+// service1 === service2 (same instance)
 ```
+
+**Benefits:**
+- Predictable behavior (same instance everywhere)
+- Memory efficient (single instance per service)
+- Matches common DI patterns
+
+**When you need fresh instances:**
+- Call `resetCaches()` to clear the cache
+- Create a new `ServiceEnv` for isolated scope
+
+## Internal Implementation
+
+### Thread Safety
+
+Service uses Swift's `Synchronization.Mutex` for thread-safe access:
+
+```swift
+@Locked private var providers: [String: Any] = [:]
+@Locked private var cache: [String: Any] = [:]
+```
+
+The `@Locked` property wrapper ensures atomic read/write operations.
+
+### Circular Dependency Detection
+
+Service tracks the resolution chain using `TaskLocal`:
+
+```swift
+@TaskLocal
+private static var resolutionChain: [String] = []
+```
+
+When resolving a service:
+1. Check if the service type is already in the chain
+2. If yes, throw `ServiceError.circularDependency`
+3. If no, add to chain and proceed
+
+This approach is:
+- **Task-scoped**: Each async task has its own chain
+- **Automatic cleanup**: Chain is restored after resolution completes
+- **Zero overhead**: No tracking when not resolving
 
 ### ServiceKey Protocol
 
-Provide default implementations through `ServiceKey`:
+`ServiceKey` provides a convenient way to register services with default implementations:
 
 ```swift
+public protocol ServiceKey {
+    static var `default`: Self { get }
+}
+
+// Usage
 struct MyService: ServiceKey {
-    static var `default`: MyService {
-        MyService()
-    }
+    static var `default`: MyService { MyService() }
 }
+
+ServiceEnv.current.register(MyService.self)  // Uses default
 ```
 
-### ServiceAssembly Protocol
+**Design intent:**
+- Reduces boilerplate for simple services
+- Provides compile-time guarantee of default implementation
+- Works with both value types and reference types
 
-Organize registrations through assemblies:
+## Performance Characteristics
+
+| Operation | Complexity | Notes |
+|-----------|------------|-------|
+| Registration | O(1) | Dictionary insertion |
+| First resolution | O(1) + factory | Plus cycle detection |
+| Cached resolution | O(1) | Dictionary lookup |
+| Environment switch | O(1) | TaskLocal binding |
+| Reset caches | O(n) | Clears all cached instances |
+
+### Memory Considerations
+
+- Each registered service stores one factory closure
+- Each resolved service stores one cached instance
+- Resolution chain tracking uses stack-allocated array
+- Environment switching has minimal memory overhead
+
+## Extension Points
+
+### Custom Environments
 
 ```swift
-struct MyAssembly: ServiceAssembly {
-    func assemble(env: ServiceEnv) {
-        // Register services...
-    }
-}
+let staging = ServiceEnv(name: "staging")
+let featureFlag = ServiceEnv(name: "feature-x")
 ```
 
-## Best Practices
+### ServiceAssembly for Modularity
 
-1. **Use protocols**: Define service protocols for flexibility and testability
-2. **Register in order**: Register dependencies before dependents
-3. **Use assemblies**: Organize registrations for maintainability
-4. **Leverage environments**: Use different environments for different contexts
-5. **Clear caches in tests**: Use `resetCaches()` to ensure fresh instances in tests
+```swift
+struct NetworkAssembly: ServiceAssembly {
+    func assemble(env: ServiceEnv) {
+        env.register(APIClient.self) { APIClient() }
+        env.register(ImageLoader.self) { ImageLoader() }
+    }
+}
 
-## Next Steps
+ServiceEnv.current.assemble(NetworkAssembly())
+```
 
-- Read <doc:ConcurrencyModel> for more details on Service's concurrency design
-- Explore <doc:RealWorldExamples> for practical usage patterns
-- Check out the API documentation for detailed method descriptions
+## See Also
+
+- <doc:ConcurrencyModel>
+- <doc:ServiceAssembly>
+- <doc:ErrorHandling>

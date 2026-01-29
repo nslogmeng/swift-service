@@ -35,10 +35,12 @@ ServiceEnv.current.register(database)
 
 ### ServiceKey 协议
 
-对于具有默认实现的服务，使用 `ServiceKey` 协议：
+对于具有默认实现的服务，使用 `ServiceKey` 协议。当你的服务有一个合理的默认配置时，这可以减少样板代码：
 
 ```swift
 struct DatabaseService: ServiceKey {
+    let connectionString: String
+
     static var `default`: DatabaseService {
         DatabaseService(connectionString: "sqlite://app.db")
     }
@@ -46,13 +48,25 @@ struct DatabaseService: ServiceKey {
 
 // 使用默认实现注册
 ServiceEnv.current.register(DatabaseService.self)
+
+// 或使用自定义工厂函数覆盖
+ServiceEnv.current.register(DatabaseService.self) {
+    DatabaseService(connectionString: "postgresql://prod.db")
+}
 ```
+
+**何时使用 ServiceKey：**
+- 具有通用默认配置的服务
+- 不需要复杂初始化的简单服务
+- 减少 Assembly 中的注册样板代码
+
+有关 ServiceKey 设计的更多详细信息，请参阅 <doc:UnderstandingService>。
 
 ## 注入服务
 
-### 使用 @Service property wrapper
+### 使用 @Service 属性包装器
 
-`@Service` property wrapper 在类型初始化时自动解析服务：
+`@Service` 属性包装器在类型初始化时自动解析服务：
 
 ```swift
 struct UserRepository {

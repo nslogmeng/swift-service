@@ -35,10 +35,12 @@ ServiceEnv.current.register(database)
 
 ### ServiceKey Protocol
 
-For services with default implementations, use the `ServiceKey` protocol:
+For services with default implementations, use the `ServiceKey` protocol. This reduces boilerplate when your service has a sensible default configuration:
 
 ```swift
 struct DatabaseService: ServiceKey {
+    let connectionString: String
+
     static var `default`: DatabaseService {
         DatabaseService(connectionString: "sqlite://app.db")
     }
@@ -46,7 +48,19 @@ struct DatabaseService: ServiceKey {
 
 // Register using the default implementation
 ServiceEnv.current.register(DatabaseService.self)
+
+// Or override with a custom factory
+ServiceEnv.current.register(DatabaseService.self) {
+    DatabaseService(connectionString: "postgresql://prod.db")
+}
 ```
+
+**When to use ServiceKey:**
+- Services with a common default configuration
+- Simple services that don't require complex initialization
+- Reducing registration boilerplate in assemblies
+
+For more details on the design of ServiceKey, see <doc:UnderstandingService>.
 
 ## Injecting Services
 
