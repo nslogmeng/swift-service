@@ -7,61 +7,59 @@ import Testing
 
 @testable import Service
 
-// MARK: - Integration Tests
+@Suite("Integration Tests")
+struct IntegrationTests {
+    @Test func completesFullDependencyInjectionFlow() async throws {
+        let testEnv = ServiceEnv(name: "integration-test")
 
-@Test("Complete dependency injection flow")
-func testCompleteFlow() async throws {
-    let testEnv = ServiceEnv(name: "integration-test")
+        let result = try await ServiceEnv.$current.withValue(testEnv) {
+            ServiceEnv.current.register(DatabaseProtocol.self) {
+                DatabaseService(connectionString: "sqlite://test.db")
+            }
+            ServiceEnv.current.register(LoggerProtocol.self) {
+                LoggerService(level: "INFO")
+            }
+            ServiceEnv.current.register(UserRepositoryProtocol.self) {
+                let database = try ServiceEnv.current.resolve(DatabaseProtocol.self)
+                let logger = try ServiceEnv.current.resolve(LoggerProtocol.self)
+                return UserRepository(database: database, logger: logger)
+            }
+            ServiceEnv.current.register(NetworkServiceProtocol.self) {
+                let logger = try ServiceEnv.current.resolve(LoggerProtocol.self)
+                return NetworkService(baseURL: "https://api.example.com", logger: logger)
+            }
 
-    let result = try await ServiceEnv.$current.withValue(testEnv) {
-        // Register all services
-        ServiceEnv.current.register(DatabaseProtocol.self) {
-            DatabaseService(connectionString: "sqlite://test.db")
-        }
-        ServiceEnv.current.register(LoggerProtocol.self) {
-            LoggerService(level: "INFO")
-        }
-        ServiceEnv.current.register(UserRepositoryProtocol.self) {
-            let database = try ServiceEnv.current.resolve(DatabaseProtocol.self)
-            let logger = try ServiceEnv.current.resolve(LoggerProtocol.self)
-            return UserRepository(database: database, logger: logger)
-        }
-        ServiceEnv.current.register(NetworkServiceProtocol.self) {
-            let logger = try ServiceEnv.current.resolve(LoggerProtocol.self)
-            return NetworkService(baseURL: "https://api.example.com", logger: logger)
+            let userService = UserServiceClass()
+            return try await userService.processUser(name: "Integration Test User")
         }
 
-        let userService = UserServiceClass()
-        return try await userService.processUser(name: "Integration Test User")
+        #expect(result.name == "Integration Test User")
+        #expect(!result.id.isEmpty)
     }
 
-    #expect(result.name == "Integration Test User")
-    #expect(!result.id.isEmpty)
-}
+    @Test func isolatesServicesBetweenEnvironments() async throws {
+        let env1 = ServiceEnv(name: "env1")
+        let env2 = ServiceEnv(name: "env2")
 
-@Test("Service isolation between different environments")
-func testServiceIsolationBetweenEnvironments() async throws {
-    let env1 = ServiceEnv(name: "env1")
-    let env2 = ServiceEnv(name: "env2")
+        var service1: String?
+        var service2: String?
 
-    var service1: String?
-    var service2: String?
-
-    try ServiceEnv.$current.withValue(env1) {
-        ServiceEnv.current.register(String.self) {
-            "env1-service"
+        try ServiceEnv.$current.withValue(env1) {
+            ServiceEnv.current.register(String.self) {
+                "env1-service"
+            }
+            service1 = try ServiceEnv.current.resolve(String.self)
         }
-        service1 = try ServiceEnv.current.resolve(String.self)
-    }
 
-    try ServiceEnv.$current.withValue(env2) {
-        ServiceEnv.current.register(String.self) {
-            "env2-service"
+        try ServiceEnv.$current.withValue(env2) {
+            ServiceEnv.current.register(String.self) {
+                "env2-service"
+            }
+            service2 = try ServiceEnv.current.resolve(String.self)
         }
-        service2 = try ServiceEnv.current.resolve(String.self)
-    }
 
-    #expect(service1 == "env1-service")
-    #expect(service2 == "env2-service")
-    #expect(service1 != service2)
+        #expect(service1 == "env1-service")
+        #expect(service2 == "env2-service")
+        #expect(service1 != service2)
+    }
 }

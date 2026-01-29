@@ -263,22 +263,7 @@ struct NetworkAssembly: ServiceAssembly {
     }
 }
 
-// MARK: - Additional Test Helper Types
-
-/// Counter class for tracking factory call counts in tests.
-final class CallCounter: @unchecked Sendable {
-    var count: Int = 0
-}
-
-/// Counter class for tracking instance IDs in tests.
-final class InstanceCounter: @unchecked Sendable {
-    var id: Int = 0
-}
-
-/// Flag class for tracking initialization state in tests.
-final class InitFlag: @unchecked Sendable {
-    var value: Bool = false
-}
+// MARK: - Shared Test Types
 
 /// Configuration struct for testing struct type registration.
 struct Config: Sendable {
@@ -287,7 +272,6 @@ struct Config: Sendable {
 }
 
 /// MainActor configuration struct for testing.
-/// Marked as Sendable so it can be used in both Sendable and MainActor contexts.
 struct MainConfig: Sendable {
     let theme: String
     let fontSize: Int

@@ -7,308 +7,280 @@ import Testing
 
 @testable import Service
 
-// MARK: - Service Registration Tests
+@Suite("Service Registration Tests")
+struct ServiceRegistrationTests {
+    // MARK: - Factory Tests
 
-@Test("ServiceEnv register with factory function executes factory only once")
-func testRegisterFactoryExecutesOnce() async throws {
-    let testEnv = ServiceEnv(name: "factory-once-test")
-    try await ServiceEnv.$current.withValue(testEnv) {
-        // Use a class to track call count (thread-safe for this test)
-        let callCount = CallCounter()
+    @Suite("Factory")
+    struct FactoryTests {
+        @Test func executesOnlyOnce() async throws {
+            let testEnv = ServiceEnv(name: "factory-once-test")
+            try await ServiceEnv.$current.withValue(testEnv) {
+                let callCount = CallCounter()
 
-        // Register service with factory that tracks calls
-        ServiceEnv.current.register(String.self) {
-            callCount.count += 1
-            return "factory-result-\(callCount.count)"
+                ServiceEnv.current.register(String.self) {
+                    callCount.count += 1
+                    return "factory-result-\(callCount.count)"
+                }
+
+                let service1 = try ServiceEnv.current.resolve(String.self)
+                #expect(callCount.count == 1)
+                #expect(service1 == "factory-result-1")
+
+                let service2 = try ServiceEnv.current.resolve(String.self)
+                #expect(callCount.count == 1)
+                #expect(service2 == "factory-result-1")
+
+                await ServiceEnv.current.resetCaches()
+                let service3 = try ServiceEnv.current.resolve(String.self)
+                #expect(callCount.count == 2)
+                #expect(service3 == "factory-result-2")
+            }
         }
 
-        // First resolution - factory should be called
-        let service1 = try ServiceEnv.current.resolve(String.self)
-        #expect(callCount.count == 1)
-        #expect(service1 == "factory-result-1")
+        @Test func createsNewInstancesAfterCacheClear() async throws {
+            let testEnv = ServiceEnv(name: "factory-new-instances-test")
+            try await ServiceEnv.$current.withValue(testEnv) {
+                let instanceId = InstanceCounter()
 
-        // Second resolution - factory should NOT be called again (cached)
-        let service2 = try ServiceEnv.current.resolve(String.self)
-        #expect(callCount.count == 1)  // Still 1, not 2
-        #expect(service2 == "factory-result-1")  // Same cached instance
+                ServiceEnv.current.register(Int.self) {
+                    instanceId.id += 1
+                    return instanceId.id
+                }
 
-        // After cache clear, factory should be called again
-        await ServiceEnv.current.resetCaches()
-        let service3 = try ServiceEnv.current.resolve(String.self)
-        #expect(callCount.count == 2)  // Now 2
-        #expect(service3 == "factory-result-2")
+                let service1 = try ServiceEnv.current.resolve(Int.self)
+                #expect(service1 == 1)
+
+                let service2 = try ServiceEnv.current.resolve(Int.self)
+                #expect(service2 == 1)
+
+                await ServiceEnv.current.resetCaches()
+                let service3 = try ServiceEnv.current.resolve(Int.self)
+                #expect(service3 == 2)
+            }
+        }
+
+        @Test func supportsLazyInitialization() async throws {
+            let testEnv = ServiceEnv(name: "factory-lazy-test")
+            try ServiceEnv.$current.withValue(testEnv) {
+                let initialized = InitFlag()
+
+                ServiceEnv.current.register(String.self) {
+                    initialized.value = true
+                    return "lazy-initialized"
+                }
+
+                #expect(initialized.value == false)
+
+                let service = try ServiceEnv.current.resolve(String.self)
+                #expect(initialized.value == true)
+                #expect(service == "lazy-initialized")
+            }
+        }
+
+        @Test func canAccessEnvironmentDuringCreation() async throws {
+            let testEnv = ServiceEnv(name: "factory-env-test")
+            try ServiceEnv.$current.withValue(testEnv) {
+                ServiceEnv.current.register(String.self) {
+                    "Service for \(ServiceEnv.current.name)"
+                }
+
+                let service = try ServiceEnv.current.resolve(String.self)
+                #expect(service == "Service for factory-env-test")
+            }
+        }
+    }
+
+    // MARK: - Type Registration Tests
+
+    @Suite("Type Registration")
+    struct TypeRegistrationTests {
+        @Test func registersValueTypes() async throws {
+            let testEnv = ServiceEnv(name: "value-types-test")
+            try ServiceEnv.$current.withValue(testEnv) {
+                ServiceEnv.current.register(Int.self) { 42 }
+                ServiceEnv.current.register(Double.self) { 3.14 }
+                ServiceEnv.current.register(Bool.self) { true }
+
+                let intValue = try ServiceEnv.current.resolve(Int.self)
+                let doubleValue = try ServiceEnv.current.resolve(Double.self)
+                let boolValue = try ServiceEnv.current.resolve(Bool.self)
+
+                #expect(intValue == 42)
+                #expect(doubleValue == 3.14)
+                #expect(boolValue == true)
+            }
+        }
+
+        @Test func registersStructTypes() async throws {
+            let testEnv = ServiceEnv(name: "struct-types-test")
+            try ServiceEnv.$current.withValue(testEnv) {
+                ServiceEnv.current.register(Config.self) {
+                    Config(apiKey: "test-key", timeout: 30)
+                }
+
+                let config = try ServiceEnv.current.resolve(Config.self)
+                #expect(config.apiKey == "test-key")
+                #expect(config.timeout == 30)
+
+                let config2 = try ServiceEnv.current.resolve(Config.self)
+                #expect(config.apiKey == config2.apiKey)
+                #expect(config.timeout == config2.timeout)
+            }
+        }
+
+        @Test func registersArrayTypes() async throws {
+            let testEnv = ServiceEnv(name: "array-types-test")
+            try ServiceEnv.$current.withValue(testEnv) {
+                ServiceEnv.current.register([String].self) {
+                    ["item1", "item2", "item3"]
+                }
+
+                let items = try ServiceEnv.current.resolve([String].self)
+                #expect(items.count == 3)
+                #expect(items[0] == "item1")
+                #expect(items[1] == "item2")
+                #expect(items[2] == "item3")
+            }
+        }
+
+        @Test func registersDictionaryTypes() async throws {
+            let testEnv = ServiceEnv(name: "dictionary-types-test")
+            try ServiceEnv.$current.withValue(testEnv) {
+                ServiceEnv.current.register([String: Int].self) {
+                    ["one": 1, "two": 2, "three": 3]
+                }
+
+                let dict = try ServiceEnv.current.resolve([String: Int].self)
+                #expect(dict["one"] == 1)
+                #expect(dict["two"] == 2)
+                #expect(dict["three"] == 3)
+            }
+        }
+
+        @Test func registersConcreteTypeAndResolvesAsProtocol() async throws {
+            let testEnv = ServiceEnv(name: "concrete-protocol-test")
+            try ServiceEnv.$current.withValue(testEnv) {
+                ServiceEnv.current.register(DatabaseProtocol.self) {
+                    DatabaseService(connectionString: "sqlite://concrete.db")
+                }
+
+                let database: DatabaseProtocol = try ServiceEnv.current.resolve(DatabaseProtocol.self)
+                let connectionInfo = database.connect()
+                #expect(connectionInfo.contains("sqlite://concrete.db"))
+            }
+        }
+
+        @Test func registersOptionalTypes() async throws {
+            let testEnv = ServiceEnv(name: "optional-types-test")
+            try ServiceEnv.$current.withValue(testEnv) {
+                ServiceEnv.current.register(OptionalString.self) {
+                    OptionalString(value: "optional-value")
+                }
+
+                let optionalString = try ServiceEnv.current.resolve(OptionalString.self)
+                #expect(optionalString.value == "optional-value")
+
+                ServiceEnv.current.register(OptionalInt.self) {
+                    OptionalInt(value: nil)
+                }
+
+                let optionalInt = try ServiceEnv.current.resolve(OptionalInt.self)
+                #expect(optionalInt.value == nil)
+            }
+        }
+
+        @Test func registersConcreteTypeInstanceDirectly() async throws {
+            let testEnv = ServiceEnv(name: "concrete-instance-test")
+            try ServiceEnv.$current.withValue(testEnv) {
+                let config = AppConfig(version: "1.0.0", buildNumber: 100)
+
+                ServiceEnv.current.register(AppConfig.self) { config }
+
+                let resolved = try ServiceEnv.current.resolve(AppConfig.self)
+                #expect(resolved.version == "1.0.0")
+                #expect(resolved.buildNumber == 100)
+
+                #expect(resolved.version == config.version)
+                #expect(resolved.buildNumber == config.buildNumber)
+            }
+        }
+    }
+
+    // MARK: - Override Registration Tests
+
+    @Suite("Override Registration")
+    struct OverrideRegistrationTests {
+        @Test func overridesWithSameTypeAfterCacheClear() async throws {
+            let testEnv = ServiceEnv(name: "multiple-same-type-test")
+            try await ServiceEnv.$current.withValue(testEnv) {
+                ServiceEnv.current.register(String.self) {
+                    "first-service"
+                }
+
+                let service1 = try ServiceEnv.current.resolve(String.self)
+                #expect(service1 == "first-service")
+
+                ServiceEnv.current.register(String.self) {
+                    "second-service"
+                }
+
+                let service2 = try ServiceEnv.current.resolve(String.self)
+                #expect(service2 == "first-service")
+
+                await ServiceEnv.current.resetCaches()
+                let service3 = try ServiceEnv.current.resolve(String.self)
+                #expect(service3 == "second-service")
+            }
+        }
+    }
+
+    // MARK: - Nested Dependencies Tests
+
+    @Suite("Nested Dependencies")
+    struct NestedDependenciesTests {
+        @Test func resolvesNestedDependencies() async throws {
+            let testEnv = ServiceEnv(name: "nested-deps-test")
+            try ServiceEnv.$current.withValue(testEnv) {
+                ServiceEnv.current.register(DatabaseProtocol.self) {
+                    DatabaseService(connectionString: "sqlite://nested.db")
+                }
+                ServiceEnv.current.register(LoggerProtocol.self) {
+                    LoggerService(level: "INFO")
+                }
+
+                ServiceEnv.current.register(UserRepositoryProtocol.self) {
+                    let db = try ServiceEnv.current.resolve(DatabaseProtocol.self)
+                    let logger = try ServiceEnv.current.resolve(LoggerProtocol.self)
+                    return UserRepository(database: db, logger: logger)
+                }
+
+                ServiceEnv.current.register(UserService.self) {
+                    let repo = try ServiceEnv.current.resolve(UserRepositoryProtocol.self)
+                    let logger = try ServiceEnv.current.resolve(LoggerProtocol.self)
+                    return UserService(repository: repo, logger: logger)
+                }
+
+                let userService = try ServiceEnv.current.resolve(UserService.self)
+                let user = userService.processUser(name: "Nested Test")
+                #expect(user.name == "Nested Test")
+            }
+        }
     }
 }
 
-@Test("ServiceEnv register with factory function can create different instances after cache clear")
-func testRegisterFactoryCreatesNewInstances() async throws {
-    let testEnv = ServiceEnv(name: "factory-new-instances-test")
-    try await ServiceEnv.$current.withValue(testEnv) {
-        // Use a class to track instance ID (thread-safe for this test)
-        let instanceId = InstanceCounter()
+// MARK: - Test Types
 
-        // Register service with factory that creates unique instances
-        ServiceEnv.current.register(Int.self) {
-            instanceId.id += 1
-            return instanceId.id
-        }
-
-        // First resolution
-        let service1 = try ServiceEnv.current.resolve(Int.self)
-        #expect(service1 == 1)
-
-        // Second resolution - should return cached instance
-        let service2 = try ServiceEnv.current.resolve(Int.self)
-        #expect(service2 == 1)  // Same cached instance
-
-        // Clear cache and resolve again
-        await ServiceEnv.current.resetCaches()
-        let service3 = try ServiceEnv.current.resolve(Int.self)
-        #expect(service3 == 2)  // New instance created
+extension ServiceRegistrationTests {
+    final class CallCounter: @unchecked Sendable {
+        var count: Int = 0
     }
-}
 
-@Test("ServiceEnv register with factory function supports lazy initialization")
-func testRegisterFactoryLazyInitialization() async throws {
-    let testEnv = ServiceEnv(name: "factory-lazy-test")
-    try ServiceEnv.$current.withValue(testEnv) {
-        // Use a class to track initialization (thread-safe for this test)
-        let initialized = InitFlag()
-
-        // Register service with factory
-        ServiceEnv.current.register(String.self) {
-            initialized.value = true
-            return "lazy-initialized"
-        }
-
-        // Factory should not be called yet
-        #expect(initialized.value == false)
-
-        // First resolution triggers factory
-        let service = try ServiceEnv.current.resolve(String.self)
-        #expect(initialized.value == true)
-        #expect(service == "lazy-initialized")
+    final class InstanceCounter: @unchecked Sendable {
+        var id: Int = 0
     }
-}
 
-@Test("ServiceEnv can register and resolve value types")
-func testRegisterValueTypes() async throws {
-    let testEnv = ServiceEnv(name: "value-types-test")
-    try ServiceEnv.$current.withValue(testEnv) {
-        // Register Int
-        ServiceEnv.current.register(Int.self) {
-            42
-        }
-
-        // Register Double
-        ServiceEnv.current.register(Double.self) {
-            3.14
-        }
-
-        // Register Bool
-        ServiceEnv.current.register(Bool.self) {
-            true
-        }
-
-        // Resolve and verify
-        let intValue = try ServiceEnv.current.resolve(Int.self)
-        let doubleValue = try ServiceEnv.current.resolve(Double.self)
-        let boolValue = try ServiceEnv.current.resolve(Bool.self)
-
-        #expect(intValue == 42)
-        #expect(doubleValue == 3.14)
-        #expect(boolValue == true)
-    }
-}
-
-@Test("ServiceEnv can register and resolve struct types")
-func testRegisterStructTypes() async throws {
-    let testEnv = ServiceEnv(name: "struct-types-test")
-    try ServiceEnv.$current.withValue(testEnv) {
-        // Register struct
-        ServiceEnv.current.register(Config.self) {
-            Config(apiKey: "test-key", timeout: 30)
-        }
-
-        // Resolve and verify
-        let config = try ServiceEnv.current.resolve(Config.self)
-        #expect(config.apiKey == "test-key")
-        #expect(config.timeout == 30)
-
-        // Verify singleton behavior
-        let config2 = try ServiceEnv.current.resolve(Config.self)
-        #expect(config.apiKey == config2.apiKey)
-        #expect(config.timeout == config2.timeout)
-    }
-}
-
-@Test("ServiceEnv can register and resolve array types")
-func testRegisterArrayTypes() async throws {
-    let testEnv = ServiceEnv(name: "array-types-test")
-    try ServiceEnv.$current.withValue(testEnv) {
-        // Register array of strings
-        ServiceEnv.current.register([String].self) {
-            ["item1", "item2", "item3"]
-        }
-
-        // Resolve and verify
-        let items = try ServiceEnv.current.resolve([String].self)
-        #expect(items.count == 3)
-        #expect(items[0] == "item1")
-        #expect(items[1] == "item2")
-        #expect(items[2] == "item3")
-    }
-}
-
-@Test("ServiceEnv can register and resolve dictionary types")
-func testRegisterDictionaryTypes() async throws {
-    let testEnv = ServiceEnv(name: "dictionary-types-test")
-    try ServiceEnv.$current.withValue(testEnv) {
-        // Register dictionary
-        ServiceEnv.current.register([String: Int].self) {
-            ["one": 1, "two": 2, "three": 3]
-        }
-
-        // Resolve and verify
-        let dict = try ServiceEnv.current.resolve([String: Int].self)
-        #expect(dict["one"] == 1)
-        #expect(dict["two"] == 2)
-        #expect(dict["three"] == 3)
-    }
-}
-
-@Test("ServiceEnv can register concrete type and resolve as protocol")
-func testRegisterConcreteResolveAsProtocol() async throws {
-    let testEnv = ServiceEnv(name: "concrete-protocol-test")
-    try ServiceEnv.$current.withValue(testEnv) {
-        // Register concrete type as protocol
-        ServiceEnv.current.register(DatabaseProtocol.self) {
-            DatabaseService(connectionString: "sqlite://concrete.db")
-        }
-
-        // Resolve as protocol
-        let database: DatabaseProtocol = try ServiceEnv.current.resolve(DatabaseProtocol.self)
-        let connectionInfo = database.connect()
-        #expect(connectionInfo.contains("sqlite://concrete.db"))
-    }
-}
-
-@Test("ServiceEnv can register multiple services of same type with different factories")
-func testRegisterMultipleServicesSameType() async throws {
-    let testEnv = ServiceEnv(name: "multiple-same-type-test")
-    try await ServiceEnv.$current.withValue(testEnv) {
-        // Register first service
-        ServiceEnv.current.register(String.self) {
-            "first-service"
-        }
-
-        let service1 = try ServiceEnv.current.resolve(String.self)
-        #expect(service1 == "first-service")
-
-        // Register second service (overrides)
-        ServiceEnv.current.register(String.self) {
-            "second-service"
-        }
-
-        // Cached instance still returns first
-        let service2 = try ServiceEnv.current.resolve(String.self)
-        #expect(service2 == "first-service")
-
-        // After cache clear, should use new factory
-        await ServiceEnv.current.resetCaches()
-        let service3 = try ServiceEnv.current.resolve(String.self)
-        #expect(service3 == "second-service")
-    }
-}
-
-@Test("ServiceEnv factory can access environment during creation")
-func testFactoryAccessesEnvironment() async throws {
-    let testEnv = ServiceEnv(name: "factory-env-test")
-    try ServiceEnv.$current.withValue(testEnv) {
-        // Register a service that depends on environment
-        ServiceEnv.current.register(String.self) {
-            "Service for \(ServiceEnv.current.name)"
-        }
-
-        // Resolve and verify
-        let service = try ServiceEnv.current.resolve(String.self)
-        #expect(service == "Service for factory-env-test")
-    }
-}
-
-@Test("ServiceEnv can register service with nested dependencies")
-func testRegisterWithNestedDependencies() async throws {
-    let testEnv = ServiceEnv(name: "nested-deps-test")
-    try ServiceEnv.$current.withValue(testEnv) {
-        // Register base services
-        ServiceEnv.current.register(DatabaseProtocol.self) {
-            DatabaseService(connectionString: "sqlite://nested.db")
-        }
-        ServiceEnv.current.register(LoggerProtocol.self) {
-            LoggerService(level: "INFO")
-        }
-
-        // Register service that depends on other services
-        ServiceEnv.current.register(UserRepositoryProtocol.self) {
-            let db = try ServiceEnv.current.resolve(DatabaseProtocol.self)
-            let logger = try ServiceEnv.current.resolve(LoggerProtocol.self)
-            return UserRepository(database: db, logger: logger)
-        }
-
-        // Register another service that depends on the repository
-        ServiceEnv.current.register(UserService.self) {
-            let repo = try ServiceEnv.current.resolve(UserRepositoryProtocol.self)
-            let logger = try ServiceEnv.current.resolve(LoggerProtocol.self)
-            return UserService(repository: repo, logger: logger)
-        }
-
-        // Resolve and use
-        let userService = try ServiceEnv.current.resolve(UserService.self)
-        let user = userService.processUser(name: "Nested Test")
-        #expect(user.name == "Nested Test")
-    }
-}
-
-@Test("ServiceEnv can register instance of concrete type directly")
-func testRegisterConcreteTypeInstance() async throws {
-    let testEnv = ServiceEnv(name: "concrete-instance-test")
-    try ServiceEnv.$current.withValue(testEnv) {
-        // Create instance
-        let config = AppConfig(version: "1.0.0", buildNumber: 100)
-
-        // Register instance directly
-        ServiceEnv.current.register(AppConfig.self) { config }
-
-        // Resolve and verify
-        let resolved = try ServiceEnv.current.resolve(AppConfig.self)
-        #expect(resolved.version == "1.0.0")
-        #expect(resolved.buildNumber == 100)
-
-        // Verify it's the same instance (by value comparison)
-        #expect(resolved.version == config.version)
-        #expect(resolved.buildNumber == config.buildNumber)
-    }
-}
-
-@Test("ServiceEnv can register optional types")
-func testRegisterOptionalTypes() async throws {
-    let testEnv = ServiceEnv(name: "optional-types-test")
-    try ServiceEnv.$current.withValue(testEnv) {
-        // Register optional String - wrap in Optional
-        ServiceEnv.current.register(OptionalString.self) {
-            OptionalString(value: "optional-value")
-        }
-
-        // Resolve and verify
-        let optionalString = try ServiceEnv.current.resolve(OptionalString.self)
-        #expect(optionalString.value == "optional-value")
-
-        // Register nil optional
-        ServiceEnv.current.register(OptionalInt.self) {
-            OptionalInt(value: nil)
-        }
-
-        let optionalInt = try ServiceEnv.current.resolve(OptionalInt.self)
-        #expect(optionalInt.value == nil)
+    final class InitFlag: @unchecked Sendable {
+        var value: Bool = false
     }
 }

@@ -7,362 +7,311 @@ import Testing
 
 @testable import Service
 
-// MARK: - Test Helper Classes
+@Suite("MainActor Service Tests")
+struct MainActorServiceTests {
+    // MARK: - Singleton Behavior
 
-/// Test controller for MainService property wrapper testing.
-@MainActor
-final class TestController {
-    @MainService
-    var viewModel: ViewModelService
-}
+    @Suite("Singleton Behavior")
+    struct SingletonTests {
+        @Test func returnsSameInstanceOnMultipleCalls() async throws {
+            let testEnv = ServiceEnv(name: "resolvemain-same-instance-test")
+            try await ServiceEnv.$current.withValue(testEnv) {
+                try await MainActor.run {
+                    ServiceEnv.current.registerMain(ViewModelService.self) {
+                        ViewModelService()
+                    }
 
-/// Test controller for MainService property wrapper with explicit type initializer.
-@MainActor
-final class TestControllerWithExplicitType {
-    @MainService(ViewModelService.self)
-    var viewModel: ViewModelService
-}
+                    let service1 = try ServiceEnv.current.resolveMain(ViewModelService.self)
+                    let service2 = try ServiceEnv.current.resolveMain(ViewModelService.self)
+                    let service3 = try ServiceEnv.current.resolveMain(ViewModelService.self)
 
-// MARK: - MainActor Service Tests
+                    service1.loadData()
+                    #expect(service1.loadCount == 1)
+                    #expect(service2.loadCount == 1)
+                    #expect(service3.loadCount == 1)
 
-@Test("MainActor resolveMain returns same instance on multiple calls")
-func testResolveMainReturnsSameInstance() async throws {
-    let testEnv = ServiceEnv(name: "resolvemain-same-instance-test")
-    try await ServiceEnv.$current.withValue(testEnv) {
-        try await MainActor.run {
-            // Register MainActor service
-            ServiceEnv.current.registerMain(ViewModelService.self) {
-                ViewModelService()
+                    service2.loadData()
+                    #expect(service1.loadCount == 2)
+                    #expect(service2.loadCount == 2)
+                    #expect(service3.loadCount == 2)
+                }
+            }
+        }
+
+        @Test func createsNewInstanceAfterCacheClear() async throws {
+            let testEnv = ServiceEnv(name: "resolvemain-cache-clear-test")
+            try await ServiceEnv.$current.withValue(testEnv) {
+                try await MainActor.run {
+                    ServiceEnv.current.registerMain(ViewModelService.self) {
+                        ViewModelService()
+                    }
+
+                    let service1 = try ServiceEnv.current.resolveMain(ViewModelService.self)
+                    service1.loadData()
+                    service1.loadData()
+                    #expect(service1.loadCount == 2)
+                }
+
+                await ServiceEnv.current.resetCaches()
+
+                try await MainActor.run {
+                    let service2 = try ServiceEnv.current.resolveMain(ViewModelService.self)
+                    #expect(service2.loadCount == 0)
+                    #expect(service2.data == "initial")
+                }
+            }
+        }
+    }
+
+    // MARK: - Multiple Types
+
+    @Suite("Multiple Types")
+    struct MultipleTypesTests {
+        @Test func resolvesMultipleServiceTypes() async throws {
+            let testEnv = ServiceEnv(name: "resolvemain-different-types-test")
+            try await ServiceEnv.$current.withValue(testEnv) {
+                try await MainActor.run {
+                    ServiceEnv.current.registerMain(ServiceA.self) { ServiceA() }
+                    ServiceEnv.current.registerMain(ServiceB.self) { ServiceB() }
+                    ServiceEnv.current.registerMain(ServiceC.self) { ServiceC() }
+
+                    let serviceA = try ServiceEnv.current.resolveMain(ServiceA.self)
+                    let serviceB = try ServiceEnv.current.resolveMain(ServiceB.self)
+                    let serviceC = try ServiceEnv.current.resolveMain(ServiceC.self)
+
+                    #expect(serviceA.value == "A")
+                    #expect(serviceB.value == "B")
+                    #expect(serviceC.value == "C")
+
+                    serviceA.value = "Modified A"
+                    #expect(serviceA.value == "Modified A")
+                    #expect(serviceB.value == "B")
+                    #expect(serviceC.value == "C")
+                }
+            }
+        }
+    }
+
+    // MARK: - Registration and Resolution
+
+    @Suite("Registration")
+    struct RegistrationTests {
+        @Test func registersAndResolvesService() async throws {
+            let testEnv = ServiceEnv(name: "mainactor-test")
+            try await ServiceEnv.$current.withValue(testEnv) {
+                try await MainActor.run {
+                    ServiceEnv.current.registerMain(ViewModelService.self) {
+                        ViewModelService()
+                    }
+
+                    let service = try ServiceEnv.current.resolveMain(ViewModelService.self)
+                    #expect(service.data == "initial")
+
+                    service.loadData()
+                    #expect(service.data == "loaded")
+                    #expect(service.loadCount == 1)
+                }
+            }
+        }
+
+        @Test func supportsCustomFactoryConfiguration() async throws {
+            let testEnv = ServiceEnv(name: "mainactor-factory-test")
+            try await ServiceEnv.$current.withValue(testEnv) {
+                try await MainActor.run {
+                    ServiceEnv.current.registerMain(MainActorConfigService.self) {
+                        let service = MainActorConfigService()
+                        service.config = "custom-config"
+                        return service
+                    }
+
+                    let service = try ServiceEnv.current.resolveMain(MainActorConfigService.self)
+                    #expect(service.config == "custom-config")
+                }
+            }
+        }
+
+        @Test func supportsDirectInstanceRegistration() async throws {
+            let testEnv = ServiceEnv(name: "mainactor-instance-test")
+            try await ServiceEnv.$current.withValue(testEnv) {
+                try await MainActor.run {
+                    let instance = ViewModelService()
+                    instance.data = "pre-configured"
+
+                    ServiceEnv.current.registerMain(instance)
+
+                    let resolved = try ServiceEnv.current.resolveMain(ViewModelService.self)
+                    #expect(resolved.data == "pre-configured")
+                }
+            }
+        }
+
+        @Test func supportsServiceKeyRegistration() async throws {
+            let testEnv = ServiceEnv(name: "mainactor-servicekey-test")
+            try await ServiceEnv.$current.withValue(testEnv) {
+                try await MainActor.run {
+                    ServiceEnv.current.registerMain(MainActorKeyService.self)
+
+                    let service = try ServiceEnv.current.resolveMain(MainActorKeyService.self)
+                    #expect(service.value == "default-value")
+
+                    let service2 = try ServiceEnv.current.resolveMain(MainActorKeyService.self)
+                    service.value = "modified"
+                    #expect(service2.value == "modified")
+                }
+            }
+        }
+    }
+
+    // MARK: - Property Wrapper
+
+    @Suite("MainService Property Wrapper")
+    struct PropertyWrapperTests {
+        @Test func resolvesWithPropertyWrapper() async throws {
+            let testEnv = ServiceEnv(name: "mainservice-wrapper-test")
+            await ServiceEnv.$current.withValue(testEnv) {
+                await MainActor.run {
+                    ServiceEnv.current.registerMain(ViewModelService.self) {
+                        ViewModelService()
+                    }
+
+                    let controller = TestController()
+                    #expect(controller.viewModel.data == "initial")
+
+                    controller.viewModel.loadData()
+                    #expect(controller.viewModel.data == "loaded")
+                }
+            }
+        }
+
+        @Test func supportsExplicitTypeInitializer() async throws {
+            let testEnv = ServiceEnv(name: "mainservice-explicit-type-test")
+            await ServiceEnv.$current.withValue(testEnv) {
+                await MainActor.run {
+                    ServiceEnv.current.registerMain(ViewModelService.self) {
+                        ViewModelService()
+                    }
+
+                    let controller = TestControllerWithExplicitType()
+                    #expect(controller.viewModel.data == "initial")
+
+                    controller.viewModel.loadData()
+                    #expect(controller.viewModel.data == "loaded")
+                }
+            }
+        }
+    }
+
+    // MARK: - Environment Isolation
+
+    @Suite("Environment Isolation")
+    struct IsolationTests {
+        @Test func isolatesServicesAcrossEnvironments() async throws {
+            let env1 = ServiceEnv(name: "mainactor-env1")
+            let env2 = ServiceEnv(name: "mainactor-env2")
+
+            await ServiceEnv.$current.withValue(env1) {
+                await MainActor.run {
+                    ServiceEnv.current.registerMain(ViewModelService.self) {
+                        let service = ViewModelService()
+                        service.data = "env1-data"
+                        return service
+                    }
+                }
             }
 
-            // Resolve multiple times
-            let service1 = try ServiceEnv.current.resolveMain(ViewModelService.self)
-            let service2 = try ServiceEnv.current.resolveMain(ViewModelService.self)
-            let service3 = try ServiceEnv.current.resolveMain(ViewModelService.self)
+            await ServiceEnv.$current.withValue(env2) {
+                await MainActor.run {
+                    ServiceEnv.current.registerMain(ViewModelService.self) {
+                        let service = ViewModelService()
+                        service.data = "env2-data"
+                        return service
+                    }
+                }
+            }
 
-            // All should be the same instance
-            service1.loadData()
-            #expect(service1.loadCount == 1)
-            #expect(service2.loadCount == 1)  // Same instance
-            #expect(service3.loadCount == 1)  // Same instance
+            try await ServiceEnv.$current.withValue(env1) {
+                try await MainActor.run {
+                    let service = try ServiceEnv.current.resolveMain(ViewModelService.self)
+                    #expect(service.data == "env1-data")
+                }
+            }
 
-            service2.loadData()
-            #expect(service1.loadCount == 2)  // Same instance
-            #expect(service2.loadCount == 2)
-            #expect(service3.loadCount == 2)  // Same instance
+            try await ServiceEnv.$current.withValue(env2) {
+                try await MainActor.run {
+                    let service = try ServiceEnv.current.resolveMain(ViewModelService.self)
+                    #expect(service.data == "env2-data")
+                }
+            }
+        }
+    }
+
+    // MARK: - Reset Behavior
+
+    @Suite("Reset Behavior")
+    struct ResetTests {
+        @Test func resetCachesClearsServiceCaches() async throws {
+            let testEnv = ServiceEnv(name: "mainactor-reset-test")
+            try await ServiceEnv.$current.withValue(testEnv) {
+                try await MainActor.run {
+                    ServiceEnv.current.registerMain(ViewModelService.self) {
+                        ViewModelService()
+                    }
+
+                    let service1 = try ServiceEnv.current.resolveMain(ViewModelService.self)
+                    service1.loadData()
+                    #expect(service1.loadCount == 1)
+                }
+
+                await ServiceEnv.current.resetCaches()
+
+                try await MainActor.run {
+                    let service2 = try ServiceEnv.current.resolveMain(ViewModelService.self)
+                    #expect(service2.loadCount == 0)
+                    #expect(service2.data == "initial")
+                }
+            }
+        }
+
+        @Test func resetAllClearsServiceProviders() async throws {
+            let testEnv = ServiceEnv(name: "mainactor-resetall-test")
+            try await ServiceEnv.$current.withValue(testEnv) {
+                try await MainActor.run {
+                    ServiceEnv.current.registerMain(ViewModelService.self) {
+                        ViewModelService()
+                    }
+
+                    _ = try ServiceEnv.current.resolveMain(ViewModelService.self)
+                }
+
+                await ServiceEnv.current.resetAll()
+
+                try await MainActor.run {
+                    ServiceEnv.current.registerMain(ViewModelService.self) {
+                        let service = ViewModelService()
+                        service.data = "re-registered"
+                        return service
+                    }
+
+                    let service = try ServiceEnv.current.resolveMain(ViewModelService.self)
+                    #expect(service.data == "re-registered")
+                }
+            }
         }
     }
 }
 
-@Test("MainActor resolveMain creates new instance after cache clear")
-func testResolveMainCreatesNewInstanceAfterCacheClear() async throws {
-    let testEnv = ServiceEnv(name: "resolvemain-cache-clear-test")
-    try await ServiceEnv.$current.withValue(testEnv) {
-        try await MainActor.run {
-            // Register MainActor service
-            ServiceEnv.current.registerMain(ViewModelService.self) {
-                ViewModelService()
-            }
+// MARK: - Test Types
 
-            // Resolve and modify
-            let service1 = try ServiceEnv.current.resolveMain(ViewModelService.self)
-            service1.loadData()
-            service1.loadData()
-            #expect(service1.loadCount == 2)
-        }
-
-        // Clear cache
-        await ServiceEnv.current.resetCaches()
-
-        try await MainActor.run {
-            // Resolve again - should be new instance
-            let service2 = try ServiceEnv.current.resolveMain(ViewModelService.self)
-            #expect(service2.loadCount == 0)  // New instance, not modified
-            #expect(service2.data == "initial")
-        }
-    }
-}
-
-@Test("MainActor resolveMain works with different service types")
-func testResolveMainWithDifferentTypes() async throws {
-    let testEnv = ServiceEnv(name: "resolvemain-different-types-test")
-    try await ServiceEnv.$current.withValue(testEnv) {
-        try await MainActor.run {
-            // Register multiple different types
-            ServiceEnv.current.registerMain(ServiceA.self) {
-                ServiceA()
-            }
-
-            ServiceEnv.current.registerMain(ServiceB.self) {
-                ServiceB()
-            }
-
-            ServiceEnv.current.registerMain(ServiceC.self) {
-                ServiceC()
-            }
-
-            // Resolve each type
-            let serviceA = try ServiceEnv.current.resolveMain(ServiceA.self)
-            let serviceB = try ServiceEnv.current.resolveMain(ServiceB.self)
-            let serviceC = try ServiceEnv.current.resolveMain(ServiceC.self)
-
-            #expect(serviceA.value == "A")
-            #expect(serviceB.value == "B")
-            #expect(serviceC.value == "C")
-
-            // Verify they are different instances
-            serviceA.value = "Modified A"
-            #expect(serviceA.value == "Modified A")
-            #expect(serviceB.value == "B")  // Unchanged
-            #expect(serviceC.value == "C")  // Unchanged
-        }
-    }
-}
-
-@Test("MainActor service registration and resolution")
-func testMainActorServiceRegistration() async throws {
-    let testEnv = ServiceEnv(name: "mainactor-test")
-    try await ServiceEnv.$current.withValue(testEnv) {
-        try await MainActor.run {
-            // Register MainActor service
-            ServiceEnv.current.registerMain(ViewModelService.self) {
-                ViewModelService()
-            }
-
-            // Resolve and verify
-            let service = try ServiceEnv.current.resolveMain(ViewModelService.self)
-            #expect(service.data == "initial")
-
-            // Modify and verify state
-            service.loadData()
-            #expect(service.data == "loaded")
-            #expect(service.loadCount == 1)
-        }
-    }
-}
-
-@Test("MainActor service singleton behavior")
-func testMainActorServiceSingleton() async throws {
-    let testEnv = ServiceEnv(name: "mainactor-singleton-test")
-    try await ServiceEnv.$current.withValue(testEnv) {
-        try await MainActor.run {
-            // Register MainActor service
-            ServiceEnv.current.registerMain(ViewModelService.self) {
-                ViewModelService()
-            }
-
-            // Resolve twice - should return same instance
-            let service1 = try ServiceEnv.current.resolveMain(ViewModelService.self)
-            let service2 = try ServiceEnv.current.resolveMain(ViewModelService.self)
-
-            // Verify singleton behavior
-            service1.loadData()
-            #expect(service1.loadCount == 1)
-            #expect(service2.loadCount == 1)  // Same instance
-
-            service2.loadData()
-            #expect(service1.loadCount == 2)  // Same instance
-            #expect(service2.loadCount == 2)
-        }
-    }
-}
-
-@Test("MainActor service with custom factory configuration")
-func testMainActorServiceCustomFactory() async throws {
-    let testEnv = ServiceEnv(name: "mainactor-factory-test")
-    try await ServiceEnv.$current.withValue(testEnv) {
-        try await MainActor.run {
-            // Register with a custom factory that configures the service
-            ServiceEnv.current.registerMain(MainActorConfigService.self) {
-                let service = MainActorConfigService()
-                service.config = "custom-config"
-                return service
-            }
-
-            // Resolve and verify custom configuration
-            let service = try ServiceEnv.current.resolveMain(MainActorConfigService.self)
-            #expect(service.config == "custom-config")
-        }
-    }
-}
-
-@Test("MainActor service direct instance registration")
-func testMainActorServiceDirectInstance() async throws {
-    let testEnv = ServiceEnv(name: "mainactor-instance-test")
-    try await ServiceEnv.$current.withValue(testEnv) {
-        try await MainActor.run {
-            // Create instance first
-            let instance = ViewModelService()
-            instance.data = "pre-configured"
-
-            // Register instance directly
-            ServiceEnv.current.registerMain(instance)
-
-            // Resolve and verify it's the same instance
-            let resolved = try ServiceEnv.current.resolveMain(ViewModelService.self)
-            #expect(resolved.data == "pre-configured")
-        }
-    }
-}
-
-@Test("MainService property wrapper")
-func testMainServicePropertyWrapper() async throws {
-    let testEnv = ServiceEnv(name: "mainservice-wrapper-test")
-    await ServiceEnv.$current.withValue(testEnv) {
-        await MainActor.run {
-            // Register MainActor service
-            ServiceEnv.current.registerMain(ViewModelService.self) {
-                ViewModelService()
-            }
-
-            // Use property wrapper in a MainActor context
-            let controller = TestController()
-            #expect(controller.viewModel.data == "initial")
-
-            controller.viewModel.loadData()
-            #expect(controller.viewModel.data == "loaded")
-        }
-    }
-}
-
-@Test("MainActor service environment isolation")
-func testMainActorServiceIsolation() async throws {
-    let env1 = ServiceEnv(name: "mainactor-env1")
-    let env2 = ServiceEnv(name: "mainactor-env2")
-
-    // Register different services in different environments
-    await ServiceEnv.$current.withValue(env1) {
-        await MainActor.run {
-            ServiceEnv.current.registerMain(ViewModelService.self) {
-                let service = ViewModelService()
-                service.data = "env1-data"
-                return service
-            }
-        }
+extension MainActorServiceTests {
+    @MainActor
+    final class TestController {
+        @MainService
+        var viewModel: ViewModelService
     }
 
-    await ServiceEnv.$current.withValue(env2) {
-        await MainActor.run {
-            ServiceEnv.current.registerMain(ViewModelService.self) {
-                let service = ViewModelService()
-                service.data = "env2-data"
-                return service
-            }
-        }
-    }
-
-    // Verify isolation
-    try await ServiceEnv.$current.withValue(env1) {
-        try await MainActor.run {
-            let service = try ServiceEnv.current.resolveMain(ViewModelService.self)
-            #expect(service.data == "env1-data")
-        }
-    }
-
-    try await ServiceEnv.$current.withValue(env2) {
-        try await MainActor.run {
-            let service = try ServiceEnv.current.resolveMain(ViewModelService.self)
-            #expect(service.data == "env2-data")
-        }
-    }
-}
-
-@Test("Reset clears MainActor service caches")
-func testResetClearsMainActorCaches() async throws {
-    let testEnv = ServiceEnv(name: "mainactor-reset-test")
-    try await ServiceEnv.$current.withValue(testEnv) {
-        try await MainActor.run {
-            // Register MainActor service
-            ServiceEnv.current.registerMain(ViewModelService.self) {
-                ViewModelService()
-            }
-
-            // Resolve and modify
-            let service1 = try ServiceEnv.current.resolveMain(ViewModelService.self)
-            service1.loadData()
-            #expect(service1.loadCount == 1)
-        }
-
-        // Reset caches (async ensures MainActor caches are cleared)
-        await ServiceEnv.current.resetCaches()
-
-        try await MainActor.run {
-            // Resolve again - should be a new instance
-            let service2 = try ServiceEnv.current.resolveMain(ViewModelService.self)
-            #expect(service2.loadCount == 0)  // New instance, not modified
-            #expect(service2.data == "initial")
-        }
-    }
-}
-
-@Test("ResetAll clears MainActor service providers")
-func testResetAllClearsMainActorProviders() async throws {
-    let testEnv = ServiceEnv(name: "mainactor-resetall-test")
-    try await ServiceEnv.$current.withValue(testEnv) {
-        try await MainActor.run {
-            // Register MainActor service
-            ServiceEnv.current.registerMain(ViewModelService.self) {
-                ViewModelService()
-            }
-
-            // Verify registration works
-            try ServiceEnv.current.resolveMain(ViewModelService.self)
-        }
-
-        // Reset all (async ensures MainActor storage is cleared)
-        await ServiceEnv.current.resetAll()
-
-        try await MainActor.run {
-            // Re-register service (previous provider was removed)
-            ServiceEnv.current.registerMain(ViewModelService.self) {
-                let service = ViewModelService()
-                service.data = "re-registered"
-                return service
-            }
-
-            // Verify new registration works
-            let service = try ServiceEnv.current.resolveMain(ViewModelService.self)
-            #expect(service.data == "re-registered")
-        }
-    }
-}
-
-@Test("MainActor service registration using ServiceKey")
-func testMainActorServiceWithServiceKey() async throws {
-    let testEnv = ServiceEnv(name: "mainactor-servicekey-test")
-    try await ServiceEnv.$current.withValue(testEnv) {
-        try await MainActor.run {
-            // Register using ServiceKey
-            ServiceEnv.current.registerMain(MainActorKeyService.self)
-
-            // Resolve and verify
-            let service = try ServiceEnv.current.resolveMain(MainActorKeyService.self)
-            #expect(service.value == "default-value")
-
-            // Verify singleton behavior
-            let service2 = try ServiceEnv.current.resolveMain(MainActorKeyService.self)
-            service.value = "modified"
-            #expect(service2.value == "modified")  // Same instance
-        }
-    }
-}
-
-@Test("MainService property wrapper with explicit type initializer")
-func testMainServicePropertyWrapperExplicitType() async throws {
-    let testEnv = ServiceEnv(name: "mainservice-explicit-type-test")
-    await ServiceEnv.$current.withValue(testEnv) {
-        await MainActor.run {
-            // Register MainActor service
-            ServiceEnv.current.registerMain(ViewModelService.self) {
-                ViewModelService()
-            }
-
-            // Use explicit type initializer
-            let controller = TestControllerWithExplicitType()
-            #expect(controller.viewModel.data == "initial")
-
-            controller.viewModel.loadData()
-            #expect(controller.viewModel.data == "loaded")
-        }
+    @MainActor
+    final class TestControllerWithExplicitType {
+        @MainService(ViewModelService.self)
+        var viewModel: ViewModelService
     }
 }

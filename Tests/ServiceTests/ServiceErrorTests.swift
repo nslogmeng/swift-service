@@ -1,5 +1,4 @@
 //
-//  Created by Meng on 2025.
 //  Copyright © 2025 Service Contributors. All rights reserved.
 //
 
@@ -7,312 +6,326 @@ import Testing
 
 @testable import Service
 
-@Suite("Service Error Tests", .serialized)
+@Suite("ServiceError Tests", .serialized)
 struct ServiceErrorTests {
     init() async {
         await ServiceEnv.current.resetAll()
     }
 
-    // MARK: - NotRegistered Error Tests
+    // MARK: - NotRegistered Error
 
-    @Test("resolve throws notRegistered for unregistered service")
-    func testResolveUnregisteredThrows() throws {
-        #expect(throws: ServiceError.self) {
-            try ServiceEnv.current.resolve(Int.self)
+    @Suite("NotRegistered Error")
+    struct NotRegisteredTests {
+        init() async {
+            await ServiceEnv.current.resetAll()
         }
-    }
 
-    @Test("resolveMain throws notRegistered for unregistered service")
-    @MainActor
-    func testResolveMainUnregisteredThrows() throws {
-        #expect(throws: ServiceError.self) {
-            try ServiceEnv.current.resolveMain(String.self)
-        }
-    }
-
-    @Test("notRegistered error contains correct service type")
-    func testNotRegisteredErrorMessage() throws {
-        do {
-            try ServiceEnv.current.resolve(Int.self)
-            Issue.record("Expected error to be thrown")
-        } catch {
-            switch error {
-            case .notRegistered(let serviceType):
-                #expect(serviceType == "Int")
-            default:
-                Issue.record("Expected notRegistered error")
-            }
-        }
-    }
-
-    // MARK: - Circular Dependency Error Tests
-
-    @Test("resolve throws circularDependency for circular dependencies")
-    @MainActor
-    func testCircularDependencyThrows() throws {
-        ServiceEnv.current.assemble(CircularDependencyAssembly())
-
-        #expect(throws: ServiceError.self) {
-            try ServiceEnv.current.resolve(CircularA.self)
-        }
-    }
-
-    @Test("circularDependency error contains correct chain")
-    @MainActor
-    func testCircularDependencyErrorMessage() throws {
-        ServiceEnv.current.assemble(CircularDependencyAssembly())
-
-        do {
-            try ServiceEnv.current.resolve(CircularA.self)
-            Issue.record("Expected error to be thrown")
-        } catch {
-            switch error {
-            case .circularDependency(let serviceType, let chain):
-                #expect(serviceType == "CircularA")
-                #expect(chain.count == 4)
-                #expect(chain.first == "CircularA")
-                #expect(chain.last == "CircularA")
-            default:
-                Issue.record("Expected circularDependency error")
-            }
-        }
-    }
-
-    // MARK: - Max Depth Exceeded Error Tests
-
-    @Test("resolve throws maxDepthExceeded when depth limit is exceeded")
-    @MainActor
-    func testMaxDepthExceededThrows() throws {
-        ServiceEnv.current.assemble(DeepDependencyAssembly())
-
-        ServiceContext.$maxResolutionDepth.withValue(2) {
+        @Test func throwsForUnregisteredService() throws {
             #expect(throws: ServiceError.self) {
-                try ServiceEnv.current.resolve(DepthA.self)
+                try ServiceEnv.current.resolve(Int.self)
             }
         }
-    }
 
-    @Test("maxDepthExceeded error contains correct depth")
-    @MainActor
-    func testMaxDepthExceededErrorMessage() throws {
-        ServiceEnv.current.assemble(DeepDependencyAssembly())
+        @Test @MainActor func throwsForUnregisteredMainService() throws {
+            #expect(throws: ServiceError.self) {
+                try ServiceEnv.current.resolveMain(String.self)
+            }
+        }
 
-        ServiceContext.$maxResolutionDepth.withValue(2) {
+        @Test func containsCorrectServiceType() throws {
             do {
-                try ServiceEnv.current.resolve(DepthA.self)
+                try ServiceEnv.current.resolve(Int.self)
                 Issue.record("Expected error to be thrown")
-            } catch let error as ServiceError {
-                switch error {
-                case .maxDepthExceeded(let depth, let chain):
-                    #expect(depth == 2)
-                    #expect(chain.count == 2)
-                default:
-                    Issue.record("Expected maxDepthExceeded error")
-                }
             } catch {
-                Issue.record("Unexpected error type: \(error)")
+                switch error {
+                case .notRegistered(let serviceType):
+                    #expect(serviceType == "Int")
+                default:
+                    Issue.record("Expected notRegistered error")
+                }
             }
         }
     }
 
-    // MARK: - Successful Resolution Tests
+    // MARK: - Circular Dependency Error
 
-    @Test("resolve succeeds for registered service")
-    func testResolveSucceeds() throws {
-        ServiceEnv.current.register(Int.self) { 42 }
-
-        let value = try ServiceEnv.current.resolve(Int.self)
-        #expect(value == 42)
-    }
-
-    @Test("resolveMain succeeds for registered MainActor service")
-    @MainActor
-    func testResolveMainSucceeds() throws {
-        ServiceEnv.current.registerMain(String.self) { "Hello" }
-
-        let value = try ServiceEnv.current.resolveMain(String.self)
-        #expect(value == "Hello")
-    }
-
-    // MARK: - Factory Failed Error Tests
-
-    @Test("resolve throws factoryFailed when factory throws non-ServiceError")
-    func testFactoryFailedThrows() throws {
-        ServiceEnv.current.register(String.self) {
-            throw TestError.customError
+    @Suite("Circular Dependency Error")
+    struct CircularDependencyErrorTests {
+        init() async {
+            await ServiceEnv.current.resetAll()
         }
 
-        #expect(throws: ServiceError.self) {
-            try ServiceEnv.current.resolve(String.self)
-        }
-    }
+        @Test @MainActor func throwsForCircularDependencies() throws {
+            ServiceEnv.current.assemble(CircularDependencyAssembly())
 
-    @Test("factoryFailed error contains correct service type and underlying error")
-    func testFactoryFailedErrorMessage() throws {
-        ServiceEnv.current.register(String.self) {
-            throw TestError.customError
+            #expect(throws: ServiceError.self) {
+                try ServiceEnv.current.resolve(CircularA.self)
+            }
         }
 
-        do {
-            try ServiceEnv.current.resolve(String.self)
-            Issue.record("Expected error to be thrown")
-        } catch {
-            switch error {
-            case .factoryFailed(let serviceType, let underlyingError):
-                #expect(serviceType == "String")
-                #expect(underlyingError is TestError)
-            default:
-                Issue.record("Expected factoryFailed error, got \(error)")
+        @Test @MainActor func containsCorrectChain() throws {
+            ServiceEnv.current.assemble(CircularDependencyAssembly())
+
+            do {
+                try ServiceEnv.current.resolve(CircularA.self)
+                Issue.record("Expected error to be thrown")
+            } catch {
+                switch error {
+                case .circularDependency(let serviceType, let chain):
+                    #expect(serviceType == "CircularA")
+                    #expect(chain.count == 4)
+                    #expect(chain.first == "CircularA")
+                    #expect(chain.last == "CircularA")
+                default:
+                    Issue.record("Expected circularDependency error")
+                }
             }
         }
     }
 
-    @Test("factory can throw ServiceError and it propagates directly")
-    func testFactoryThrowsServiceError() throws {
-        ServiceEnv.current.register(String.self) {
-            throw ServiceError.notRegistered(serviceType: "CustomDependency")
+    // MARK: - Max Depth Exceeded Error
+
+    @Suite("Max Depth Exceeded Error")
+    struct MaxDepthExceededTests {
+        init() async {
+            await ServiceEnv.current.resetAll()
         }
 
-        do {
-            try ServiceEnv.current.resolve(String.self)
-            Issue.record("Expected error to be thrown")
-        } catch {
-            switch error {
-            case .notRegistered(let serviceType):
-                // ServiceError is propagated directly, not wrapped in factoryFailed
-                #expect(serviceType == "CustomDependency")
-            default:
-                Issue.record("Expected notRegistered error, got \(error)")
+        @Test @MainActor func throwsWhenDepthLimitExceeded() throws {
+            ServiceEnv.current.assemble(DeepDependencyAssembly())
+
+            ServiceContext.$maxResolutionDepth.withValue(2) {
+                #expect(throws: ServiceError.self) {
+                    try ServiceEnv.current.resolve(DepthA.self)
+                }
+            }
+        }
+
+        @Test @MainActor func containsCorrectDepth() throws {
+            ServiceEnv.current.assemble(DeepDependencyAssembly())
+
+            ServiceContext.$maxResolutionDepth.withValue(2) {
+                do {
+                    try ServiceEnv.current.resolve(DepthA.self)
+                    Issue.record("Expected error to be thrown")
+                } catch let error as ServiceError {
+                    switch error {
+                    case .maxDepthExceeded(let depth, let chain):
+                        #expect(depth == 2)
+                        #expect(chain.count == 2)
+                    default:
+                        Issue.record("Expected maxDepthExceeded error")
+                    }
+                } catch {
+                    Issue.record("Unexpected error type: \(error)")
+                }
             }
         }
     }
 
-    @Test("resolveMain throws factoryFailed when factory throws non-ServiceError")
-    @MainActor
-    func testResolveMainFactoryFailedThrows() throws {
-        ServiceEnv.current.registerMain(String.self) {
-            throw TestError.customError
+    // MARK: - Factory Failed Error
+
+    @Suite("Factory Failed Error")
+    struct FactoryFailedTests {
+        init() async {
+            await ServiceEnv.current.resetAll()
         }
 
-        do {
-            try ServiceEnv.current.resolveMain(String.self)
-            Issue.record("Expected error to be thrown")
-        } catch {
-            switch error {
-            case .factoryFailed(let serviceType, let underlyingError):
-                #expect(serviceType == "String")
-                #expect(underlyingError is TestError)
-            default:
-                Issue.record("Expected factoryFailed error, got \(error)")
+        @Test func throwsWhenFactoryThrowsNonServiceError() throws {
+            ServiceEnv.current.register(String.self) {
+                throw TestError.customError
+            }
+
+            #expect(throws: ServiceError.self) {
+                try ServiceEnv.current.resolve(String.self)
+            }
+        }
+
+        @Test func containsCorrectServiceTypeAndUnderlyingError() throws {
+            ServiceEnv.current.register(String.self) {
+                throw TestError.customError
+            }
+
+            do {
+                try ServiceEnv.current.resolve(String.self)
+                Issue.record("Expected error to be thrown")
+            } catch {
+                switch error {
+                case .factoryFailed(let serviceType, let underlyingError):
+                    #expect(serviceType == "String")
+                    #expect(underlyingError is TestError)
+                default:
+                    Issue.record("Expected factoryFailed error, got \(error)")
+                }
+            }
+        }
+
+        @Test func propagatesServiceErrorDirectly() throws {
+            ServiceEnv.current.register(String.self) {
+                throw ServiceError.notRegistered(serviceType: "CustomDependency")
+            }
+
+            do {
+                try ServiceEnv.current.resolve(String.self)
+                Issue.record("Expected error to be thrown")
+            } catch {
+                switch error {
+                case .notRegistered(let serviceType):
+                    #expect(serviceType == "CustomDependency")
+                default:
+                    Issue.record("Expected notRegistered error, got \(error)")
+                }
+            }
+        }
+
+        @Test @MainActor func throwsForMainServiceFactoryError() throws {
+            ServiceEnv.current.registerMain(String.self) {
+                throw TestError.customError
+            }
+
+            do {
+                try ServiceEnv.current.resolveMain(String.self)
+                Issue.record("Expected error to be thrown")
+            } catch {
+                switch error {
+                case .factoryFailed(let serviceType, let underlyingError):
+                    #expect(serviceType == "String")
+                    #expect(underlyingError is TestError)
+                default:
+                    Issue.record("Expected factoryFailed error, got \(error)")
+                }
             }
         }
     }
 
-    // MARK: - Error Description Tests
+    // MARK: - Successful Resolution
 
-    @Test("ServiceError.description is correctly formatted")
-    func testErrorDescriptions() {
-        let notRegistered = ServiceError.notRegistered(serviceType: "MyService")
-        #expect(notRegistered.description.contains("MyService"))
-        #expect(notRegistered.description.contains("not registered"))
+    @Suite("Successful Resolution")
+    struct SuccessfulResolutionTests {
+        init() async {
+            await ServiceEnv.current.resetAll()
+        }
 
-        let circular = ServiceError.circularDependency(
-            serviceType: "ServiceA",
-            chain: ["ServiceA", "ServiceB", "ServiceA"]
-        )
-        #expect(circular.description.contains("Circular dependency"))
-        #expect(circular.description.contains("ServiceA -> ServiceB -> ServiceA"))
+        @Test func resolvesRegisteredService() throws {
+            ServiceEnv.current.register(Int.self) { 42 }
 
-        let maxDepth = ServiceError.maxDepthExceeded(
-            depth: 100,
-            chain: ["A", "B", "C"]
-        )
-        #expect(maxDepth.description.contains("100"))
-        #expect(maxDepth.description.contains("A -> B -> C"))
+            let value = try ServiceEnv.current.resolve(Int.self)
+            #expect(value == 42)
+        }
 
-        let factoryFailed = ServiceError.factoryFailed(
-            serviceType: "MyService",
-            underlyingError: TestError.customError
-        )
-        #expect(factoryFailed.description.contains("MyService"))
-        #expect(factoryFailed.description.contains("Factory failed"))
+        @Test @MainActor func resolvesRegisteredMainService() throws {
+            ServiceEnv.current.registerMain(String.self) { "Hello" }
+
+            let value = try ServiceEnv.current.resolveMain(String.self)
+            #expect(value == "Hello")
+        }
     }
-}
 
-// MARK: - Test Errors
+    // MARK: - Error Description
 
-private enum TestError: Error {
-    case customError
+    @Suite("Error Description")
+    struct ErrorDescriptionTests {
+        @Test func formatsDescriptionsCorrectly() {
+            let notRegistered = ServiceError.notRegistered(serviceType: "MyService")
+            #expect(notRegistered.description.contains("MyService"))
+            #expect(notRegistered.description.contains("not registered"))
+
+            let circular = ServiceError.circularDependency(
+                serviceType: "ServiceA",
+                chain: ["ServiceA", "ServiceB", "ServiceA"]
+            )
+            #expect(circular.description.contains("Circular dependency"))
+            #expect(circular.description.contains("ServiceA -> ServiceB -> ServiceA"))
+
+            let maxDepth = ServiceError.maxDepthExceeded(
+                depth: 100,
+                chain: ["A", "B", "C"]
+            )
+            #expect(maxDepth.description.contains("100"))
+            #expect(maxDepth.description.contains("A -> B -> C"))
+
+            let factoryFailed = ServiceError.factoryFailed(
+                serviceType: "MyService",
+                underlyingError: TestError.customError
+            )
+            #expect(factoryFailed.description.contains("MyService"))
+            #expect(factoryFailed.description.contains("Factory failed"))
+        }
+    }
 }
 
 // MARK: - Test Types
 
-private struct CircularA: Sendable {
-    init(b: CircularB) {}
-}
+extension ServiceErrorTests {
+    enum TestError: Error {
+        case customError
+    }
 
-private struct CircularB: Sendable {
-    init(c: CircularC) {}
-}
+    struct CircularA: Sendable {
+        init(b: CircularB) {}
+    }
 
-private struct CircularC: Sendable {
-    init(a: CircularA) {}
-}
+    struct CircularB: Sendable {
+        init(c: CircularC) {}
+    }
 
-private struct DepthA: Sendable {
-    let b: DepthB
-}
+    struct CircularC: Sendable {
+        init(a: CircularA) {}
+    }
 
-private struct DepthB: Sendable {
-    let c: DepthC
-}
+    struct DepthA: Sendable {
+        let b: DepthB
+    }
 
-private struct DepthC: Sendable {
-    let d: DepthD
-}
+    struct DepthB: Sendable {
+        let c: DepthC
+    }
 
-private struct DepthD: Sendable {}
+    struct DepthC: Sendable {
+        let d: DepthD
+    }
 
-// MARK: - Test Assemblies
+    struct DepthD: Sendable {}
 
-private struct CircularDependencyAssembly: ServiceAssembly {
-    func assemble(env: ServiceEnv) {
-        env.register(CircularA.self) {
-            let b = try env.resolve(CircularB.self)
-            return CircularA(b: b)
-        }
+    struct CircularDependencyAssembly: ServiceAssembly {
+        func assemble(env: ServiceEnv) {
+            env.register(CircularA.self) {
+                let b = try env.resolve(CircularB.self)
+                return CircularA(b: b)
+            }
 
-        env.register(CircularB.self) {
-            let c = try env.resolve(CircularC.self)
-            return CircularB(c: c)
-        }
+            env.register(CircularB.self) {
+                let c = try env.resolve(CircularC.self)
+                return CircularB(c: c)
+            }
 
-        env.register(CircularC.self) {
-            let a = try env.resolve(CircularA.self)
-            return CircularC(a: a)
+            env.register(CircularC.self) {
+                let a = try env.resolve(CircularA.self)
+                return CircularC(a: a)
+            }
         }
     }
-}
 
-private struct DeepDependencyAssembly: ServiceAssembly {
-    func assemble(env: ServiceEnv) {
-        env.register(DepthA.self) {
-            let b = try env.resolve(DepthB.self)
-            return DepthA(b: b)
-        }
+    struct DeepDependencyAssembly: ServiceAssembly {
+        func assemble(env: ServiceEnv) {
+            env.register(DepthA.self) {
+                let b = try env.resolve(DepthB.self)
+                return DepthA(b: b)
+            }
 
-        env.register(DepthB.self) {
-            let c = try env.resolve(DepthC.self)
-            return DepthB(c: c)
-        }
+            env.register(DepthB.self) {
+                let c = try env.resolve(DepthC.self)
+                return DepthB(c: c)
+            }
 
-        env.register(DepthC.self) {
-            let d = try env.resolve(DepthD.self)
-            return DepthC(d: d)
-        }
+            env.register(DepthC.self) {
+                let d = try env.resolve(DepthD.self)
+                return DepthC(d: d)
+            }
 
-        env.register(DepthD.self) {
-            return DepthD()
+            env.register(DepthD.self) {
+                return DepthD()
+            }
         }
     }
 }
