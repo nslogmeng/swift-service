@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0]
+
+### Added
+- **Public `maxResolutionDepth` API**: Users can now customize the maximum resolution depth limit via `ServiceEnv.$maxResolutionDepth.withValue()`, enabling smaller depths in tests to catch issues early, or larger depths for complex dependency graphs
+- **Swift 6 Upcoming Features**: Enabled `StrictConcurrency` and `ExistentialAny` upcoming features for better Swift 6 compatibility
+- **Fatal Error Tests**: Added comprehensive tests for property wrapper error scenarios (unregistered types, circular dependencies, max depth exceeded)
+
+### Changed
+- Moved `maxResolutionDepth` from internal `ServiceContext` to public `ServiceEnv` for user customization
+- Optimized documentation structure: merged ResettingServices into ServiceEnvironments, refactored ConcurrencyModel and UnderstandingService to reduce content overlap
+- Enhanced error handling documentation with clearer examples and improved localization support
+
+### Fixed
+- Fixed broken documentation links in README files after documentation restructuring
+
+---
+
 ## [1.0.8]
 
 ### Changed
@@ -207,6 +224,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+[1.1.0]: https://github.com/nslogmeng/swift-service/compare/1.0.8...1.1.0
 [1.0.8]: https://github.com/nslogmeng/swift-service/compare/1.0.7...1.0.8
 [1.0.7]: https://github.com/nslogmeng/swift-service/compare/1.0.6...1.0.7
 [1.0.6]: https://github.com/nslogmeng/swift-service/compare/1.0.5...1.0.6
