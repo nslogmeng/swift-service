@@ -22,8 +22,8 @@ func testServicePropertyWrapper() async throws {
             LoggerService(level: "DEBUG")
         }
         ServiceEnv.current.register(UserRepositoryProtocol.self) {
-            let database = ServiceEnv.current.resolve(DatabaseProtocol.self)
-            let logger = ServiceEnv.current.resolve(LoggerProtocol.self)
+            let database = try ServiceEnv.current.resolve(DatabaseProtocol.self)
+            let logger = try ServiceEnv.current.resolve(LoggerProtocol.self)
             return UserRepository(database: database, logger: logger)
         }
 

@@ -82,12 +82,14 @@ struct UserRepository {
 
 ### Manual Resolution
 
-You can also resolve services manually:
+You can also resolve services manually using `try`:
 
 ```swift
-let database = ServiceEnv.current.resolve(DatabaseProtocol.self)
-let logger = ServiceEnv.current.resolve(LoggerProtocol.self)
+let database = try ServiceEnv.current.resolve(DatabaseProtocol.self)
+let logger = try ServiceEnv.current.resolve(LoggerProtocol.self)
 ```
+
+For error handling details, see <doc:ErrorHandling>.
 
 ## Dependency Injection
 
@@ -105,8 +107,8 @@ ServiceEnv.current.register(LoggerProtocol.self) {
 
 // Register a service that depends on other services
 ServiceEnv.current.register(UserRepositoryProtocol.self) {
-    let database = ServiceEnv.current.resolve(DatabaseProtocol.self)
-    let logger = ServiceEnv.current.resolve(LoggerProtocol.self)
+    let database = try ServiceEnv.current.resolve(DatabaseProtocol.self)
+    let logger = try ServiceEnv.current.resolve(LoggerProtocol.self)
     return UserRepository(database: database, logger: logger)
 }
 ```

@@ -22,12 +22,12 @@ func testCompleteFlow() async throws {
             LoggerService(level: "INFO")
         }
         ServiceEnv.current.register(UserRepositoryProtocol.self) {
-            let database = ServiceEnv.current.resolve(DatabaseProtocol.self)
-            let logger = ServiceEnv.current.resolve(LoggerProtocol.self)
+            let database = try ServiceEnv.current.resolve(DatabaseProtocol.self)
+            let logger = try ServiceEnv.current.resolve(LoggerProtocol.self)
             return UserRepository(database: database, logger: logger)
         }
         ServiceEnv.current.register(NetworkServiceProtocol.self) {
-            let logger = ServiceEnv.current.resolve(LoggerProtocol.self)
+            let logger = try ServiceEnv.current.resolve(LoggerProtocol.self)
             return NetworkService(baseURL: "https://api.example.com", logger: logger)
         }
 
@@ -47,18 +47,18 @@ func testServiceIsolationBetweenEnvironments() async throws {
     var service1: String?
     var service2: String?
 
-    ServiceEnv.$current.withValue(env1) {
+    try ServiceEnv.$current.withValue(env1) {
         ServiceEnv.current.register(String.self) {
             "env1-service"
         }
-        service1 = ServiceEnv.current.resolve(String.self)
+        service1 = try ServiceEnv.current.resolve(String.self)
     }
 
-    ServiceEnv.$current.withValue(env2) {
+    try ServiceEnv.$current.withValue(env2) {
         ServiceEnv.current.register(String.self) {
             "env2-service"
         }
-        service2 = ServiceEnv.current.resolve(String.self)
+        service2 = try ServiceEnv.current.resolve(String.self)
     }
 
     #expect(service1 == "env1-service")

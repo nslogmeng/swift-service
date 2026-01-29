@@ -12,30 +12,35 @@ import Testing
 @Test("ServiceEnv is thread-safe for concurrent access")
 func testConcurrentServiceAccess() async throws {
     let testEnv = ServiceEnv(name: "concurrency-test")
-    await ServiceEnv.$current.withValue(testEnv) {
+    try await ServiceEnv.$current.withValue(testEnv) {
         // Register a service
         ServiceEnv.current.register(String.self) {
             UUID().uuidString
         }
 
         // Create multiple tasks that concurrently resolve the service
-        await withTaskGroup(of: String.self) { group in
+        await withThrowingTaskGroup(of: String.self) { group in
             for _ in 0..<100 {
                 group.addTask {
-                    ServiceEnv.current.resolve(String.self)
+                    try ServiceEnv.current.resolve(String.self)
                 }
             }
 
             // Collect all resolved values
             var resolvedValues: [String] = []
-            for await value in group {
-                resolvedValues.append(value)
+            do {
+                for try await value in group {
+                    resolvedValues.append(value)
+                }
+            } catch {
+                Issue.record("Unexpected error: \(error)")
             }
 
             // All values should be the same (singleton behavior)
-            let firstValue = resolvedValues.first!
-            for value in resolvedValues {
-                #expect(value == firstValue)
+            if let firstValue = resolvedValues.first {
+                for value in resolvedValues {
+                    #expect(value == firstValue)
+                }
             }
         }
     }
@@ -44,7 +49,7 @@ func testConcurrentServiceAccess() async throws {
 @Test("ServiceEnv handles concurrent registration and resolution")
 func testConcurrentRegistrationAndResolution() async throws {
     let testEnv = ServiceEnv(name: "concurrent-registration-test")
-    await ServiceEnv.$current.withValue(testEnv) {
+    try await ServiceEnv.$current.withValue(testEnv) {
         // Concurrently register different services
         await withTaskGroup(of: Void.self) { group in
             for i in 0..<10 {
@@ -61,7 +66,7 @@ func testConcurrentRegistrationAndResolution() async throws {
 
         // The last registration should win (but we can't predict which)
         // Just verify that resolution doesn't crash
-        let resolved = ServiceEnv.current.resolve(Int.self)
+        let resolved = try ServiceEnv.current.resolve(Int.self)
         #expect(resolved >= 0 && resolved < 10)
     }
 }
@@ -93,13 +98,13 @@ func testConcurrentEnvironmentIsolation() async throws {
     }
 
     // Verify isolation
-    ServiceEnv.$current.withValue(env1) {
-        let service1 = ServiceEnv.current.resolve(String.self)
+    try ServiceEnv.$current.withValue(env1) {
+        let service1 = try ServiceEnv.current.resolve(String.self)
         #expect(service1 == "env1-service")
     }
 
-    ServiceEnv.$current.withValue(env2) {
-        let service2 = ServiceEnv.current.resolve(String.self)
+    try ServiceEnv.$current.withValue(env2) {
+        let service2 = try ServiceEnv.current.resolve(String.self)
         #expect(service2 == "env2-service")
     }
 }
