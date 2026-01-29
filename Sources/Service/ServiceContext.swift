@@ -42,11 +42,6 @@ enum ServiceContext {
     @TaskLocal
     static var resolutionStack: [String] = []
 
-    /// Maximum allowed resolution depth to prevent stack overflow from deep dependencies.
-    /// Default is 100, which should be sufficient for most applications.
-    @TaskLocal
-    static var maxResolutionDepth: Int = 100
-
     /// Executes a service resolution with circular dependency tracking.
     ///
     /// This method wraps the actual resolution logic and provides:
@@ -74,8 +69,9 @@ enum ServiceContext {
         }
 
         // Check for excessive depth
-        if resolutionStack.count >= maxResolutionDepth {
-            throw ServiceError.maxDepthExceeded(depth: maxResolutionDepth, chain: resolutionStack)
+        let maxDepth = ServiceEnv.maxResolutionDepth
+        if resolutionStack.count >= maxDepth {
+            throw ServiceError.maxDepthExceeded(depth: maxDepth, chain: resolutionStack)
         }
 
         // Execute with the type added to the resolution stack

@@ -247,6 +247,45 @@ ServiceEnv.current.register(DatabaseProtocol.self) {
 }
 ```
 
+## Configuring Resolution Depth
+
+Service provides a `maxResolutionDepth` setting to prevent stack overflow from excessively deep dependency graphs. The default value is 100, which should be sufficient for most applications.
+
+### Customizing the Depth Limit
+
+Use `withValue` to temporarily change the maximum resolution depth for specific contexts:
+
+```swift
+// Use a smaller depth for testing to catch issues early
+ServiceEnv.$maxResolutionDepth.withValue(10) {
+    let service = try ServiceEnv.current.resolve(MyService.self)
+}
+
+// Use a larger depth for complex dependency graphs
+await ServiceEnv.$maxResolutionDepth.withValue(200) {
+    let service = try ServiceEnv.current.resolve(ComplexService.self)
+}
+```
+
+### When Depth is Exceeded
+
+When the resolution depth exceeds the configured limit, a ``ServiceError/maxDepthExceeded(depth:chain:)`` error is thrown. This typically indicates:
+
+- An unintentional circular dependency that wasn't detected
+- An excessively deep dependency graph that might need refactoring
+- A misconfigured depth limit for your use case
+
+```swift
+do {
+    let service = try ServiceEnv.current.resolve(DeepService.self)
+} catch ServiceError.maxDepthExceeded(let depth, let chain) {
+    print("Resolution exceeded depth \(depth)")
+    print("Chain: \(chain.joined(separator: " -> "))")
+}
+```
+
+> Tip: In tests, consider using a smaller `maxResolutionDepth` value to catch potential issues early. A depth of 10-20 is often sufficient for well-designed dependency graphs.
+
 ## Thread Safety
 
 Environments use `TaskLocal` storage, ensuring thread-safe access across async contexts. Each task maintains its own environment context, making it safe to use in concurrent code.

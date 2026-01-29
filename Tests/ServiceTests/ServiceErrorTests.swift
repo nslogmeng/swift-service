@@ -94,7 +94,7 @@ struct ServiceErrorTests {
         @Test @MainActor func throwsWhenDepthLimitExceeded() throws {
             ServiceEnv.current.assemble(DeepDependencyAssembly())
 
-            ServiceContext.$maxResolutionDepth.withValue(2) {
+            ServiceEnv.$maxResolutionDepth.withValue(2) {
                 #expect(throws: ServiceError.self) {
                     try ServiceEnv.current.resolve(DepthA.self)
                 }
@@ -104,7 +104,7 @@ struct ServiceErrorTests {
         @Test @MainActor func containsCorrectDepth() throws {
             ServiceEnv.current.assemble(DeepDependencyAssembly())
 
-            ServiceContext.$maxResolutionDepth.withValue(2) {
+            ServiceEnv.$maxResolutionDepth.withValue(2) {
                 do {
                     try ServiceEnv.current.resolve(DepthA.self)
                     Issue.record("Expected error to be thrown")
@@ -118,6 +118,26 @@ struct ServiceErrorTests {
                     }
                 } catch {
                     Issue.record("Unexpected error type: \(error)")
+                }
+            }
+        }
+
+        @Test @MainActor func respectsCustomDepthLimit() async throws {
+            ServiceEnv.current.assemble(DeepDependencyAssembly())
+
+            // With depth 5, resolution should succeed (A -> B -> C -> D = 4 levels)
+            ServiceEnv.$maxResolutionDepth.withValue(5) {
+                let service = try? ServiceEnv.current.resolve(DepthA.self)
+                #expect(service != nil)
+            }
+
+            // Reset cache to ensure fresh resolution for next test
+            await ServiceEnv.current.resetCaches()
+
+            // With depth 3, resolution should fail
+            ServiceEnv.$maxResolutionDepth.withValue(3) {
+                #expect(throws: ServiceError.self) {
+                    try ServiceEnv.current.resolve(DepthA.self)
                 }
             }
         }
