@@ -103,16 +103,31 @@ func setupUI() {
 
 ### Using @MainService Property Wrapper
 
-The `@MainService` property wrapper provides convenient injection for `@MainActor` services:
+The `@MainService` property wrapper provides convenient lazy injection for `@MainActor` services. Services are resolved on first access (not at initialization time), and the result is cached:
 
 ```swift
 @MainActor
 class UserViewController {
     @MainService
     var viewModel: UserViewModel
-    
+
     func viewDidLoad() {
         viewModel.loadUser()
+    }
+}
+```
+
+### Optional MainService
+
+For MainActor services that may not be registered, use optional types:
+
+```swift
+@MainActor
+class UserViewController {
+    @MainService var analytics: AnalyticsViewModel?  // Returns nil if not registered
+
+    func trackEvent(_ event: String) {
+        analytics?.track(event)  // Safe optional access
     }
 }
 ```

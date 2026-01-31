@@ -103,16 +103,31 @@ func setupUI() {
 
 ### 使用 @MainService 属性包装器
 
-`@MainService` 属性包装器为 `@MainActor` 服务提供便捷的注入：
+`@MainService` 属性包装器为 `@MainActor` 服务提供便捷的懒加载注入。服务在首次访问时解析（而非初始化时），解析结果会被缓存：
 
 ```swift
 @MainActor
 class UserViewController {
     @MainService
     var viewModel: UserViewModel
-    
+
     func viewDidLoad() {
         viewModel.loadUser()
+    }
+}
+```
+
+### 可选 MainService
+
+对于可能未注册的 MainActor 服务，使用可选类型：
+
+```swift
+@MainActor
+class UserViewController {
+    @MainService var analytics: AnalyticsViewModel?  // 未注册时返回 nil
+
+    func trackEvent(_ event: String) {
+        analytics?.track(event)  // 安全的可选访问
     }
 }
 ```

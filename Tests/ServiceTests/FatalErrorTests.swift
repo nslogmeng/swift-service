@@ -15,7 +15,8 @@ import Testing
                 struct TestStruct: Sendable {
                     @Service var value: Int
                 }
-                _ = TestStruct()
+                let test = TestStruct()
+                _ = test.value  // Access to trigger lazy resolution
             }
         }
 
@@ -26,7 +27,8 @@ import Testing
                 struct TestStruct: Sendable {
                     @Service var a: CircularDependencyA
                 }
-                _ = TestStruct()
+                let test = TestStruct()
+                _ = test.a  // Access to trigger lazy resolution
             }
         }
 
@@ -38,7 +40,8 @@ import Testing
                     struct TestStruct: Sendable {
                         @Service var a: DepthLevelA
                     }
-                    _ = TestStruct()
+                    let test = TestStruct()
+                    _ = test.a  // Access to trigger lazy resolution
                 }
             }
         }

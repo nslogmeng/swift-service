@@ -127,14 +127,17 @@ public protocol ServiceAssembly {
 
 ### Why fatalError in Property Wrappers?
 
-Property wrappers use `fatalError` for missing services:
+Property wrappers use `fatalError` for missing non-optional services:
 
 ```swift
 @propertyWrapper
-public struct Service<S: Sendable>: Sendable {
-    public init() {
+public struct Service<S: Sendable>: @unchecked Sendable {
+    private let storage: Locked<S?>
+    private let env: ServiceEnv
+
+    public var wrappedValue: S {
+        // Lazy resolution on first access
         // Uses fatalError if service not registered
-        self.wrappedValue = try! ServiceEnv.current.resolve(S.self)
     }
 }
 ```
@@ -143,7 +146,16 @@ public struct Service<S: Sendable>: Sendable {
 - Missing services indicate **configuration errors**, not runtime conditions
 - Fail-fast behavior catches issues during development
 - Clear error messages help diagnose the problem
-- For optional dependencies, use manual `resolve()` with error handling
+
+**For optional dependencies**, use the optional type syntax:
+
+```swift
+struct MyController {
+    @Service var analytics: AnalyticsService?  // Returns nil if not registered
+}
+```
+
+This provides graceful handling without fatalError.
 
 ### Why Singleton by Default?
 

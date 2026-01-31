@@ -94,15 +94,23 @@ do {
 
 ### 属性包装器行为
 
-`@Service` 和 `@MainService` 属性包装器在内部使用 `fatalError`。这是设计使然：
+`@Service` 和 `@MainService` 属性包装器使用懒加载解析，对非可选类型使用 `fatalError`：
 
 ```swift
 struct MyController {
-    @Service var database: DatabaseProtocol  // 未注册时触发 fatalError
+    @Service var database: DatabaseProtocol  // 首次访问时未注册则触发 fatalError
 }
 ```
 
-**为什么使用 fatalError？** 属性包装器在初始化时解析服务。此阶段缺少服务表示配置错误，应在开发期间捕获，而非运行时处理。
+**为什么使用 fatalError？** 缺失的必需服务表示配置错误，应在开发期间捕获，而非运行时处理。服务在首次访问时懒加载解析，而非初始化时。
+
+**对于可选依赖**，使用可选类型语法以避免 fatalError：
+
+```swift
+struct MyController {
+    @Service var analytics: AnalyticsService?  // 未注册时返回 nil
+}
+```
 
 ### 工厂函数
 
@@ -162,9 +170,21 @@ struct UserController {
 }
 ```
 
-### 对可选依赖使用直接解析
+### 对可选依赖使用可选类型
 
-对于可能未注册的服务，使用直接解析配合错误处理：
+对于可能未注册的服务，在属性包装器中使用可选类型：
+
+```swift
+struct MyController {
+    @Service var analytics: AnalyticsProtocol?  // 未注册时返回 nil
+
+    func loadAnalytics() {
+        analytics?.track("app_launched")  // 安全的可选访问
+    }
+}
+```
+
+或者，使用直接解析配合错误处理：
 
 ```swift
 func loadAnalytics() {

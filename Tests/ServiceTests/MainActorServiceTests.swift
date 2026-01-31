@@ -314,4 +314,117 @@ extension MainActorServiceTests {
         @MainService(ViewModelService.self)
         var viewModel: ViewModelService
     }
+
+    @MainActor
+    final class TestControllerWithOptional {
+        @MainService var analytics: ViewModelService?
+    }
+}
+
+// MARK: - Lazy Behavior Tests
+
+extension MainActorServiceTests {
+    @Suite("Lazy Behavior")
+    struct LazyBehaviorTests {
+        @Test func resolvesLazilyOnFirstAccess() async throws {
+            let testEnv = ServiceEnv(name: "mainservice-lazy-test")
+            await ServiceEnv.$current.withValue(testEnv) {
+                await MainActor.run {
+                    ServiceEnv.current.registerMain(ViewModelService.self) {
+                        ViewModelService()
+                    }
+
+                    var controller = TestControllerForLazy()
+
+                    // First access triggers resolution
+                    let vm1 = controller.viewModel
+                    #expect(vm1.data == "initial")
+
+                    // Modify and verify same instance
+                    vm1.data = "modified"
+                    let vm2 = controller.viewModel
+                    #expect(vm2.data == "modified", "Should return cached instance")
+                }
+            }
+        }
+
+        @Test func capturesEnvironmentAtInitTime() async throws {
+            let env1 = ServiceEnv(name: "mainservice-env1")
+            let env2 = ServiceEnv(name: "mainservice-env2")
+
+            await ServiceEnv.$current.withValue(env1) {
+                await MainActor.run {
+                    ServiceEnv.current.registerMain(ViewModelService.self) {
+                        let vm = ViewModelService()
+                        vm.data = "env1-value"
+                        return vm
+                    }
+                }
+            }
+
+            await ServiceEnv.$current.withValue(env2) {
+                await MainActor.run {
+                    ServiceEnv.current.registerMain(ViewModelService.self) {
+                        let vm = ViewModelService()
+                        vm.data = "env2-value"
+                        return vm
+                    }
+                }
+            }
+
+            // Create controller in env1
+            var controller: TestControllerForLazy!
+            await ServiceEnv.$current.withValue(env1) {
+                await MainActor.run {
+                    controller = TestControllerForLazy()
+                }
+            }
+
+            // Access in env2 - should still get env1 value
+            await ServiceEnv.$current.withValue(env2) {
+                await MainActor.run {
+                    let value = controller.viewModel.data
+                    #expect(value == "env1-value", "Should use environment captured at init")
+                }
+            }
+        }
+    }
+
+    @MainActor
+    final class TestControllerForLazy {
+        @MainService var viewModel: ViewModelService
+    }
+}
+
+// MARK: - Optional MainService Tests
+
+extension MainActorServiceTests {
+    @Suite("Optional MainService")
+    struct OptionalMainServiceTests {
+        @Test func optionalServiceReturnsNilWhenNotRegistered() async throws {
+            let testEnv = ServiceEnv(name: "mainservice-optional-nil-test")
+            await ServiceEnv.$current.withValue(testEnv) {
+                await MainActor.run {
+                    var controller = TestControllerWithOptional()
+                    #expect(controller.analytics == nil, "Should return nil for unregistered service")
+                }
+            }
+        }
+
+        @Test func optionalServiceReturnsValueWhenRegistered() async throws {
+            let testEnv = ServiceEnv(name: "mainservice-optional-value-test")
+            await ServiceEnv.$current.withValue(testEnv) {
+                await MainActor.run {
+                    ServiceEnv.current.registerMain(ViewModelService.self) {
+                        let vm = ViewModelService()
+                        vm.data = "optional-registered"
+                        return vm
+                    }
+
+                    var controller = TestControllerWithOptional()
+                    #expect(controller.analytics?.data == "optional-registered")
+                }
+            }
+        }
+    }
 }
