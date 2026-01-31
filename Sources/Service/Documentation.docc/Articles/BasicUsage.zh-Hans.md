@@ -66,22 +66,24 @@ ServiceEnv.current.register(DatabaseService.self) {
 
 ### 使用 @Service 属性包装器
 
-`@Service` 属性包装器在类型初始化时自动解析服务：
+`@Service` 属性包装器提供懒加载依赖注入。服务在首次访问时解析（而非初始化时），解析结果会被缓存供后续访问使用：
 
 ```swift
 struct UserRepository {
     @Service
     var database: DatabaseProtocol
-    
+
     @Service
     var logger: LoggerProtocol
-    
+
     func fetchUser(id: String) -> User? {
         logger.info("Fetching user: \(id)")
         return database.findUser(id: id)
     }
 }
 ```
+
+环境在初始化时捕获，确保无论何时首次访问属性，行为都保持一致。
 
 ### 显式类型指定
 
@@ -91,6 +93,29 @@ struct UserRepository {
 struct UserRepository {
     @Service(DatabaseProtocol.self)
     var database: DatabaseProtocol
+}
+```
+
+### 可选服务
+
+对于可能未注册的服务，使用可选类型。属性会返回 `nil` 而不是触发 fatal error：
+
+```swift
+struct UserController {
+    @Service var analytics: AnalyticsService?  // 未注册时返回 nil
+
+    func trackEvent(_ event: String) {
+        analytics?.track(event)  // 安全的可选访问
+    }
+}
+```
+
+你也可以对可选类型使用显式类型指定：
+
+```swift
+struct UserController {
+    @Service(AnalyticsService.self)
+    var analytics: AnalyticsService?
 }
 ```
 

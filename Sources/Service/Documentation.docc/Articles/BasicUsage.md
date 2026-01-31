@@ -66,22 +66,24 @@ For more details on the design of ServiceKey, see <doc:UnderstandingService>.
 
 ### Using @Service Property Wrapper
 
-The `@Service` property wrapper automatically resolves services when your type is initialized:
+The `@Service` property wrapper provides lazy dependency injection. Services are resolved on first access (not at initialization time), and the result is cached for subsequent accesses:
 
 ```swift
 struct UserRepository {
     @Service
     var database: DatabaseProtocol
-    
+
     @Service
     var logger: LoggerProtocol
-    
+
     func fetchUser(id: String) -> User? {
         logger.info("Fetching user: \(id)")
         return database.findUser(id: id)
     }
 }
 ```
+
+The environment is captured at initialization time, ensuring consistent behavior regardless of when the property is first accessed.
 
 ### Explicit Type Specification
 
@@ -91,6 +93,29 @@ When the property type might be ambiguous, explicitly specify the service type:
 struct UserRepository {
     @Service(DatabaseProtocol.self)
     var database: DatabaseProtocol
+}
+```
+
+### Optional Services
+
+For services that may not be registered, use optional types. The property returns `nil` instead of causing a fatal error:
+
+```swift
+struct UserController {
+    @Service var analytics: AnalyticsService?  // Returns nil if not registered
+
+    func trackEvent(_ event: String) {
+        analytics?.track(event)  // Safe optional access
+    }
+}
+```
+
+You can also use explicit type specification with optionals:
+
+```swift
+struct UserController {
+    @Service(AnalyticsService.self)
+    var analytics: AnalyticsService?
 }
 ```
 

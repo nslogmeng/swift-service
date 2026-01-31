@@ -4,8 +4,12 @@
 
 // MARK: - Sendable Service Property Wrapper
 
-/// A property wrapper that provides immediate dependency injection for Sendable services.
-/// The service is resolved eagerly when the property wrapper is initialized.
+/// A property wrapper that provides lazy dependency injection for Sendable services.
+/// The service is resolved lazily when the property is first accessed, and the result
+/// is cached for subsequent accesses.
+///
+/// The environment is captured at initialization time, ensuring consistent behavior
+/// regardless of when the property is first accessed.
 ///
 /// Use this for services that conform to `Sendable` and were registered using `register` methods.
 ///
@@ -16,49 +20,114 @@
 ///     DatabaseService()
 /// }
 ///
-/// // Then use it in your types
+/// // Then use it in your types - resolution happens on first access
 /// struct UserController {
-///     @Service
-///     var database: DatabaseProtocol
+///     @Service var database: DatabaseProtocol
+/// }
+/// ```
+///
+/// For optional services that may not be registered:
+/// ```swift
+/// struct UserController {
+///     @Service var analytics: AnalyticsService?  // Returns nil if not registered
 /// }
 /// ```
 @propertyWrapper
-public struct Service<S: Sendable>: Sendable {
-    /// The resolved service instance.
-    public let wrappedValue: S
+public struct Service<S: Sendable>: @unchecked Sendable {
+    /// Thread-safe storage for the resolved service instance.
+    private let storage: Locked<S?>
 
-    /// Initializes the service by resolving it from the current service environment.
-    /// The service type is inferred from the property type.
+    /// The environment captured at initialization time.
+    private let env: ServiceEnv
+
+    /// The resolver closure that knows how to resolve the service.
+    private let resolver: @Sendable (ServiceEnv) throws -> S
+
+    /// The resolved service instance.
+    /// Resolution happens lazily on first access and is cached for subsequent accesses.
     ///
     /// - Note: If the service is not registered or resolution fails, this will cause a runtime fatalError.
     ///         For error handling, use `ServiceEnv.current.resolve()` directly with try-catch.
-    public init() {
-        do {
-            self.wrappedValue = try ServiceEnv.current.resolve(S.self)
-        } catch {
-            fatalError("\(error)")
+    public var wrappedValue: S {
+        storage.withLock { cached in
+            if let service = cached {
+                return service
+            }
+            do {
+                let service = try resolver(env)
+                cached = service
+                return service
+            } catch {
+                fatalError("\(error)")
+            }
         }
     }
 
-    /// Initializes the service by resolving it from the current service environment.
-    /// Allows explicit specification of the service type.
+    /// Initializes the service wrapper.
+    /// The service type is inferred from the property type and will be resolved lazily.
+    /// The current environment is captured at this point.
+    ///
+    /// - Note: If the service is not registered or resolution fails, this will cause a runtime fatalError
+    ///         on first access. For error handling, use `ServiceEnv.current.resolve()` directly with try-catch.
+    @_disfavoredOverload
+    public init() {
+        self.storage = Locked()
+        self.env = ServiceEnv.current
+        self.resolver = { env in try env.resolve(S.self) }
+    }
+
+    /// Initializes the service wrapper with an explicit service type.
+    /// The service will be resolved lazily using the captured environment.
     ///
     /// - Parameter type: The service type to resolve.
-    /// - Note: If the service is not registered or resolution fails, this will cause a runtime fatalError.
-    ///         For error handling, use `ServiceEnv.current.resolve()` directly with try-catch.
+    /// - Note: If the service is not registered or resolution fails, this will cause a runtime fatalError
+    ///         on first access. For error handling, use `ServiceEnv.current.resolve()` directly with try-catch.
+    @_disfavoredOverload
     public init(_ type: S.Type) {
-        do {
-            self.wrappedValue = try ServiceEnv.current.resolve(type)
-        } catch {
-            fatalError("\(error)")
-        }
+        self.storage = Locked()
+        self.env = ServiceEnv.current
+        self.resolver = { env in try env.resolve(type) }
+    }
+
+    // MARK: - Optional Service Support
+
+    /// Initializes an optional service wrapper.
+    /// If the service is not registered, the property returns `nil` instead of causing a fatal error.
+    ///
+    /// Usage:
+    /// ```swift
+    /// struct UserController {
+    ///     @Service var analytics: AnalyticsService?  // nil if not registered
+    ///
+    ///     func trackEvent(_ event: String) {
+    ///         analytics?.track(event)  // Safe optional access
+    ///     }
+    /// }
+    /// ```
+    public init<Wrapped: Sendable>() where S == Wrapped? {
+        self.storage = Locked()
+        self.env = ServiceEnv.current
+        self.resolver = { env in try? env.resolve(Wrapped.self) }
+    }
+
+    /// Initializes an optional service wrapper with an explicit type.
+    ///
+    /// - Parameter type: The wrapped service type to resolve.
+    public init<Wrapped: Sendable>(_ type: Wrapped.Type) where S == Wrapped? {
+        self.storage = Locked()
+        self.env = ServiceEnv.current
+        self.resolver = { env in try? env.resolve(type) }
     }
 }
 
 // MARK: - MainActor Service Property Wrapper
 
-/// A property wrapper that provides immediate dependency injection for MainActor-isolated services.
-/// The service is resolved eagerly when the property wrapper is initialized.
+/// A property wrapper that provides lazy dependency injection for MainActor-isolated services.
+/// The service is resolved lazily when the property is first accessed, and the result
+/// is cached for subsequent accesses.
+///
+/// The environment is captured at initialization time, ensuring consistent behavior
+/// regardless of when the property is first accessed.
 ///
 /// Use this for services that are bound to the main actor and were registered using `registerMain` methods.
 /// These services don't need to conform to `Sendable` since they're always accessed from the main thread.
@@ -85,40 +154,104 @@ public struct Service<S: Sendable>: Sendable {
 /// // Use in a MainActor-isolated type
 /// @MainActor
 /// class MyViewController {
-///     @MainService
-///     var viewModel: ViewModelService
+///     @MainService var viewModel: ViewModelService
+/// }
+/// ```
+///
+/// For optional services that may not be registered:
+/// ```swift
+/// @MainActor
+/// class MyViewController {
+///     @MainService var analytics: AnalyticsService?  // Returns nil if not registered
 /// }
 /// ```
 @MainActor
 @propertyWrapper
 public struct MainService<S> {
-    /// The resolved service instance.
-    public let wrappedValue: S
+    /// Storage for the resolved service instance.
+    /// No thread-safety needed since all access is on MainActor.
+    private var storage: S?
 
-    /// Initializes the service by resolving it from the current service environment.
-    /// The service type is inferred from the property type.
+    /// The environment captured at initialization time.
+    private let env: ServiceEnv
+
+    /// The resolver closure that knows how to resolve the service.
+    private let resolver: @MainActor (ServiceEnv) throws -> S
+
+    /// The resolved service instance.
+    /// Resolution happens lazily on first access and is cached for subsequent accesses.
     ///
     /// - Note: If the service is not registered or resolution fails, this will cause a runtime fatalError.
     ///         For error handling, use `ServiceEnv.current.resolveMain()` directly with try-catch.
-    public init() {
-        do {
-            self.wrappedValue = try ServiceEnv.current.resolveMain(S.self)
-        } catch {
-            fatalError("\(error)")
+    public var wrappedValue: S {
+        mutating get {
+            if let service = storage {
+                return service
+            }
+            do {
+                let service = try resolver(env)
+                storage = service
+                return service
+            } catch {
+                fatalError("\(error)")
+            }
         }
     }
 
-    /// Initializes the service by resolving it from the current service environment.
-    /// Allows explicit specification of the service type.
+    /// Initializes the service wrapper.
+    /// The service type is inferred from the property type and will be resolved lazily.
+    /// The current environment is captured at this point.
+    ///
+    /// - Note: If the service is not registered or resolution fails, this will cause a runtime fatalError
+    ///         on first access. For error handling, use `ServiceEnv.current.resolveMain()` directly with try-catch.
+    @_disfavoredOverload
+    public init() {
+        self.storage = nil
+        self.env = ServiceEnv.current
+        self.resolver = { env in try env.resolveMain(S.self) }
+    }
+
+    /// Initializes the service wrapper with an explicit service type.
+    /// The service will be resolved lazily using the captured environment.
     ///
     /// - Parameter type: The service type to resolve.
-    /// - Note: If the service is not registered or resolution fails, this will cause a runtime fatalError.
-    ///         For error handling, use `ServiceEnv.current.resolveMain()` directly with try-catch.
+    /// - Note: If the service is not registered or resolution fails, this will cause a runtime fatalError
+    ///         on first access. For error handling, use `ServiceEnv.current.resolveMain()` directly with try-catch.
+    @_disfavoredOverload
     public init(_ type: S.Type) {
-        do {
-            self.wrappedValue = try ServiceEnv.current.resolveMain(type)
-        } catch {
-            fatalError("\(error)")
-        }
+        self.storage = nil
+        self.env = ServiceEnv.current
+        self.resolver = { env in try env.resolveMain(type) }
+    }
+
+    // MARK: - Optional MainService Support
+
+    /// Initializes an optional MainActor service wrapper.
+    /// If the service is not registered, the property returns `nil` instead of causing a fatal error.
+    ///
+    /// Usage:
+    /// ```swift
+    /// @MainActor
+    /// class MyViewController {
+    ///     @MainService var analytics: AnalyticsService?  // nil if not registered
+    ///
+    ///     func trackEvent(_ event: String) {
+    ///         analytics?.track(event)  // Safe optional access
+    ///     }
+    /// }
+    /// ```
+    public init<Wrapped>() where S == Wrapped? {
+        self.storage = nil
+        self.env = ServiceEnv.current
+        self.resolver = { env in try? env.resolveMain(Wrapped.self) }
+    }
+
+    /// Initializes an optional MainActor service wrapper with an explicit type.
+    ///
+    /// - Parameter type: The wrapped service type to resolve.
+    public init<Wrapped>(_ type: Wrapped.Type) where S == Wrapped? {
+        self.storage = nil
+        self.env = ServiceEnv.current
+        self.resolver = { env in try? env.resolveMain(type) }
     }
 }

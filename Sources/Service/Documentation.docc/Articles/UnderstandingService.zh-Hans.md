@@ -127,14 +127,17 @@ public protocol ServiceAssembly {
 
 ### 为什么属性包装器使用 fatalError？
 
-属性包装器对缺失的服务使用 `fatalError`：
+属性包装器对缺失的非可选服务使用 `fatalError`：
 
 ```swift
 @propertyWrapper
-public struct Service<S: Sendable>: Sendable {
-    public init() {
+public struct Service<S: Sendable>: @unchecked Sendable {
+    private let storage: Locked<S?>
+    private let env: ServiceEnv
+
+    public var wrappedValue: S {
+        // 首次访问时懒加载解析
         // 如果服务未注册则使用 fatalError
-        self.wrappedValue = try! ServiceEnv.current.resolve(S.self)
     }
 }
 ```
@@ -143,7 +146,16 @@ public struct Service<S: Sendable>: Sendable {
 - 缺失的服务表示**配置错误**，而非运行时条件
 - 快速失败行为在开发期间捕获问题
 - 清晰的错误消息帮助诊断问题
-- 对于可选依赖，使用手动 `resolve()` 配合错误处理
+
+**对于可选依赖**，使用可选类型语法：
+
+```swift
+struct MyController {
+    @Service var analytics: AnalyticsService?  // 未注册时返回 nil
+}
+```
+
+这提供了优雅的处理方式，不会触发 fatalError。
 
 ### 为什么默认使用单例？
 
