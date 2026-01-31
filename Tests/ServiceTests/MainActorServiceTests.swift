@@ -334,7 +334,7 @@ extension MainActorServiceTests {
                         ViewModelService()
                     }
 
-                    var controller = TestControllerForLazy()
+                    let controller = TestControllerForLazy()
 
                     // First access triggers resolution
                     let vm1 = controller.viewModel
@@ -405,7 +405,7 @@ extension MainActorServiceTests {
             let testEnv = ServiceEnv(name: "mainservice-optional-nil-test")
             await ServiceEnv.$current.withValue(testEnv) {
                 await MainActor.run {
-                    var controller = TestControllerWithOptional()
+                    let controller = TestControllerWithOptional()
                     #expect(controller.analytics == nil, "Should return nil for unregistered service")
                 }
             }
@@ -421,7 +421,7 @@ extension MainActorServiceTests {
                         return vm
                     }
 
-                    var controller = TestControllerWithOptional()
+                    let controller = TestControllerWithOptional()
                     #expect(controller.analytics?.data == "optional-registered")
                 }
             }

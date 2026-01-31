@@ -47,7 +47,7 @@ struct ServicePropertyWrapperTests {
 
     @Test func resolvesLazilyOnFirstAccess() async throws {
         let testEnv = ServiceEnv(name: "lazy-test")
-        try ServiceEnv.$current.withValue(testEnv) {
+        ServiceEnv.$current.withValue(testEnv) {
             // Use a wrapper class to track resolve count safely
             final class Counter: Sendable {
                 let count: Int
