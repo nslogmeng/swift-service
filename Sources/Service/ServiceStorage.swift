@@ -30,12 +30,12 @@ final class ServiceStorage: @unchecked Sendable {
         }
     }
 
-    // MARK: - Box Types for MainActor Storage
+    // MARK: - Box Types
 
-    /// A box that wraps non-Sendable cached service instances.
-    /// This enables storing MainActor service instances in `@Locked` storage.
-    /// Safety: The wrapped value is only accessed from `@MainActor` methods.
-    private struct MainCacheBox: @unchecked Sendable {
+    /// A box that wraps cached service instances (both Sendable and MainActor).
+    /// This enables storing any service instance in `@Locked` storage.
+    /// Safety: MainActor services are only accessed from `@MainActor` methods.
+    private struct CacheBox: @unchecked Sendable {
         let value: Any
     }
 
@@ -46,22 +46,18 @@ final class ServiceStorage: @unchecked Sendable {
         let factory: @MainActor () throws -> Any
     }
 
-    // MARK: - Sendable Services Storage
+    // MARK: - Unified Cache Storage
 
-    /// Thread-safe cache storage for Sendable service instances.
+    /// Thread-safe cache storage for all service instances (both Sendable and MainActor).
+    /// Uses `CacheBox` to wrap values for uniform storage.
     @Locked
-    private var caches: [CacheKey: any Sendable]
+    private var caches: [CacheKey: CacheBox]
+
+    // MARK: - Provider Storage
 
     /// Thread-safe storage for Sendable service factory functions.
     @Locked
     private var providers: [CacheKey: @Sendable () throws -> any Sendable]
-
-    // MARK: - MainActor Services Storage
-
-    /// Thread-safe cache storage for MainActor service instances.
-    /// Uses `MainCacheBox` to wrap non-Sendable values.
-    @Locked
-    private var mainCaches: [CacheKey: MainCacheBox]
 
     /// Thread-safe storage for MainActor service factory functions.
     /// Uses `MainProviderBox` to wrap `@MainActor` closures.
@@ -83,7 +79,7 @@ final class ServiceStorage: @unchecked Sendable {
         let key = CacheKey(type)
 
         // First, try to get from cache (fast path)
-        if let service = caches[key] as? Service {
+        if let box = caches[key], let service = box.value as? Service {
             return service
         }
 
@@ -99,14 +95,14 @@ final class ServiceStorage: @unchecked Sendable {
         }
 
         // Use withLock to ensure atomic check-and-set operation (double-check pattern)
-        return $caches.withLock { (caches: inout sending [CacheKey: any Sendable]) -> sending Service in
+        return $caches.withLock { (caches: inout sending [CacheKey: CacheBox]) -> sending Service in
             // Double-check: another thread might have cached it while we were creating
-            if let cachedService = caches[key] as? Service {
+            if let box = caches[key], let cachedService = box.value as? Service {
                 return cachedService
             }
 
             // Store the newly created service
-            caches[key] = newService
+            caches[key] = CacheBox(value: newService)
             return newService
         }
     }
@@ -144,11 +140,11 @@ final class ServiceStorage: @unchecked Sendable {
     @MainActor
     func resolveMain<Service>(_ type: Service.Type) throws -> Service? {
         let key = CacheKey(type)
-        if let box = mainCaches[key], let service = box.value as? Service {
+        if let box = caches[key], let service = box.value as? Service {
             return service
         }
         if let providerBox = mainProviders[key], let service = try providerBox.factory() as? Service {
-            mainCaches[key] = MainCacheBox(value: service)
+            caches[key] = CacheBox(value: service)
             return service
         }
         return nil
@@ -183,7 +179,6 @@ final class ServiceStorage: @unchecked Sendable {
     /// on the next resolution using their registered factory functions.
     func resetCaches() {
         caches.removeAll()
-        mainCaches.removeAll()
     }
 
     /// Clears all cached service instances and removes all registered service providers
@@ -192,7 +187,6 @@ final class ServiceStorage: @unchecked Sendable {
     func resetAll() {
         caches.removeAll()
         providers.removeAll()
-        mainCaches.removeAll()
         mainProviders.removeAll()
     }
 }

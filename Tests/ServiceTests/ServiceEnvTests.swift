@@ -100,7 +100,7 @@ struct ServiceEnvTests {
 
     @Test func resetAllClearsProvidersAndCaches() async throws {
         let env = ServiceEnv(name: "reset-all-test")
-        try await ServiceEnv.$current.withValue(env) {
+        try ServiceEnv.$current.withValue(env) {
             var serviceId1: String?
             var serviceId2: String?
 
@@ -124,7 +124,7 @@ struct ServiceEnvTests {
 
     @Test func resetCachesClearsOnlyCaches() async throws {
         let env = ServiceEnv(name: "reset-caches-test")
-        try await ServiceEnv.$current.withValue(env) {
+        try ServiceEnv.$current.withValue(env) {
             var serviceId1: String?
             var serviceId2: String?
             var serviceId3: String?
@@ -151,7 +151,7 @@ struct ServiceEnvTests {
 
     @Test func resetCachesDiffersFromResetAll() async throws {
         let env = ServiceEnv(name: "reset-comparison-test")
-        try await ServiceEnv.$current.withValue(env) {
+        try ServiceEnv.$current.withValue(env) {
             ServiceEnv.current.register(String.self) {
                 UUID().uuidString
             }
@@ -176,7 +176,7 @@ struct ServiceEnvTests {
 
     @Test func reRegistersServicesToOverride() async throws {
         let testEnv = ServiceEnv(name: "re-registration-test")
-        try await ServiceEnv.$current.withValue(testEnv) {
+        try ServiceEnv.$current.withValue(testEnv) {
             ServiceEnv.current.register(String.self) {
                 "first-registration"
             }
