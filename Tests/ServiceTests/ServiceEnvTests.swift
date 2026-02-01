@@ -110,7 +110,7 @@ struct ServiceEnvTests {
 
             serviceId1 = try ServiceEnv.current.resolve(String.self)
 
-            await ServiceEnv.current.resetAll()
+            ServiceEnv.current.resetAll()
 
             ServiceEnv.current.register(String.self) {
                 UUID().uuidString
@@ -137,7 +137,7 @@ struct ServiceEnvTests {
             serviceId2 = try ServiceEnv.current.resolve(String.self)
             #expect(serviceId1 == serviceId2)
 
-            await ServiceEnv.current.resetCaches()
+            ServiceEnv.current.resetCaches()
 
             serviceId3 = try ServiceEnv.current.resolve(String.self)
 
@@ -158,11 +158,11 @@ struct ServiceEnvTests {
 
             let service1 = try ServiceEnv.current.resolve(String.self)
 
-            await ServiceEnv.current.resetCaches()
+            ServiceEnv.current.resetCaches()
             let service2 = try ServiceEnv.current.resolve(String.self)
             #expect(service1 != service2)
 
-            await ServiceEnv.current.resetAll()
+            ServiceEnv.current.resetAll()
 
             ServiceEnv.current.register(String.self) {
                 UUID().uuidString
@@ -191,7 +191,7 @@ struct ServiceEnvTests {
             let service2 = try ServiceEnv.current.resolve(String.self)
             #expect(service2 == "first-registration")
 
-            await ServiceEnv.current.resetCaches()
+            ServiceEnv.current.resetCaches()
             let service3 = try ServiceEnv.current.resolve(String.self)
             #expect(service3 == "second-registration")
         }

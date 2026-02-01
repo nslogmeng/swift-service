@@ -96,7 +96,7 @@ struct MainActorRegistrationTests {
                 #expect(service2 == "first-main-service")
             }
 
-            await ServiceEnv.current.resetCaches()
+            ServiceEnv.current.resetCaches()
 
             try await MainActor.run {
                 let service3 = try ServiceEnv.current.resolveMain(String.self)

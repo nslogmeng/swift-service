@@ -9,10 +9,12 @@
 ///
 /// The storage supports two categories of services:
 /// - **Sendable services**: Thread-safe services that can be shared across concurrent contexts.
-///   These use `@Locked` dictionaries for synchronization.
 /// - **MainActor services**: Services isolated to the main actor, typically UI-related components
-///   like view models. These use `@MainActor`-isolated storage and don't require locks since
-///   all access is serialized on the main thread.
+///   like view models.
+///
+/// Both categories use `@Locked` dictionaries for synchronization, enabling cross-category
+/// mutual exclusion checks during registration. A service type can only be registered as
+/// either Sendable or MainActor, not both.
 final class ServiceStorage: @unchecked Sendable {
     /// A cache key that uniquely identifies a service instance in storage.
     /// Uses the service type's ObjectIdentifier as the key.
@@ -28,10 +30,25 @@ final class ServiceStorage: @unchecked Sendable {
         }
     }
 
+    // MARK: - Box Types for MainActor Storage
+
+    /// A box that wraps non-Sendable cached service instances.
+    /// This enables storing MainActor service instances in `@Locked` storage.
+    /// Safety: The wrapped value is only accessed from `@MainActor` methods.
+    private struct MainCacheBox: @unchecked Sendable {
+        let value: Any
+    }
+
+    /// A box that wraps MainActor-isolated factory functions.
+    /// This enables storing MainActor factories in `@Locked` storage.
+    /// Safety: The wrapped factory is only called from `@MainActor` methods.
+    private struct MainProviderBox: @unchecked Sendable {
+        let factory: @MainActor () throws -> Any
+    }
+
     // MARK: - Sendable Services Storage
 
     /// Thread-safe cache storage for Sendable service instances.
-    /// Uses a locked dictionary to ensure safe concurrent access.
     @Locked
     private var caches: [CacheKey: any Sendable]
 
@@ -41,18 +58,15 @@ final class ServiceStorage: @unchecked Sendable {
 
     // MARK: - MainActor Services Storage
 
-    /// Cache storage for MainActor-isolated service instances.
-    /// No locking is needed since all access is serialized on the main actor.
-    /// These services are typically UI-related components (view models, controllers)
-    /// that are bound to the main thread but don't conform to Sendable.
-    @MainActor
-    private var mainCaches: [CacheKey: Any] = [:]
+    /// Thread-safe cache storage for MainActor service instances.
+    /// Uses `MainCacheBox` to wrap non-Sendable values.
+    @Locked
+    private var mainCaches: [CacheKey: MainCacheBox]
 
-    /// Storage for MainActor-isolated service factory functions.
-    /// Factory functions are marked with @MainActor to ensure service creation
-    /// happens on the main thread.
-    @MainActor
-    private var mainProviders: [CacheKey: @MainActor () throws -> Any] = [:]
+    /// Thread-safe storage for MainActor service factory functions.
+    /// Uses `MainProviderBox` to wrap `@MainActor` closures.
+    @Locked
+    private var mainProviders: [CacheKey: MainProviderBox]
 
     /// Creates a new service storage instance.
     init() {}
@@ -102,8 +116,17 @@ final class ServiceStorage: @unchecked Sendable {
     /// - Parameters:
     ///   - type: The service type to register.
     ///   - factory: A factory function that creates the service instance. Can throw errors.
+    /// - Important: The service type must not already be registered as a MainActor service.
+    ///   In debug builds, an assertion failure will be triggered if this constraint is violated.
     func register<Service: Sendable>(_ type: Service.Type, factory: @escaping @Sendable () throws -> any Sendable) {
-        providers[CacheKey(type)] = factory
+        let key = CacheKey(type)
+        if mainProviders[key] != nil {
+            assertionFailure(
+                "Service '\(Service.self)' is already registered as a MainActor service. "
+                    + "A service type can only be registered as either Sendable or MainActor, not both."
+            )
+        }
+        providers[key] = factory
     }
 
     // MARK: - MainActor Services
@@ -121,11 +144,11 @@ final class ServiceStorage: @unchecked Sendable {
     @MainActor
     func resolveMain<Service>(_ type: Service.Type) throws -> Service? {
         let key = CacheKey(type)
-        if let service = mainCaches[key] as? Service {
+        if let box = mainCaches[key], let service = box.value as? Service {
             return service
         }
-        if let factory = mainProviders[key], let service = try factory() as? Service {
-            mainCaches[key] = service
+        if let providerBox = mainProviders[key], let service = try providerBox.factory() as? Service {
+            mainCaches[key] = MainCacheBox(value: service)
             return service
         }
         return nil
@@ -139,9 +162,18 @@ final class ServiceStorage: @unchecked Sendable {
     /// - Parameters:
     ///   - type: The service type to register.
     ///   - factory: A MainActor-isolated factory function that creates the service instance. Can throw errors.
+    /// - Important: The service type must not already be registered as a Sendable service.
+    ///   In debug builds, an assertion failure will be triggered if this constraint is violated.
     @MainActor
     func registerMain<Service>(_ type: Service.Type, factory: @escaping @MainActor () throws -> Service) {
-        mainProviders[CacheKey(type)] = factory
+        let key = CacheKey(type)
+        if providers[key] != nil {
+            assertionFailure(
+                "Service '\(Service.self)' is already registered as a Sendable service. "
+                    + "A service type can only be registered as either Sendable or MainActor, not both."
+            )
+        }
+        mainProviders[key] = MainProviderBox(factory: factory)
     }
 
     // MARK: - Reset
@@ -149,28 +181,18 @@ final class ServiceStorage: @unchecked Sendable {
     /// Clears all cached service instances (both Sendable and MainActor services).
     /// Registered service providers remain intact, so services will be recreated
     /// on the next resolution using their registered factory functions.
-    ///
-    /// This method is async to ensure MainActor caches are properly cleared
-    /// on the main thread, guaranteeing consistency when the method returns.
-    func resetCaches() async {
+    func resetCaches() {
         caches.removeAll()
-        await MainActor.run {
-            mainCaches.removeAll()
-        }
+        mainCaches.removeAll()
     }
 
     /// Clears all cached service instances and removes all registered service providers
     /// (both Sendable and MainActor services).
     /// This completely resets the storage to its initial state.
-    ///
-    /// This method is async to ensure MainActor storage is properly cleared
-    /// on the main thread, guaranteeing consistency when the method returns.
-    func resetAll() async {
+    func resetAll() {
         caches.removeAll()
         providers.removeAll()
-        await MainActor.run {
-            mainCaches.removeAll()
-            mainProviders.removeAll()
-        }
+        mainCaches.removeAll()
+        mainProviders.removeAll()
     }
 }

@@ -52,7 +52,7 @@ struct MainActorServiceTests {
                     #expect(service1.loadCount == 2)
                 }
 
-                await ServiceEnv.current.resetCaches()
+                ServiceEnv.current.resetCaches()
 
                 try await MainActor.run {
                     let service2 = try ServiceEnv.current.resolveMain(ViewModelService.self)
@@ -262,7 +262,7 @@ struct MainActorServiceTests {
                     #expect(service1.loadCount == 1)
                 }
 
-                await ServiceEnv.current.resetCaches()
+                ServiceEnv.current.resetCaches()
 
                 try await MainActor.run {
                     let service2 = try ServiceEnv.current.resolveMain(ViewModelService.self)
@@ -283,7 +283,7 @@ struct MainActorServiceTests {
                     _ = try ServiceEnv.current.resolveMain(ViewModelService.self)
                 }
 
-                await ServiceEnv.current.resetAll()
+                ServiceEnv.current.resetAll()
 
                 try await MainActor.run {
                     ServiceEnv.current.registerMain(ViewModelService.self) {

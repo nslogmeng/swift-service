@@ -15,7 +15,7 @@ struct ServiceRegistrationTests {
     struct FactoryTests {
         @Test func executesOnlyOnce() async throws {
             let testEnv = ServiceEnv(name: "factory-once-test")
-            try await ServiceEnv.$current.withValue(testEnv) {
+            try ServiceEnv.$current.withValue(testEnv) {
                 let callCount = CallCounter()
 
                 ServiceEnv.current.register(String.self) {
@@ -31,7 +31,7 @@ struct ServiceRegistrationTests {
                 #expect(callCount.count == 1)
                 #expect(service2 == "factory-result-1")
 
-                await ServiceEnv.current.resetCaches()
+                ServiceEnv.current.resetCaches()
                 let service3 = try ServiceEnv.current.resolve(String.self)
                 #expect(callCount.count == 2)
                 #expect(service3 == "factory-result-2")
@@ -40,7 +40,7 @@ struct ServiceRegistrationTests {
 
         @Test func createsNewInstancesAfterCacheClear() async throws {
             let testEnv = ServiceEnv(name: "factory-new-instances-test")
-            try await ServiceEnv.$current.withValue(testEnv) {
+            try ServiceEnv.$current.withValue(testEnv) {
                 let instanceId = InstanceCounter()
 
                 ServiceEnv.current.register(Int.self) {
@@ -54,7 +54,7 @@ struct ServiceRegistrationTests {
                 let service2 = try ServiceEnv.current.resolve(Int.self)
                 #expect(service2 == 1)
 
-                await ServiceEnv.current.resetCaches()
+                ServiceEnv.current.resetCaches()
                 let service3 = try ServiceEnv.current.resolve(Int.self)
                 #expect(service3 == 2)
             }
@@ -213,7 +213,7 @@ struct ServiceRegistrationTests {
     struct OverrideRegistrationTests {
         @Test func overridesWithSameTypeAfterCacheClear() async throws {
             let testEnv = ServiceEnv(name: "multiple-same-type-test")
-            try await ServiceEnv.$current.withValue(testEnv) {
+            try ServiceEnv.$current.withValue(testEnv) {
                 ServiceEnv.current.register(String.self) {
                     "first-service"
                 }
@@ -228,7 +228,7 @@ struct ServiceRegistrationTests {
                 let service2 = try ServiceEnv.current.resolve(String.self)
                 #expect(service2 == "first-service")
 
-                await ServiceEnv.current.resetCaches()
+                ServiceEnv.current.resetCaches()
                 let service3 = try ServiceEnv.current.resolve(String.self)
                 #expect(service3 == "second-service")
             }

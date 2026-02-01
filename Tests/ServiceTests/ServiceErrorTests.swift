@@ -9,7 +9,7 @@ import Testing
 @Suite("ServiceError Tests", .serialized)
 struct ServiceErrorTests {
     init() async {
-        await ServiceEnv.current.resetAll()
+        ServiceEnv.current.resetAll()
     }
 
     // MARK: - NotRegistered Error
@@ -17,7 +17,7 @@ struct ServiceErrorTests {
     @Suite("NotRegistered Error")
     struct NotRegisteredTests {
         init() async {
-            await ServiceEnv.current.resetAll()
+            ServiceEnv.current.resetAll()
         }
 
         @Test func throwsForUnregisteredService() throws {
@@ -52,7 +52,7 @@ struct ServiceErrorTests {
     @Suite("Circular Dependency Error")
     struct CircularDependencyErrorTests {
         init() async {
-            await ServiceEnv.current.resetAll()
+            ServiceEnv.current.resetAll()
         }
 
         @Test @MainActor func throwsForCircularDependencies() throws {
@@ -88,7 +88,7 @@ struct ServiceErrorTests {
     @Suite("Max Depth Exceeded Error")
     struct MaxDepthExceededTests {
         init() async {
-            await ServiceEnv.current.resetAll()
+            ServiceEnv.current.resetAll()
         }
 
         @Test @MainActor func throwsWhenDepthLimitExceeded() throws {
@@ -132,7 +132,7 @@ struct ServiceErrorTests {
             }
 
             // Reset cache to ensure fresh resolution for next test
-            await ServiceEnv.current.resetCaches()
+            ServiceEnv.current.resetCaches()
 
             // With depth 3, resolution should fail
             ServiceEnv.$maxResolutionDepth.withValue(3) {
@@ -148,7 +148,7 @@ struct ServiceErrorTests {
     @Suite("Factory Failed Error")
     struct FactoryFailedTests {
         init() async {
-            await ServiceEnv.current.resetAll()
+            ServiceEnv.current.resetAll()
         }
 
         @Test func throwsWhenFactoryThrowsNonServiceError() throws {
@@ -223,7 +223,7 @@ struct ServiceErrorTests {
     @Suite("Successful Resolution")
     struct SuccessfulResolutionTests {
         init() async {
-            await ServiceEnv.current.resetAll()
+            ServiceEnv.current.resetAll()
         }
 
         @Test func resolvesRegisteredService() throws {

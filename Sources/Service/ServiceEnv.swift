@@ -98,9 +98,6 @@ extension ServiceEnv {
     /// This is useful when you want to force services to be recreated without
     /// re-registering them, such as in testing scenarios where you need fresh instances.
     ///
-    /// This method is async to ensure all caches (including MainActor-isolated ones)
-    /// are properly cleared before the method returns.
-    ///
     /// Usage example:
     /// ```swift
     /// // Register a service
@@ -111,12 +108,12 @@ extension ServiceEnv {
     /// let service1 = ServiceEnv.current.resolve(String.self)
     ///
     /// // Clear cache - next resolution will create a new instance
-    /// await ServiceEnv.current.resetCaches()
+    /// ServiceEnv.current.resetCaches()
     /// let service2 = ServiceEnv.current.resolve(String.self)
     /// // service1 != service2 (new instance created)
     /// ```
-    public func resetCaches() async {
-        await storage.resetCaches()
+    public func resetCaches() {
+        storage.resetCaches()
     }
 
     /// Clears all cached service instances and removes all registered service providers
@@ -124,9 +121,6 @@ extension ServiceEnv {
     /// This completely resets the service environment to its initial state.
     ///
     /// After calling this method, all services must be re-registered before they can be resolved.
-    ///
-    /// This method is async to ensure all storage (including MainActor-isolated ones)
-    /// is properly cleared before the method returns.
     ///
     /// Usage example:
     /// ```swift
@@ -136,14 +130,14 @@ extension ServiceEnv {
     /// }
     ///
     /// // Reset everything
-    /// await ServiceEnv.current.resetAll()
+    /// ServiceEnv.current.resetAll()
     ///
     /// // Services must be re-registered
     /// ServiceEnv.current.register(DatabaseProtocol.self) {
     ///     DatabaseService()
     /// }
     /// ```
-    public func resetAll() async {
-        await storage.resetAll()
+    public func resetAll() {
+        storage.resetAll()
     }
 }
