@@ -140,4 +140,23 @@ extension ServiceEnv {
     public func resetAll() {
         storage.resetAll()
     }
+
+    /// Clears all cached service instances for a specific scope.
+    /// Only affects the target scope; other scopes remain intact.
+    ///
+    /// This is useful for selectively invalidating services without affecting
+    /// the rest of the service container:
+    ///
+    /// ```swift
+    /// // Clear all singleton caches
+    /// env.resetScope(.singleton)
+    ///
+    /// // Clear a custom scope (e.g., on logout)
+    /// env.resetScope(.custom("user-session"))
+    /// ```
+    ///
+    /// - Parameter scope: The scope to clear.
+    public func resetScope(_ scope: ServiceScope) {
+        storage.resetScope(scope)
+    }
 }

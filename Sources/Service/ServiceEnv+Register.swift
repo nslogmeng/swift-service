@@ -15,7 +15,7 @@ extension ServiceEnv {
     /// services with dependencies:
     ///
     /// ```swift
-    /// ServiceEnv.current.register(UserRepository.self) {
+    /// ServiceEnv.current.register(UserRepository.self, scope: .transient) {
     ///     let database = try ServiceEnv.current.resolve(DatabaseProtocol.self)
     ///     return UserRepository(database: database)
     /// }
@@ -23,12 +23,14 @@ extension ServiceEnv {
     ///
     /// - Parameters:
     ///   - type: The service type to register.
+    ///   - scope: The lifecycle scope for the service. Defaults to `.singleton`.
     ///   - factory: A factory function that creates the service instance. Can throw errors.
     public func register<Service: Sendable>(
         _ type: Service.Type,
+        scope: ServiceScope = .singleton,
         factory: @escaping @Sendable () throws -> Service
     ) {
-        storage.register(type, factory: factory)
+        storage.register(type, scope: scope, factory: factory)
     }
 
     /// Registers a Sendable service using the ServiceKey's default value.
@@ -38,8 +40,18 @@ extension ServiceEnv {
         storage.register(type, factory: { Service.default })
     }
 
+    /// Registers a Sendable service using the ServiceKey's default value with a specified scope.
+    ///
+    /// - Parameters:
+    ///   - type: A service type conforming to the ServiceKey protocol.
+    ///   - scope: The lifecycle scope for the service.
+    public func register<Service: ServiceKey>(_ type: Service.Type, scope: ServiceScope) {
+        storage.register(type, scope: scope, factory: { Service.default })
+    }
+
     /// Registers a Sendable service instance directly.
     /// The instance will be cached and reused for subsequent resolutions.
+    /// This method always uses `.singleton` scope since the instance already exists.
     ///
     /// - Parameter instance: The service instance to register.
     public func register<Service: Sendable>(_ instance: Service) {
@@ -60,7 +72,7 @@ extension ServiceEnv {
     /// `resolveMain()` is called:
     ///
     /// ```swift
-    /// ServiceEnv.current.registerMain(ViewModel.self) {
+    /// ServiceEnv.current.registerMain(ViewModel.self, scope: .transient) {
     ///     let config = try ServiceEnv.current.resolveMain(ConfigService.self)
     ///     return ViewModel(config: config)
     /// }
@@ -73,13 +85,15 @@ extension ServiceEnv {
     ///
     /// - Parameters:
     ///   - type: The service type to register.
+    ///   - scope: The lifecycle scope for the service. Defaults to `.singleton`.
     ///   - factory: A MainActor-isolated factory function that creates the service instance. Can throw errors.
     @MainActor
     public func registerMain<Service>(
         _ type: Service.Type,
+        scope: ServiceScope = .singleton,
         factory: @escaping @MainActor () throws -> Service
     ) {
-        storage.registerMain(type, factory: factory)
+        storage.registerMain(type, scope: scope, factory: factory)
     }
 
     /// Registers a MainActor-isolated service using the ServiceKey's default value.
@@ -93,8 +107,19 @@ extension ServiceEnv {
         storage.registerMain(type, factory: { Service.default })
     }
 
+    /// Registers a MainActor-isolated service using the ServiceKey's default value with a specified scope.
+    ///
+    /// - Parameters:
+    ///   - type: A service type conforming to the ServiceKey protocol.
+    ///   - scope: The lifecycle scope for the service.
+    @MainActor
+    public func registerMain<Service: ServiceKey>(_ type: Service.Type, scope: ServiceScope) {
+        storage.registerMain(type, scope: scope, factory: { Service.default })
+    }
+
     /// Registers a MainActor-isolated service instance directly.
     /// The instance will be cached and reused for subsequent resolutions.
+    /// This method always uses `.singleton` scope since the instance already exists.
     ///
     /// Use this when you already have an instance of a MainActor-isolated service
     /// that you want to register directly.

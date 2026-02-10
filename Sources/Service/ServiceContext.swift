@@ -42,6 +42,13 @@ enum ServiceContext {
     @TaskLocal
     static var resolutionStack: [String] = []
 
+    /// The graph cache for the current resolution chain.
+    /// When a top-level `resolve()` call begins, a new `GraphCacheBox` is created and propagated
+    /// through `@TaskLocal` to all nested resolutions. Services registered with `.graph` scope
+    /// use this cache to share instances within the same resolution graph.
+    @TaskLocal
+    static var graphCacheBox: GraphCacheBox?
+
     /// Executes a service resolution with circular dependency tracking.
     ///
     /// This method wraps the actual resolution logic and provides:
@@ -78,9 +85,19 @@ enum ServiceContext {
         var newStack = resolutionStack
         newStack.append(typeName)
 
+        // Create a new GraphCacheBox at the top-level resolve if one doesn't exist yet
+        let isTopLevel = graphCacheBox == nil
+        let cacheBox = graphCacheBox ?? GraphCacheBox()
+
         do {
             return try $resolutionStack.withValue(newStack) {
-                try resolve()
+                if isTopLevel {
+                    return try $graphCacheBox.withValue(cacheBox) {
+                        try resolve()
+                    }
+                } else {
+                    return try resolve()
+                }
             }
         } catch let error as ServiceError {
             // Propagate ServiceError directly (user-thrown or framework-generated)
@@ -88,6 +105,50 @@ enum ServiceContext {
         } catch {
             // Wrap other errors (from factory) in factoryFailed
             throw ServiceError.factoryFailed(serviceType: typeName, underlyingError: error)
+        }
+    }
+}
+
+// MARK: - Graph Cache
+
+extension ServiceContext {
+    /// A reference-type cache used for graph-scoped service resolution.
+    ///
+    /// `GraphCacheBox` is created at the start of a top-level `resolve()` call and
+    /// propagated through `@TaskLocal` to all nested resolutions. Services registered
+    /// with `.graph` scope store and retrieve instances from this cache.
+    ///
+    /// The cache is automatically released when the top-level `resolve()` call completes,
+    /// since the `@TaskLocal` scope ends and no more references exist.
+    final class GraphCacheBox: @unchecked Sendable {
+        /// A Sendable wrapper for storing arbitrary values in `@Locked` storage.
+        private struct AnyBox: @unchecked Sendable {
+            let value: Any
+        }
+
+        @Locked
+        private var cache: [ServiceStorage.CacheKey: AnyBox]
+
+        init() {}
+
+        /// Retrieves a cached instance for the given key, or creates and caches one using the factory.
+        ///
+        /// - Parameters:
+        ///   - key: The cache key identifying the service type.
+        ///   - factory: A closure that creates a new instance if none is cached.
+        /// - Returns: The cached or newly created instance.
+        /// - Throws: Rethrows any error from the factory closure.
+        func resolve<Service>(key: ServiceStorage.CacheKey, factory: () throws -> Service) rethrows -> Service {
+            if let box = $cache.withLock({ (cache: inout sending [ServiceStorage.CacheKey: AnyBox]) -> AnyBox? in
+                cache[key]
+            }), let cached = box.value as? Service {
+                return cached
+            }
+            let instance = try factory()
+            $cache.withLock { (cache: inout sending [ServiceStorage.CacheKey: AnyBox]) in
+                cache[key] = AnyBox(value: instance)
+            }
+            return instance
         }
     }
 }
