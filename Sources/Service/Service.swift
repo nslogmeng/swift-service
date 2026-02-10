@@ -168,9 +168,10 @@ public struct Service<S: Sendable>: @unchecked Sendable {
 @MainActor
 @propertyWrapper
 public struct MainService<S> {
-    /// Storage for the resolved service instance.
+    /// Reference-type storage for the resolved service instance.
+    /// Uses `Box` to provide interior mutability without requiring a mutating getter.
     /// No thread-safety needed since all access is on MainActor.
-    private var storage: S?
+    private let storage: Box<S?>
 
     /// The environment captured at initialization time.
     private let env: ServiceEnv
@@ -184,17 +185,15 @@ public struct MainService<S> {
     /// - Note: If the service is not registered or resolution fails, this will cause a runtime fatalError.
     ///         For error handling, use `ServiceEnv.current.resolveMain()` directly with try-catch.
     public var wrappedValue: S {
-        mutating get {
-            if let service = storage {
-                return service
-            }
-            do {
-                let service = try resolver(env)
-                storage = service
-                return service
-            } catch {
-                fatalError("\(error)")
-            }
+        if let service = storage.value {
+            return service
+        }
+        do {
+            let service = try resolver(env)
+            storage.value = service
+            return service
+        } catch {
+            fatalError("\(error)")
         }
     }
 
@@ -206,7 +205,7 @@ public struct MainService<S> {
     ///         on first access. For error handling, use `ServiceEnv.current.resolveMain()` directly with try-catch.
     @_disfavoredOverload
     public init() {
-        self.storage = nil
+        self.storage = Box(nil)
         self.env = ServiceEnv.current
         self.resolver = { env in try env.resolveMain(S.self) }
     }
@@ -219,7 +218,7 @@ public struct MainService<S> {
     ///         on first access. For error handling, use `ServiceEnv.current.resolveMain()` directly with try-catch.
     @_disfavoredOverload
     public init(_ type: S.Type) {
-        self.storage = nil
+        self.storage = Box(nil)
         self.env = ServiceEnv.current
         self.resolver = { env in try env.resolveMain(type) }
     }
@@ -241,7 +240,7 @@ public struct MainService<S> {
     /// }
     /// ```
     public init<Wrapped>() where S == Wrapped? {
-        self.storage = nil
+        self.storage = Box(nil)
         self.env = ServiceEnv.current
         self.resolver = { env in try? env.resolveMain(Wrapped.self) }
     }
@@ -250,7 +249,7 @@ public struct MainService<S> {
     ///
     /// - Parameter type: The wrapped service type to resolve.
     public init<Wrapped>(_ type: Wrapped.Type) where S == Wrapped? {
-        self.storage = nil
+        self.storage = Box(nil)
         self.env = ServiceEnv.current
         self.resolver = { env in try? env.resolveMain(type) }
     }

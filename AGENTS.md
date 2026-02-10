@@ -32,9 +32,15 @@ python3 -m http.server 8000 --directory .build/docs
 
 ### Core Components
 
-**Property Wrappers** (`Service.swift`)
-- `@Service<S: Sendable>` - Thread-safe service injection
-- `@MainService<S>` - MainActor-isolated service injection (for UI components)
+**Property Wrappers** (`Service.swift`, `Provider.swift`)
+- `@Service<S: Sendable>` — Cached, thread-safe injection via `Locked<S?>`
+- `@MainService<S>` — Cached, MainActor-isolated injection via `Box<S?>`
+- `@Provider<S: Sendable>` — Uncached, resolves on every access (scope-driven caching)
+- `@MainProvider<S>` — Uncached, MainActor-isolated, resolves on every access
+
+**Utility Types** (`Utils/`)
+- `Locked<Value: Sendable>` (`Lock.swift`) — Mutex-based thread-safe wrapper using `Synchronization.Mutex`
+- `Box<Value>` (`Box.swift`) — Reference-type wrapper for interior mutability, `@unchecked Sendable`. Thread safety is **not** provided by Box itself; callers must guarantee safety via external synchronization
 
 **Service Environment** (`ServiceEnv.swift`)
 - Manages service registrations per environment (`online`, `test`, `dev`)
@@ -57,11 +63,30 @@ python3 -m http.server 8000 --directory .build/docs
 **ServiceKey Protocol** (`ServiceKey.swift`)
 - Types conforming provide `static var default: Self` for simple registration
 
-### Thread Safety
+### Thread Safety Model
 
-- `@Locked` property wrapper (`Utils/Lock.swift`) uses Swift's `Synchronization.Mutex`
-- Sendable services: mutex-based thread-safe access
-- MainActor services: actor isolation (no locking needed)
+The framework uses two isolation models. Every `@unchecked Sendable` internal type relies on exactly one:
+
+**Mutex isolation** (for Sendable services and shared state):
+- `Locked<Value>` / `@Locked` — wraps `Synchronization.Mutex`, the primary synchronization primitive
+- `@Service` uses `Locked<S?>` — check-and-set is fully atomic within `withLock`
+- `ServiceStorage` — all state (`caches`, `providers`, `mainProviders`) is `@Locked`
+- `GraphCacheBox` — cache dictionary is `@Locked`
+
+**MainActor isolation** (for non-Sendable UI services):
+- `@MainService` / `@MainProvider` — struct-level `@MainActor`, compiler-enforced serial access
+- `@MainService` uses `Box<S?>` for interior mutability without mutating getter; safe because all access is on MainActor
+
+**`Box<Value>` conventions:**
+- In `@MainService`: mutable storage, protected by `@MainActor`
+- In `ServiceStorage` / `GraphCacheBox`: stored in `@Locked` dictionaries as **write-once** — `Box` is initialized with its final value and `box.value` must **never** be mutated after insertion into the dictionary. This invariant is by convention, not enforced by the type system
+
+**Rules for modifying or adding code:**
+- New concurrent mutable state → use `Locked<Value>` (Value must be `Sendable`)
+- Interior mutability in `@MainActor` context → use `Box<Value>`
+- `@unchecked Sendable` → internal types only; always document which isolation mechanism guarantees safety
+- Never mutate `Box.value` on instances retrieved from `@Locked` dictionaries
+- Never mark public types as `@unchecked Sendable` — this framework's design philosophy explicitly avoids exposing unchecked Sendable in public API
 
 ### Documentation
 

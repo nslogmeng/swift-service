@@ -39,13 +39,6 @@ final class ServiceStorage: @unchecked Sendable {
 
     // MARK: - Box Types
 
-    /// A box that wraps cached service instances (both Sendable and MainActor).
-    /// This enables storing any service instance in `@Locked` storage.
-    /// Safety: MainActor services are only accessed from `@MainActor` methods.
-    private struct CacheBox: @unchecked Sendable {
-        let value: Any
-    }
-
     /// A box that wraps a Sendable factory function along with its scope.
     private struct ProviderEntry: @unchecked Sendable {
         let scope: ServiceScope
@@ -65,7 +58,7 @@ final class ServiceStorage: @unchecked Sendable {
     /// Uses composite `CacheKey` (type + scope) so singleton and custom-scoped instances
     /// coexist in a single dictionary. Transient and graph scopes bypass this cache entirely.
     @Locked
-    private var caches: [CacheKey: CacheBox]
+    private var caches: [CacheKey: Box<Any>]
 
     // MARK: - Provider Storage
 
@@ -113,11 +106,11 @@ final class ServiceStorage: @unchecked Sendable {
             }
 
             // Use withLock to ensure atomic check-and-set operation (double-check pattern)
-            let box = $caches.withLock { (caches: inout sending [CacheKey: CacheBox]) -> sending CacheBox in
+            let box = $caches.withLock { (caches: inout sending [CacheKey: Box<Any>]) -> sending Box<Any> in
                 if let existing = caches[key] {
                     return existing
                 }
-                let newBox = CacheBox(value: newService)
+                let newBox = Box<Any>(newService)
                 caches[key] = newBox
                 return newBox
             }

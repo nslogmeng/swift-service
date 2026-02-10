@@ -121,13 +121,8 @@ extension ServiceContext {
     /// The cache is automatically released when the top-level `resolve()` call completes,
     /// since the `@TaskLocal` scope ends and no more references exist.
     final class GraphCacheBox: @unchecked Sendable {
-        /// A Sendable wrapper for storing arbitrary values in `@Locked` storage.
-        private struct AnyBox: @unchecked Sendable {
-            let value: Any
-        }
-
         @Locked
-        private var cache: [ServiceStorage.CacheKey: AnyBox]
+        private var cache: [ServiceStorage.CacheKey: Box<Any>]
 
         init() {}
 
@@ -139,14 +134,14 @@ extension ServiceContext {
         /// - Returns: The cached or newly created instance.
         /// - Throws: Rethrows any error from the factory closure.
         func resolve<Service>(key: ServiceStorage.CacheKey, factory: () throws -> Service) rethrows -> Service {
-            if let box = $cache.withLock({ (cache: inout sending [ServiceStorage.CacheKey: AnyBox]) -> AnyBox? in
+            if let box = $cache.withLock({ (cache: inout sending [ServiceStorage.CacheKey: Box<Any>]) -> Box<Any>? in
                 cache[key]
             }), let cached = box.value as? Service {
                 return cached
             }
             let instance = try factory()
-            $cache.withLock { (cache: inout sending [ServiceStorage.CacheKey: AnyBox]) in
-                cache[key] = AnyBox(value: instance)
+            $cache.withLock { (cache: inout sending [ServiceStorage.CacheKey: Box<Any>]) in
+                cache[key] = Box<Any>(instance)
             }
             return instance
         }
