@@ -27,6 +27,36 @@ struct DatabaseAssembly: ServiceAssembly {
 }
 ```
 
+### Using Scopes in Assemblies
+
+You can specify service scopes during registration to control instance lifecycle:
+
+```swift
+struct ServiceLayerAssembly: ServiceAssembly {
+    func assemble(env: ServiceEnv) {
+        // Singleton (default) — shared across the app
+        env.register(DatabaseProtocol.self) {
+            DatabaseService(connectionString: "sqlite://app.db")
+        }
+
+        // Transient — new instance each time
+        env.register(RequestHandler.self, scope: .transient) {
+            RequestHandler()
+        }
+
+        // Graph — shared within one resolve chain
+        env.register(UnitOfWork.self, scope: .graph) {
+            UnitOfWork()
+        }
+
+        // Custom — named scope, can be selectively cleared
+        env.register(SessionService.self, scope: .custom("user-session")) {
+            SessionService()
+        }
+    }
+}
+```
+
 ## Assembling Services
 
 ### Single Assembly

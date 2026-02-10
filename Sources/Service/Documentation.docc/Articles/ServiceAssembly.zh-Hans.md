@@ -27,6 +27,36 @@ struct DatabaseAssembly: ServiceAssembly {
 }
 ```
 
+### 在 Assembly 中使用作用域
+
+注册服务时可以指定作用域来控制实例的生命周期：
+
+```swift
+struct ServiceLayerAssembly: ServiceAssembly {
+    func assemble(env: ServiceEnv) {
+        // Singleton（默认）— 全应用共享
+        env.register(DatabaseProtocol.self) {
+            DatabaseService(connectionString: "sqlite://app.db")
+        }
+
+        // Transient — 每次获取新实例
+        env.register(RequestHandler.self, scope: .transient) {
+            RequestHandler()
+        }
+
+        // Graph — 在同一解析链内共享
+        env.register(UnitOfWork.self, scope: .graph) {
+            UnitOfWork()
+        }
+
+        // Custom — 命名作用域，可定向清除
+        env.register(SessionService.self, scope: .custom("user-session")) {
+            SessionService()
+        }
+    }
+}
+```
+
 ## Service Assembly
 
 ### 单个 Assembly

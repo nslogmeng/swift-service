@@ -93,16 +93,28 @@ struct BService {
 
 ### 2. 使用延迟解析
 
-将解析推迟到实际需要服务时：
+将解析推迟到实际需要服务时。`@Provider` 属性包装器提供了内置的延迟解析：
+
+```swift
+struct AService {
+    @Provider var b: BService  // 每次访问时解析，而非构造时
+
+    func doSomething() {
+        b.perform()  // 仅在需要时解析 B
+    }
+}
+```
+
+或者，使用手动工厂闭包：
 
 ```swift
 struct AService {
     private let bFactory: () -> BService
-    
+
     init(bFactory: @escaping () -> BService) {
         self.bFactory = bFactory
     }
-    
+
     func doSomething() {
         let b = bFactory()  // 仅在需要时解析
         // 使用 b...

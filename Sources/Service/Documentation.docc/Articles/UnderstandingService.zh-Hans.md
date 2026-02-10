@@ -6,11 +6,13 @@
 
 ## 架构概览
 
-Service 围绕三个核心概念构建：
+Service 围绕五个核心概念构建：
 
 1. **ServiceEnv**：管理注册和解析的服务环境
 2. **ServiceStorage**：存储提供者和缓存实例的存储层
-3. **属性包装器**：依赖注入的便捷语法
+3. **ServiceScope**：服务实例的生命周期管理（singleton、transient、graph、custom）
+4. **ServiceContext**：解析跟踪，用于循环依赖检测和 graph 作用域缓存
+5. **属性包装器**：依赖注入的便捷语法（`@Service`、`@MainService`、`@Provider`、`@MainProvider`）
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -25,53 +27,86 @@ Service 围绕三个核心概念构建：
 │              ┌───────────▼───────────┐              │
 │              │    ServiceStorage     │              │
 │              │  • providers (加锁)   │              │
-│              │  • cache (加锁)       │              │
 │              │  • mainProviders      │              │
-│              │  • mainCache          │              │
+│              │  • caches (加锁)      │              │
+│              │    key: Type + Scope  │              │
 │              └───────────────────────┘              │
 └─────────────────────────────────────────────────────┘
 ```
 
+### 属性包装器矩阵
+
+Service 提供四个属性包装器，形成 2x2 矩阵：
+
+|  | **Sendable** | **MainActor** |
+|---|---|---|
+| **懒加载 + 缓存** | `@Service` | `@MainService` |
+| **作用域驱动** | `@Provider` | `@MainProvider` |
+
+- **`@Service` / `@MainService`**：首次访问时懒加载解析，并在内部缓存结果。后续访问始终返回同一实例，不受注册作用域的影响。
+- **`@Provider` / `@MainProvider`**：每次访问时解析。缓存行为完全由服务注册的作用域决定（例如，transient 作用域每次都会生成新实例）。
+
+四个属性包装器都支持可选类型 — 当服务未注册时返回 `nil` 而非崩溃：
+
+```swift
+@Service var analytics: AnalyticsService?    // 懒加载，缓存，nil 安全
+@Provider var handler: RequestHandler?       // 作用域驱动，nil 安全
+```
+
 ## 服务解析流程
 
-当你调用 `resolve()` 时，会发生以下情况：
+当你调用 `resolve()` 时，行为取决于服务注册的作用域：
 
 ```
 resolve(MyService.self)
          │
          ▼
-┌─────────────────────┐
-│  1. 检查缓存        │──── 找到? ──▶ 返回缓存实例
-└─────────────────────┘
-         │ 未找到
-         ▼
-┌─────────────────────┐
-│  2. 获取提供者      │──── 未找到? ──▶ 抛出 notRegistered
-└─────────────────────┘
+┌─────────────────────────┐
+│  1. 获取提供者条目      │──── 未找到? ──▶ 抛出 notRegistered
+│     (包含作用域)        │
+└─────────────────────────┘
          │ 找到
          ▼
-┌─────────────────────┐
-│  3. 检查循环        │──── 在链中? ──▶ 抛出 circularDependency
-└─────────────────────┘
+┌─────────────────────────┐
+│  2. 检查循环            │──── 在链中? ──▶ 抛出 circularDependency
+└─────────────────────────┘
          │ 正常
          ▼
-┌─────────────────────┐
-│  4. 跟踪到链中      │
-└─────────────────────┘
+┌─────────────────────────┐
+│  3. 跟踪到链中 +       │
+│     创建 graph 缓存     │──── (如果是顶层 resolve)
+│     (如果需要)          │
+└─────────────────────────┘
          │
          ▼
-┌─────────────────────┐
-│  5. 调用工厂函数    │──── 抛出错误? ──▶ 传播错误
-└─────────────────────┘
-         │ 成功
-         ▼
-┌─────────────────────┐
-│  6. 缓存实例        │
-└─────────────────────┘
-         │
-         ▼
-    返回实例
+┌─────────────────────────┐
+│  4. 按作用域分派        │
+└─────────────────────────┘
+    │         │        │         │
+    ▼         ▼        ▼         ▼
+singleton  transient  graph    custom
+    │         │        │         │
+    ▼         ▼        ▼         ▼
+  检查       调用     检查      检查
+  缓存     工厂函数  graph    命名
+    │         │      缓存      缓存
+    │         │        │         │
+    ▼         ▼        ▼         ▼
+  找到?     返回     找到?     找到?
+  是→返回   新实例   是→返回   是→返回
+  否→调用            否→调用   否→调用
+  工厂函数           工厂函数  工厂函数
+  + 缓存             + 缓存   + 缓存
 ```
+
+### 作用域特定行为
+
+| 作用域 | 缓存方式 | 缓存键 | 重置方式 |
+|--------|---------|--------|---------|
+| `.singleton` | 全局缓存，每个类型一个实例 | Type + `.singleton` | `resetCaches()` 或 `resetScope(.singleton)` |
+| `.transient` | 不缓存，每次创建新实例 | 不适用 | 不适用 |
+| `.graph` | 在同一解析链内共享 | Type + `.graph`（在 `GraphCacheBox` 中） | 自动释放（顶层 resolve 完成时） |
+| `.custom("name")` | 命名缓存，独立于其他作用域 | Type + `.custom("name")` | `resetScope(.custom("name"))` |
 
 ## 设计决策
 
@@ -159,11 +194,15 @@ struct MyController {
 
 ### 为什么默认使用单例？
 
-服务作为单例缓存：
+当未指定作用域时，服务默认使用 `.singleton`：
 
 ```swift
-let service1 = try ServiceEnv.current.resolve(MyService.self)
-let service2 = try ServiceEnv.current.resolve(MyService.self)
+env.register(DatabaseService.self) { DatabaseService() }
+// 等价于：
+env.register(DatabaseService.self, scope: .singleton) { DatabaseService() }
+
+let service1 = try ServiceEnv.current.resolve(DatabaseService.self)
+let service2 = try ServiceEnv.current.resolve(DatabaseService.self)
 // service1 === service2（同一实例）
 ```
 
@@ -171,10 +210,23 @@ let service2 = try ServiceEnv.current.resolve(MyService.self)
 - 可预测的行为（处处相同的实例）
 - 内存高效（每个服务单一实例）
 - 符合常见的 DI 模式
+- 与先前版本向后兼容
 
-**当你需要新实例时：**
-- 调用 `resetCaches()` 清除缓存
-- 创建新的 `ServiceEnv` 以获得隔离的作用域
+**当你需要其他生命周期时**，使用显式作用域：
+
+```swift
+// 每次获取新实例
+env.register(RequestHandler.self, scope: .transient) { RequestHandler() }
+
+// 在同一解析链内共享，跨链获取新实例
+env.register(UnitOfWork.self, scope: .graph) { UnitOfWork() }
+
+// 命名作用域，支持定向失效
+env.register(SessionService.self, scope: .custom("user-session")) {
+    SessionService()
+}
+env.resetScope(.custom("user-session"))  // 仅清除此作用域
+```
 
 ## 内部实现
 
@@ -183,30 +235,36 @@ let service2 = try ServiceEnv.current.resolve(MyService.self)
 Service 使用 Swift 的 `Synchronization.Mutex` 实现线程安全访问：
 
 ```swift
-@Locked private var providers: [String: Any] = [:]
-@Locked private var cache: [String: Any] = [:]
+@Locked private var caches: [CacheKey: CacheBox]
+@Locked private var providers: [CacheKey: ProviderEntry]
+@Locked private var mainProviders: [CacheKey: MainProviderEntry]
 ```
 
-`@Locked` 属性包装器确保原子读写操作。
+`@Locked` 属性包装器确保原子读写操作。`CacheKey` 是服务类型（`ObjectIdentifier`）和其作用域的复合键，确保在不同作用域下注册的服务拥有隔离的缓存。
 
-### 循环依赖检测
+### 循环依赖检测和 Graph 缓存
 
-Service 使用 `TaskLocal` 跟踪解析链：
+`ServiceContext` 使用 `TaskLocal` 跟踪解析链并管理 graph 作用域缓存：
 
 ```swift
-@TaskLocal
-private static var resolutionChain: [String] = []
+enum ServiceContext {
+    @TaskLocal static var resolutionStack: [String] = []
+    @TaskLocal static var graphCacheBox: GraphCacheBox?
+}
 ```
 
 解析服务时：
-1. 检查服务类型是否已在链中
+1. 检查服务类型是否已在栈中（循环依赖检测）
 2. 如果是，抛出 `ServiceError.circularDependency`
-3. 如果否，添加到链中并继续
+3. 如果否，添加到栈中并继续
+4. 如果是顶层 resolve，创建新的 `GraphCacheBox` 用于 graph 作用域的服务
+5. 同一链中的嵌套 resolve 共享同一个 `GraphCacheBox`
 
 这种方法的特点：
-- **任务作用域**：每个异步任务有自己的链
-- **自动清理**：解析完成后链会恢复
+- **任务作用域**：每个异步任务有自己的解析栈
+- **自动清理**：解析完成后栈和 graph 缓存会恢复
 - **零开销**：不解析时无跟踪
+- **Graph 感知**：使用 `.graph` 作用域的服务在同一解析链内共享实例
 
 ### ServiceKey 协议
 
@@ -235,10 +293,13 @@ ServiceEnv.current.register(MyService.self)  // 使用默认实现
 | 操作 | 复杂度 | 说明 |
 |------|--------|------|
 | 注册 | O(1) | 字典插入 |
-| 首次解析 | O(1) + 工厂函数 | 加上循环检测 |
-| 缓存解析 | O(1) | 字典查找 |
+| 首次解析（singleton/custom） | O(1) + 工厂函数 | 加上循环检测、双重检查缓存 |
+| 缓存解析（singleton/custom） | O(1) | 按复合键查找字典 |
+| Transient 解析 | O(1) + 工厂函数 | 无缓存开销 |
+| Graph 解析 | O(1) + 工厂函数 | 在任务本地 graph 缓存中查找 |
 | 环境切换 | O(1) | TaskLocal 绑定 |
-| 重置缓存 | O(n) | 清除所有缓存实例 |
+| 重置所有缓存 | O(n) | 清除所有缓存实例 |
+| 重置特定作用域 | O(n) | 按作用域过滤 |
 
 ### 内存考虑
 

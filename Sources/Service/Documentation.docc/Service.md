@@ -13,24 +13,24 @@ Service is a modern dependency injection framework designed for Swift applicatio
 
 Use this library to manage your application's dependencies with built-in tools that address common needs:
 
-- **Type-Safe Injection**
-    
-    Use property wrappers to inject services with compile-time type checking, so you don't have to manually manage dependencies.
+- **Concurrency-Native API**
 
-- **Environment Support**
-    
-    Switch between different service configurations for production, development, and testing environments.
+    Two API tracks designed for Swift 6's concurrency model: `register`/`resolve` for Sendable services, `registerMain`/`resolveMain` for MainActor-isolated services. The compiler enforces correct usage.
 
-- **MainActor Support**
-    
-    Dedicated APIs for UI components and view models that work seamlessly with Swift's concurrency model.
+- **Flexible Scopes**
 
-- **Thread Safety**
-    
-    Safe for concurrent and async code with built-in thread safety guarantees.
+    Singleton, transient, graph, and custom named scopes give you fine-grained control over service instance lifecycle.
+
+- **Four Property Wrappers**
+
+    `@Service` and `@MainService` for lazy cached injection; `@Provider` and `@MainProvider` for scope-driven resolution. All support optional types for graceful nil handling.
+
+- **Environment Isolation**
+
+    TaskLocal-based environment switching for production, development, and testing — tests can run in parallel without polluting each other.
 
 - **Zero Dependencies**
-    
+
     No external dependencies, minimal footprint, perfect for any Swift project.
 
 ## Usage
@@ -86,5 +86,6 @@ let user = repository.fetchUser(id: "123")
 
 ### Deep Dive
 
+- <doc:Vision>
 - <doc:UnderstandingService>
 - <doc:ConcurrencyModel>

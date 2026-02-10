@@ -93,16 +93,28 @@ struct BService {
 
 ### 2. Use Lazy Resolution
 
-Defer resolution until the service is actually needed:
+Defer resolution until the service is actually needed. The `@Provider` property wrapper provides built-in lazy resolution:
+
+```swift
+struct AService {
+    @Provider var b: BService  // Resolved on each access, not at construction
+
+    func doSomething() {
+        b.perform()  // Resolves B only when needed
+    }
+}
+```
+
+Alternatively, use a manual factory closure:
 
 ```swift
 struct AService {
     private let bFactory: () -> BService
-    
+
     init(bFactory: @escaping () -> BService) {
         self.bFactory = bFactory
     }
-    
+
     func doSomething() {
         let b = bFactory()  // Resolve only when needed
         // Use b...

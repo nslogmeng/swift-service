@@ -15,12 +15,15 @@ For background on these concepts, see [Swift Concurrency](https://docs.swift.org
 
 ## Overview
 
-Service provides two distinct APIs for dependency injection based on thread-safety requirements:
+Service provides two distinct API tracks for dependency injection based on thread-safety requirements, each with two property wrapper styles:
 
-| Service Type | Registration | Resolution | Property Wrapper |
-|-------------|--------------|------------|------------------|
-| Sendable | `register()` | `resolve()` | `@Service` |
-| MainActor | `registerMain()` | `resolveMain()` | `@MainService` |
+| Service Type | Registration | Resolution | Lazy + Cached | Scope-Driven |
+|-------------|--------------|------------|---------------|--------------|
+| Sendable | `register()` | `resolve()` | `@Service` | `@Provider` |
+| MainActor | `registerMain()` | `resolveMain()` | `@MainService` | `@MainProvider` |
+
+- **`@Service` / `@MainService`**: Resolves once on first access, caches internally. Best for stable dependencies.
+- **`@Provider` / `@MainProvider`**: Resolves on every access; caching follows the registered scope. Best for transient or custom-scoped services.
 
 ## Sendable Services
 
@@ -119,9 +122,10 @@ let service4 = try ServiceEnv.current.resolve(MyService.self)
 
 ## Concurrent Resolution
 
-Service safely handles multiple concurrent resolutions:
+Service safely handles multiple concurrent resolutions. The behavior depends on the registered scope:
 
 ```swift
+// Singleton: all tasks resolve the same cached instance
 await withTaskGroup(of: MyService.self) { group in
     for _ in 0..<10 {
         group.addTask {
@@ -129,10 +133,74 @@ await withTaskGroup(of: MyService.self) { group in
         }
     }
 
-    // All tasks resolve the same cached instance
     for await service in group {
-        // Use service...
+        // All return the same instance (singleton)
     }
+}
+
+// Transient: each task gets a fresh instance
+env.register(Worker.self, scope: .transient) { Worker() }
+await withTaskGroup(of: Worker.self) { group in
+    for _ in 0..<10 {
+        group.addTask {
+            try ServiceEnv.current.resolve(Worker.self)
+        }
+    }
+
+    for await worker in group {
+        // Each is a different instance
+    }
+}
+```
+
+## Scopes and Concurrency
+
+Service scopes interact with concurrency in important ways:
+
+### Singleton and Custom Scopes
+
+Singleton and custom-scoped services use double-check locking to ensure that only one instance is created even under concurrent resolution:
+
+```swift
+env.register(DatabaseService.self, scope: .singleton) { DatabaseService() }
+
+// Safe: concurrent resolves return the same instance
+await withTaskGroup(of: DatabaseService.self) { group in
+    for _ in 0..<10 {
+        group.addTask {
+            try ServiceEnv.current.resolve(DatabaseService.self)
+        }
+    }
+}
+```
+
+### Graph Scope
+
+Graph scope uses `@TaskLocal` storage to share instances within a single resolution chain. Each top-level `resolve()` call creates a new graph context:
+
+```swift
+env.register(UnitOfWork.self, scope: .graph) { UnitOfWork() }
+
+// resolve(ServiceA) starts a new graph
+//   ├── resolve(UnitOfWork)  ← creates instance X
+//   └── resolve(ServiceB)
+//         └── resolve(UnitOfWork)  ← reuses instance X (same graph)
+//
+// resolve(ServiceA) again starts another graph
+//   └── resolve(UnitOfWork)  ← creates instance Y (new graph)
+```
+
+Since graph caching is task-local, concurrent top-level resolves on different tasks naturally get independent graph caches with no synchronization overhead.
+
+### @Provider with Transient Scope
+
+When using `@Provider` with `.transient` scope, each access creates a new instance. Be mindful that in concurrent code, this means each access point gets its own instance:
+
+```swift
+env.register(RequestHandler.self, scope: .transient) { RequestHandler() }
+
+struct Controller {
+    @Provider var handler: RequestHandler  // New instance on each access
 }
 ```
 

@@ -13,24 +13,24 @@ Service 是一个专为 Swift 应用程序设计的现代依赖注入框架。�
 
 使用这个库来管理应用程序的依赖，内置工具满足常见需求：
 
-- **类型安全注入**
-    
-    使用属性包装器注入服务，具有编译时类型检查，无需手动管理依赖。
+- **并发原生 API**
 
-- **环境支持**
-    
-    在生产、开发和测试环境之间切换不同的服务配置。
+    为 Swift 6 并发模型设计的双轨 API：`register`/`resolve` 用于 Sendable 服务，`registerMain`/`resolveMain` 用于 MainActor 隔离服务。编译器强制确保正确使用。
 
-- **MainActor 支持**
-    
-    为 UI 组件和视图模型提供专门的 API，与 Swift 的并发模型无缝协作。
+- **灵活的作用域**
 
-- **线程安全**
-    
-    内置线程安全保证，适用于并发和异步代码。
+    Singleton、transient、graph 和 custom 命名作用域，提供对服务实例生命周期的精细控制。
+
+- **四种属性包装器**
+
+    `@Service` 和 `@MainService` 用于懒加载缓存注入；`@Provider` 和 `@MainProvider` 用于作用域驱动的解析。全部支持可选类型，优雅处理 nil。
+
+- **环境隔离**
+
+    基于 TaskLocal 的环境切换，支持生产、开发和测试环境 —— 测试可以并行运行而不互相污染。
 
 - **零依赖**
-    
+
     无外部依赖，占用空间小，适合任何 Swift 项目。
 
 ## 用法
@@ -86,5 +86,6 @@ let user = repository.fetchUser(id: "123")
 
 ### Deep Dive
 
+- <doc:Vision>
 - <doc:UnderstandingService>
 - <doc:ConcurrencyModel>

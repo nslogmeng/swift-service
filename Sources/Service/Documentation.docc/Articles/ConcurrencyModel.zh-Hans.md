@@ -15,12 +15,15 @@
 
 ## 概述
 
-Service 根据线程安全要求提供两套不同的依赖注入 API：
+Service 根据线程安全要求提供两套不同的依赖注入 API，每套有两种属性包装器风格：
 
-| 服务类型 | 注册 | 解析 | 属性包装器 |
-|---------|------|------|-----------|
-| Sendable | `register()` | `resolve()` | `@Service` |
-| MainActor | `registerMain()` | `resolveMain()` | `@MainService` |
+| 服务类型 | 注册 | 解析 | 懒加载 + 缓存 | 作用域驱动 |
+|---------|------|------|--------------|-----------|
+| Sendable | `register()` | `resolve()` | `@Service` | `@Provider` |
+| MainActor | `registerMain()` | `resolveMain()` | `@MainService` | `@MainProvider` |
+
+- **`@Service` / `@MainService`**：首次访问时解析一次，在内部缓存。适合稳定的依赖。
+- **`@Provider` / `@MainProvider`**：每次访问都解析；缓存行为遵循注册的作用域。适合 transient 或 custom 作用域的服务。
 
 ## Sendable 服务
 
@@ -119,9 +122,10 @@ let service4 = try ServiceEnv.current.resolve(MyService.self)
 
 ## 并发解析
 
-Service 安全地处理多个并发解析：
+Service 安全地处理多个并发解析。行为取决于注册的作用域：
 
 ```swift
+// Singleton：所有任务解析同一个缓存实例
 await withTaskGroup(of: MyService.self) { group in
     for _ in 0..<10 {
         group.addTask {
@@ -129,10 +133,74 @@ await withTaskGroup(of: MyService.self) { group in
         }
     }
 
-    // 所有任务解析同一个缓存的实例
     for await service in group {
-        // 使用 service...
+        // 全部返回同一实例 (singleton)
     }
+}
+
+// Transient：每个任务获取新实例
+env.register(Worker.self, scope: .transient) { Worker() }
+await withTaskGroup(of: Worker.self) { group in
+    for _ in 0..<10 {
+        group.addTask {
+            try ServiceEnv.current.resolve(Worker.self)
+        }
+    }
+
+    for await worker in group {
+        // 每个都是不同的实例
+    }
+}
+```
+
+## 作用域与并发
+
+服务作用域与并发交互的重要方式：
+
+### Singleton 和 Custom 作用域
+
+Singleton 和 custom 作用域的服务使用双重检查锁定，确保在并发解析下也只创建一个实例：
+
+```swift
+env.register(DatabaseService.self, scope: .singleton) { DatabaseService() }
+
+// 安全：并发解析返回同一实例
+await withTaskGroup(of: DatabaseService.self) { group in
+    for _ in 0..<10 {
+        group.addTask {
+            try ServiceEnv.current.resolve(DatabaseService.self)
+        }
+    }
+}
+```
+
+### Graph 作用域
+
+Graph 作用域使用 `@TaskLocal` 存储在单个解析链内共享实例。每次顶层 `resolve()` 调用创建一个新的 graph 上下文：
+
+```swift
+env.register(UnitOfWork.self, scope: .graph) { UnitOfWork() }
+
+// resolve(ServiceA) 开始一个新 graph
+//   ├── resolve(UnitOfWork)  ← 创建实例 X
+//   └── resolve(ServiceB)
+//         └── resolve(UnitOfWork)  ← 复用实例 X（同一 graph）
+//
+// 再次 resolve(ServiceA) 开始另一个 graph
+//   └── resolve(UnitOfWork)  ← 创建实例 Y（新 graph）
+```
+
+由于 graph 缓存是 task-local 的，不同任务上的并发顶层解析自然获得独立的 graph 缓存，无需额外的同步开销。
+
+### @Provider 与 Transient 作用域
+
+使用 `@Provider` 配合 `.transient` 作用域时，每次访问都创建新实例。在并发代码中，这意味着每个访问点获得自己的实例：
+
+```swift
+env.register(RequestHandler.self, scope: .transient) { RequestHandler() }
+
+struct Controller {
+    @Provider var handler: RequestHandler  // 每次访问获取新实例
 }
 ```
 

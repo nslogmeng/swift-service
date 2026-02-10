@@ -94,21 +94,23 @@ do {
 
 ### Property Wrapper Behavior
 
-The `@Service` and `@MainService` property wrappers use lazy resolution and `fatalError` for non-optional types:
+All four property wrappers (`@Service`, `@MainService`, `@Provider`, `@MainProvider`) use `fatalError` for non-optional types when the service is not registered:
 
 ```swift
 struct MyController {
     @Service var database: DatabaseProtocol  // fatalError if not registered on first access
+    @Provider var handler: RequestHandler    // fatalError if not registered on each access
 }
 ```
 
-**Why fatalError?** A missing required service indicates a configuration error that should be caught during development, not handled at runtime. Services are resolved lazily on first access, not at initialization time.
+**Why fatalError?** A missing required service indicates a configuration error that should be caught during development, not handled at runtime. Services are resolved lazily on first access (or every access for `@Provider`), not at initialization time.
 
-**For optional dependencies**, use the optional type syntax to avoid fatalError:
+**For optional dependencies**, all four property wrappers support the optional type syntax to avoid fatalError:
 
 ```swift
 struct MyController {
-    @Service var analytics: AnalyticsService?  // Returns nil if not registered
+    @Service var analytics: AnalyticsService?     // Returns nil if not registered (cached)
+    @Provider var tracker: TrackingService?       // Returns nil if not registered (each access)
 }
 ```
 

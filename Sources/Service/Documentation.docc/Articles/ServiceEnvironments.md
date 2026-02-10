@@ -167,7 +167,7 @@ This pattern is especially useful in large projects where:
 
 ## Resetting Services
 
-Service provides two methods to reset service state, which are essential for testing scenarios and environment management.
+Service provides three methods to reset service state, which are essential for testing scenarios and environment management.
 
 ### resetCaches()
 
@@ -214,14 +214,38 @@ ServiceEnv.current.register(DatabaseProtocol.self) {
 
 > Important: After calling `resetAll()`, all services must be re-registered before they can be resolved. Attempting to resolve a service that hasn't been re-registered will throw an error.
 
+### resetScope(_:)
+
+The `resetScope(_:)` method clears all cached service instances for a specific ``ServiceScope``. Only the target scope is affected; other scopes remain intact.
+
+```swift
+// Register services with different scopes
+ServiceEnv.current.register(SessionService.self, scope: .custom("user-session")) {
+    SessionService()
+}
+ServiceEnv.current.register(DatabaseService.self) {  // default: .singleton
+    DatabaseService()
+}
+
+// On user logout, clear only the user-session scope
+ServiceEnv.current.resetScope(.custom("user-session"))
+// SessionService will be recreated on next access
+// DatabaseService remains cached
+```
+
+**When to use:**
+- Selectively invalidate services without affecting others
+- Implement user session lifecycle (clear session-scoped services on logout)
+- Reset specific feature scopes independently
+
 ### Comparison
 
-| Feature | `resetCaches()` | `resetAll()` |
-|---------|----------------|--------------|
-| Clears cached instances | ✅ | ✅ |
-| Removes registered providers | ❌ | ✅ |
-| Services need re-registration | ❌ | ✅ |
-| Typical scenario | Testing with same setup | Clean test environment |
+| Feature | `resetCaches()` | `resetScope(_:)` | `resetAll()` |
+|---------|----------------|-------------------|--------------|
+| Clears cached instances | All scopes | Target scope only | All scopes |
+| Removes registered providers | No | No | Yes |
+| Services need re-registration | No | No | Yes |
+| Typical scenario | Testing with same setup | Session invalidation | Clean test environment |
 
 ### Testing Best Practices
 

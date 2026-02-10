@@ -6,11 +6,13 @@ A deep dive into Service's architecture, design decisions, and how it works unde
 
 ## Architecture Overview
 
-Service is built around three core concepts:
+Service is built around five core concepts:
 
 1. **ServiceEnv**: The service environment that manages registrations and resolutions
 2. **ServiceStorage**: The storage layer for providers and cached instances
-3. **Property Wrappers**: Convenient syntax for dependency injection
+3. **ServiceScope**: Lifecycle management for service instances (singleton, transient, graph, custom)
+4. **ServiceContext**: Resolution tracking for circular dependency detection and graph-scoped caching
+5. **Property Wrappers**: Convenient syntax for dependency injection (`@Service`, `@MainService`, `@Provider`, `@MainProvider`)
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -25,53 +27,86 @@ Service is built around three core concepts:
 │              ┌───────────▼───────────┐              │
 │              │    ServiceStorage     │              │
 │              │  • providers (locked) │              │
-│              │  • cache (locked)     │              │
 │              │  • mainProviders      │              │
-│              │  • mainCache          │              │
+│              │  • caches (locked)    │              │
+│              │    key: Type + Scope  │              │
 │              └───────────────────────┘              │
 └─────────────────────────────────────────────────────┘
 ```
 
+### Property Wrapper Matrix
+
+Service provides four property wrappers in a 2x2 matrix:
+
+|  | **Sendable** | **MainActor** |
+|---|---|---|
+| **Lazy + cached** | `@Service` | `@MainService` |
+| **Scope-driven** | `@Provider` | `@MainProvider` |
+
+- **`@Service` / `@MainService`**: Resolves lazily on first access and caches the result internally. Subsequent accesses always return the same instance, regardless of the registered scope.
+- **`@Provider` / `@MainProvider`**: Resolves on every access. Caching behavior is entirely determined by the service's registered scope (e.g., transient scope produces a new instance each time).
+
+All four support optional types — returns `nil` instead of crashing when the service is not registered:
+
+```swift
+@Service var analytics: AnalyticsService?    // Lazy, cached, nil-safe
+@Provider var handler: RequestHandler?       // Scope-driven, nil-safe
+```
+
 ## Service Resolution Flow
 
-When you call `resolve()`, this is what happens:
+When you call `resolve()`, the behavior depends on the service's registered scope:
 
 ```
 resolve(MyService.self)
          │
          ▼
-┌─────────────────────┐
-│  1. Check cache     │──── Found? ──▶ Return cached instance
-└─────────────────────┘
-         │ Not found
-         ▼
-┌─────────────────────┐
-│  2. Get provider    │──── Not found? ──▶ Throw notRegistered
-└─────────────────────┘
+┌─────────────────────────┐
+│  1. Get provider entry  │──── Not found? ──▶ Throw notRegistered
+│     (includes scope)    │
+└─────────────────────────┘
          │ Found
          ▼
-┌─────────────────────┐
-│  3. Check for cycle │──── In chain? ──▶ Throw circularDependency
-└─────────────────────┘
+┌─────────────────────────┐
+│  2. Check for cycle     │──── In chain? ──▶ Throw circularDependency
+└─────────────────────────┘
          │ OK
          ▼
-┌─────────────────────┐
-│  4. Track in chain  │
-└─────────────────────┘
+┌─────────────────────────┐
+│  3. Track in chain +    │
+│     create graph cache  │──── (if top-level resolve)
+│     if needed           │
+└─────────────────────────┘
          │
          ▼
-┌─────────────────────┐
-│  5. Call factory    │──── Throws? ──▶ Propagate error
-└─────────────────────┘
-         │ Success
-         ▼
-┌─────────────────────┐
-│  6. Cache instance  │
-└─────────────────────┘
-         │
-         ▼
-    Return instance
+┌─────────────────────────┐
+│  4. Dispatch by scope   │
+└─────────────────────────┘
+    │         │        │         │
+    ▼         ▼        ▼         ▼
+singleton  transient  graph    custom
+    │         │        │         │
+    ▼         ▼        ▼         ▼
+ Check     Call     Check      Check
+ cache     factory  graph      named
+    │         │     cache      cache
+    │         │        │         │
+    ▼         ▼        ▼         ▼
+  Found?   Return   Found?    Found?
+  Yes→ret  new inst Yes→ret   Yes→ret
+  No→call           No→call   No→call
+  factory           factory   factory
+  + cache           + cache   + cache
 ```
+
+### Scope-Specific Behavior
+
+| Scope | Caching | Cache Key | Reset |
+|-------|---------|-----------|-------|
+| `.singleton` | Global cache, one instance per type | Type + `.singleton` | `resetCaches()` or `resetScope(.singleton)` |
+| `.transient` | No caching, new instance every time | N/A | N/A |
+| `.graph` | Shared within one resolve chain | Type + `.graph` (in `GraphCacheBox`) | Automatic (released when top-level resolve completes) |
+| `.custom("name")` | Named cache, independent of other scopes | Type + `.custom("name")` | `resetScope(.custom("name"))` |
 
 ## Design Decisions
 
@@ -159,11 +194,15 @@ This provides graceful handling without fatalError.
 
 ### Why Singleton by Default?
 
-Services are cached as singletons:
+When no scope is specified, services default to `.singleton`:
 
 ```swift
-let service1 = try ServiceEnv.current.resolve(MyService.self)
-let service2 = try ServiceEnv.current.resolve(MyService.self)
+env.register(DatabaseService.self) { DatabaseService() }
+// Equivalent to:
+env.register(DatabaseService.self, scope: .singleton) { DatabaseService() }
+
+let service1 = try ServiceEnv.current.resolve(DatabaseService.self)
+let service2 = try ServiceEnv.current.resolve(DatabaseService.self)
 // service1 === service2 (same instance)
 ```
 
@@ -171,10 +210,23 @@ let service2 = try ServiceEnv.current.resolve(MyService.self)
 - Predictable behavior (same instance everywhere)
 - Memory efficient (single instance per service)
 - Matches common DI patterns
+- Backward compatible with prior versions
 
-**When you need fresh instances:**
-- Call `resetCaches()` to clear the cache
-- Create a new `ServiceEnv` for isolated scope
+**When you need other lifecycles**, use explicit scopes:
+
+```swift
+// New instance every time
+env.register(RequestHandler.self, scope: .transient) { RequestHandler() }
+
+// Shared within one resolve chain, fresh across chains
+env.register(UnitOfWork.self, scope: .graph) { UnitOfWork() }
+
+// Named scope with targeted invalidation
+env.register(SessionService.self, scope: .custom("user-session")) {
+    SessionService()
+}
+env.resetScope(.custom("user-session"))  // Clear only this scope
+```
 
 ## Internal Implementation
 
@@ -183,30 +235,36 @@ let service2 = try ServiceEnv.current.resolve(MyService.self)
 Service uses Swift's `Synchronization.Mutex` for thread-safe access:
 
 ```swift
-@Locked private var providers: [String: Any] = [:]
-@Locked private var cache: [String: Any] = [:]
+@Locked private var caches: [CacheKey: CacheBox]
+@Locked private var providers: [CacheKey: ProviderEntry]
+@Locked private var mainProviders: [CacheKey: MainProviderEntry]
 ```
 
-The `@Locked` property wrapper ensures atomic read/write operations.
+The `@Locked` property wrapper ensures atomic read/write operations. The `CacheKey` is a composite of the service type (`ObjectIdentifier`) and its scope, ensuring that services registered under different scopes have isolated caches.
 
-### Circular Dependency Detection
+### Circular Dependency Detection and Graph Caching
 
-Service tracks the resolution chain using `TaskLocal`:
+`ServiceContext` tracks the resolution chain and manages graph-scoped caching using `TaskLocal`:
 
 ```swift
-@TaskLocal
-private static var resolutionChain: [String] = []
+enum ServiceContext {
+    @TaskLocal static var resolutionStack: [String] = []
+    @TaskLocal static var graphCacheBox: GraphCacheBox?
+}
 ```
 
 When resolving a service:
-1. Check if the service type is already in the chain
+1. Check if the service type is already in the stack (circular dependency detection)
 2. If yes, throw `ServiceError.circularDependency`
-3. If no, add to chain and proceed
+3. If no, add to stack and proceed
+4. If this is a top-level resolve, create a new `GraphCacheBox` for graph-scoped services
+5. Nested resolves within the same chain share the same `GraphCacheBox`
 
 This approach is:
-- **Task-scoped**: Each async task has its own chain
-- **Automatic cleanup**: Chain is restored after resolution completes
+- **Task-scoped**: Each async task has its own resolution stack
+- **Automatic cleanup**: Stack and graph cache are restored after resolution completes
 - **Zero overhead**: No tracking when not resolving
+- **Graph-aware**: Services with `.graph` scope share instances within the same resolution chain
 
 ### ServiceKey Protocol
 
@@ -235,10 +293,13 @@ ServiceEnv.current.register(MyService.self)  // Uses default
 | Operation | Complexity | Notes |
 |-----------|------------|-------|
 | Registration | O(1) | Dictionary insertion |
-| First resolution | O(1) + factory | Plus cycle detection |
-| Cached resolution | O(1) | Dictionary lookup |
+| First resolution (singleton/custom) | O(1) + factory | Plus cycle detection, double-check caching |
+| Cached resolution (singleton/custom) | O(1) | Dictionary lookup by composite key |
+| Transient resolution | O(1) + factory | No caching overhead |
+| Graph resolution | O(1) + factory | Lookup in task-local graph cache |
 | Environment switch | O(1) | TaskLocal binding |
-| Reset caches | O(n) | Clears all cached instances |
+| Reset all caches | O(n) | Clears all cached instances |
+| Reset specific scope | O(n) | Filters by scope |
 
 ### Memory Considerations
 

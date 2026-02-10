@@ -34,13 +34,13 @@ final class UserViewModel {
 
 ### 解决方案
 
-Service 提供了专门的 `registerMain` 和 `resolveMain` 方法（以及 `@MainService` 属性包装器），它们可以与 `@MainActor` 隔离的服务一起工作，而无需 `Sendable` 遵循。
+Service 提供了专门的 `registerMain` 和 `resolveMain` 方法（以及 `@MainService` 和 `@MainProvider` 属性包装器），它们可以与 `@MainActor` 隔离的服务一起工作，而无需 `Sendable` 遵循。
 
 ## 注册 MainActor 服务
 
 ### 使用 registerMain
 
-使用 `registerMain` 注册 `@MainActor` 服务：
+使用 `registerMain` 注册 `@MainActor` 服务。与 `register` 一样，你可以指定 scope 参数：
 
 ```swift
 @MainActor
@@ -49,9 +49,16 @@ final class UserViewModel {
     func loadUser() { /* ... */ }
 }
 
-// 在主 actor 上下文中注册
+// 在主 actor 上下文中注册（默认：.singleton）
 await MainActor.run {
     ServiceEnv.current.registerMain(UserViewModel.self) {
+        UserViewModel()
+    }
+}
+
+// 指定特定作用域注册
+await MainActor.run {
+    ServiceEnv.current.registerMain(UserViewModel.self, scope: .transient) {
         UserViewModel()
     }
 }
@@ -131,6 +138,43 @@ class UserViewController {
     }
 }
 ```
+
+### 使用 @MainProvider 属性包装器
+
+`@MainProvider` 属性包装器在**每次访问时**解析服务，将缓存行为委托给服务注册的作用域。这是 `@Provider` 的 MainActor 等价物：
+
+```swift
+@MainActor
+class DashboardController {
+    @MainProvider var viewModel: DashboardViewModel  // 每次访问时解析
+}
+```
+
+当服务注册为非 singleton 作用域时，使用 `@MainProvider` 让作用域控制实例生命周期：
+
+```swift
+// 注册为 transient - 每次获取新实例
+ServiceEnv.current.registerMain(DashboardViewModel.self, scope: .transient) {
+    DashboardViewModel()
+}
+```
+
+`@MainProvider` 同样支持可选类型：
+
+```swift
+@MainActor
+class DashboardController {
+    @MainProvider var analytics: AnalyticsViewModel?  // 未注册时返回 nil
+}
+```
+
+**选择 @MainService 还是 @MainProvider：**
+
+| | `@MainService` | `@MainProvider` |
+|---|---|---|
+| 解析时机 | 懒加载，首次访问时 | 每次访问时 |
+| 本地缓存 | 始终在本地缓存 | 不进行本地缓存；委托给作用域 |
+| 适用场景 | Singleton 服务 | Transient 或自定义作用域服务 |
 
 ## 完整示例：SwiftUI 应用
 

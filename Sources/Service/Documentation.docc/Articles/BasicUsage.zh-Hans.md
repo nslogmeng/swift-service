@@ -24,6 +24,22 @@ ServiceEnv.current.register(LoggerService.self) {
 }
 ```
 
+你还可以指定 **scope** 来控制服务的生命周期：
+
+```swift
+// Transient：每次访问创建新实例
+ServiceEnv.current.register(RequestHandler.self, scope: .transient) {
+    RequestHandler()
+}
+
+// 自定义作用域：可独立失效的共享缓存
+ServiceEnv.current.register(SessionService.self, scope: .custom("user-session")) {
+    SessionService()
+}
+```
+
+有关所有可用作用域的详细信息，请参阅<doc:BasicUsage#服务生命周期与作用域>。
+
 ### 直接实例注册
 
 对于已经实例化的服务，可以直接注册：
@@ -119,6 +135,41 @@ struct UserController {
 }
 ```
 
+> Tip: 所有四个属性包装器（`@Service`、`@MainService`、`@Provider`、`@MainProvider`）都支持可选类型。
+
+### 使用 @Provider 属性包装器
+
+`@Provider` 属性包装器在**每次访问时**解析服务，将缓存行为完全委托给服务注册的作用域。与始终在本地缓存的 `@Service` 不同，`@Provider` 非常适合 transient 或自定义作用域的服务：
+
+```swift
+// 注册 transient 服务
+ServiceEnv.current.register(RequestHandler.self, scope: .transient) {
+    RequestHandler()
+}
+
+struct Controller {
+    @Provider var handler: RequestHandler  // 每次访问都是新实例
+}
+```
+
+`@Provider` 同样支持可选类型：
+
+```swift
+struct Controller {
+    @Provider var analytics: AnalyticsService?  // 未注册时返回 nil
+}
+```
+
+**何时使用 @Service vs @Provider：**
+
+| | `@Service` / `@MainService` | `@Provider` / `@MainProvider` |
+|---|---|---|
+| 解析时机 | 懒加载，首次访问时 | 每次访问时 |
+| 本地缓存 | 始终在本地缓存 | 不进行本地缓存；委托给作用域 |
+| 适用场景 | Singleton 服务 | Transient 或自定义作用域服务 |
+
+有关 MainActor 隔离的对应版本，请参阅 <doc:MainActorServices> 中的 `@MainProvider`。
+
 ### 手动解析
 
 你也可以使用 `try` 手动解析服务：
@@ -152,21 +203,54 @@ ServiceEnv.current.register(UserRepositoryProtocol.self) {
 }
 ```
 
-## 服务生命周期
+## 服务生命周期与作用域
 
-默认情况下，服务作为 singleton 缓存。首次解析服务时，会创建并缓存它。后续解析返回同一个实例。
+默认情况下，服务以 `.singleton` 作用域注册 -- 首次解析服务时，会创建并缓存它。后续解析返回同一个实例。
+
+Service 通过 ``ServiceScope`` 支持四种生命周期作用域：
+
+| 作用域 | 行为 |
+|--------|------|
+| `.singleton` | 全局缓存单一实例（默认） |
+| `.transient` | 每次解析都创建新实例 |
+| `.graph` | 在同一解析图内共享；每次顶层 `resolve()` 调用获得新实例 |
+| `.custom("name")` | 命名作用域，拥有独立缓存，支持定向失效 |
+
+```swift
+// Singleton（默认）- 复用同一实例
+env.register(DatabaseService.self) { DatabaseService() }
+
+// Transient - 每次创建新实例
+env.register(RequestHandler.self, scope: .transient) { RequestHandler() }
+
+// Graph - 在同一解析链内共享
+env.register(UnitOfWork.self, scope: .graph) { UnitOfWork() }
+
+// Custom - 命名作用域，拥有独立缓存
+env.register(SessionService.self, scope: .custom("user-session")) { SessionService() }
+```
+
+### 重置服务
 
 要清除缓存的服务（同时保留注册）：
 
 ```swift
-await ServiceEnv.current.resetCaches()
+ServiceEnv.current.resetCaches()
+```
+
+要仅清除特定作用域（例如用户登出时）：
+
+```swift
+ServiceEnv.current.resetScope(.custom("user-session"))
 ```
 
 要完全重置环境（清除缓存并移除所有注册）：
 
 ```swift
-await ServiceEnv.current.resetAll()
+ServiceEnv.current.resetAll()
 ```
+
+有关重置的更多详细信息，请参阅 <doc:ServiceEnvironments>。
 
 ## 下一步
 

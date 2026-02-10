@@ -490,7 +490,86 @@ func testUserRepository() async throws {
 }
 ```
 
-## 示例 6：复杂的依赖图
+## 示例 6：服务作用域和 @Provider
+
+使用服务作用域和 `@Provider` 属性包装器实现精细的生命周期控制。
+
+### 带作用域的服务注册
+
+```swift
+struct ScopedAssembly: ServiceAssembly {
+    func assemble(env: ServiceEnv) {
+        // Singleton（默认）- 应用生命周期内的唯一实例
+        env.register(APIClientProtocol.self) {
+            APIClient(baseURL: "https://api.example.com")
+        }
+
+        // Transient - 每次获取新实例
+        env.register(RequestHandler.self, scope: .transient) {
+            RequestHandler(timestamp: Date())
+        }
+
+        // Graph - 在同一解析链内共享
+        env.register(UnitOfWork.self, scope: .graph) {
+            UnitOfWork()
+        }
+
+        // Custom 作用域 - 用户会话生命周期
+        env.register(SessionService.self, scope: .custom("user-session")) {
+            SessionService()
+        }
+    }
+}
+```
+
+### 使用 @Provider 进行作用域驱动注入
+
+```swift
+struct RequestController {
+    // @Service 在本地缓存 - 始终返回同一实例
+    @Service var apiClient: APIClientProtocol
+
+    // @Provider 每次访问时解析 - 遵循 transient 作用域
+    @Provider var handler: RequestHandler
+
+    func processRequest() {
+        // 每次访问都获得新的 RequestHandler
+        let h1 = handler  // 新实例
+        let h2 = handler  // 另一个新实例
+        // h1 !== h2
+    }
+}
+```
+
+### 会话作用域生命周期
+
+```swift
+@MainActor
+class AuthController {
+    @MainService var session: SessionService
+
+    func logout() {
+        // 仅清除会话作用域的服务
+        ServiceEnv.current.resetScope(.custom("user-session"))
+        // SessionService 将在下次访问时重新创建
+        // 其他所有作用域保持不变
+    }
+}
+```
+
+### 可选 @Provider 用于软依赖
+
+```swift
+struct AnalyticsController {
+    @Provider var tracker: AnalyticsService?  // 未注册时返回 nil
+
+    func trackEvent(_ name: String) {
+        tracker?.track(name)  // 安全 - 未配置分析服务时不会崩溃
+    }
+}
+```
+
+## 示例 7：复杂的依赖图
 
 一个更复杂的示例，包含多个相互依赖的服务。
 
@@ -603,7 +682,11 @@ ServiceEnv.current.register(AnalyticsProtocol.self) {
 
 5. **保持 Assembly 结构**：在所有环境中保持相同的 Assembly 结构，仅在最外层作用域切换环境，以获得最大的灵活性和可维护性。
 
-5. **保持服务专注**：每个服务应该有一个单一、明确定义的职责。
+6. **使用作用域控制生命周期**：使用 `.transient` 处理无状态处理器，使用 `.graph` 实现工作单元模式，使用 `.custom` 管理会话作用域服务。
+
+7. **选择合适的属性包装器**：对 singleton 服务使用 `@Service`，对作用域驱动的服务使用 `@Provider`。
+
+8. **保持服务专注**：每个服务应该有一个单一、明确定义的职责。
 
 ## 下一步
 

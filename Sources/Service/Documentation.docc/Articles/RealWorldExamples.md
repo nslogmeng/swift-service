@@ -490,7 +490,86 @@ func testUserRepository() async throws {
 }
 ```
 
-## Example 6: Complex Dependency Graph
+## Example 6: Service Scopes and @Provider
+
+Using service scopes and the `@Provider` property wrapper for fine-grained lifecycle control.
+
+### Scoped Service Registration
+
+```swift
+struct ScopedAssembly: ServiceAssembly {
+    func assemble(env: ServiceEnv) {
+        // Singleton (default) - one instance for the app lifetime
+        env.register(APIClientProtocol.self) {
+            APIClient(baseURL: "https://api.example.com")
+        }
+
+        // Transient - new instance every time
+        env.register(RequestHandler.self, scope: .transient) {
+            RequestHandler(timestamp: Date())
+        }
+
+        // Graph - shared within a single resolve chain
+        env.register(UnitOfWork.self, scope: .graph) {
+            UnitOfWork()
+        }
+
+        // Custom scope - user session lifetime
+        env.register(SessionService.self, scope: .custom("user-session")) {
+            SessionService()
+        }
+    }
+}
+```
+
+### Using @Provider for Scope-Driven Injection
+
+```swift
+struct RequestController {
+    // @Service caches locally - always returns the same instance
+    @Service var apiClient: APIClientProtocol
+
+    // @Provider resolves on every access - respects the transient scope
+    @Provider var handler: RequestHandler
+
+    func processRequest() {
+        // Each access gets a fresh RequestHandler
+        let h1 = handler  // new instance
+        let h2 = handler  // another new instance
+        // h1 !== h2
+    }
+}
+```
+
+### Session Scope Lifecycle
+
+```swift
+@MainActor
+class AuthController {
+    @MainService var session: SessionService
+
+    func logout() {
+        // Clear only session-scoped services
+        ServiceEnv.current.resetScope(.custom("user-session"))
+        // SessionService will be recreated on next access
+        // All other scopes remain intact
+    }
+}
+```
+
+### Optional @Provider for Soft Dependencies
+
+```swift
+struct AnalyticsController {
+    @Provider var tracker: AnalyticsService?  // nil if not registered
+
+    func trackEvent(_ name: String) {
+        tracker?.track(name)  // Safe - no crash if analytics isn't configured
+    }
+}
+```
+
+## Example 7: Complex Dependency Graph
 
 A more complex example with multiple interdependent services.
 
@@ -603,7 +682,11 @@ ServiceEnv.current.register(AnalyticsProtocol.self) {
 
 5. **Maintain Assembly structure**: Keep the same Assembly structure across environments, switching only at the outermost scope for maximum flexibility and maintainability.
 
-5. **Keep services focused**: Each service should have a single, well-defined responsibility.
+6. **Use scopes for lifecycle control**: Use `.transient` for stateless handlers, `.graph` for unit-of-work patterns, and `.custom` for session-scoped services.
+
+7. **Choose the right property wrapper**: Use `@Service` for singleton services and `@Provider` for scope-driven services.
+
+8. **Keep services focused**: Each service should have a single, well-defined responsibility.
 
 ## Next Steps
 

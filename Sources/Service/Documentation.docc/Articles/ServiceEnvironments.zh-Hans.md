@@ -167,7 +167,7 @@ struct AppAssembly: ServiceAssembly {
 
 ## 重置服务
 
-Service 提供了两个方法来重置服务状态，这些方法在测试场景和环境管理中非常重要。
+Service 提供了三个方法来重置服务状态，这些方法在测试场景和环境管理中非常重要。
 
 ### resetCaches()
 
@@ -214,14 +214,38 @@ ServiceEnv.current.register(DatabaseProtocol.self) {
 
 > Important: 调用 `resetAll()` 后，所有服务必须重新注册才能被解析。尝试解析未重新注册的服务将抛出错误。
 
+### resetScope(_:)
+
+`resetScope(_:)` 方法清除特定 ``ServiceScope`` 的所有缓存服务实例。仅影响目标作用域；其他作用域保持不变。
+
+```swift
+// 使用不同作用域注册服务
+ServiceEnv.current.register(SessionService.self, scope: .custom("user-session")) {
+    SessionService()
+}
+ServiceEnv.current.register(DatabaseService.self) {  // 默认：.singleton
+    DatabaseService()
+}
+
+// 用户登出时，仅清除 user-session 作用域
+ServiceEnv.current.resetScope(.custom("user-session"))
+// SessionService 将在下次访问时重新创建
+// DatabaseService 保持缓存
+```
+
+**何时使用：**
+- 选择性地失效服务而不影响其他服务
+- 实现用户会话生命周期（登出时清除会话作用域的服务）
+- 独立重置特定功能作用域
+
 ### 对比
 
-| 特性 | `resetCaches()` | `resetAll()` |
-|------|----------------|-------------|
-| 清除缓存实例 | ✅ | ✅ |
-| 移除已注册的提供者 | ❌ | ✅ |
-| 服务需要重新注册 | ❌ | ✅ |
-| 典型场景 | 使用相同设置的测试 | 干净的测试环境 |
+| 特性 | `resetCaches()` | `resetScope(_:)` | `resetAll()` |
+|------|----------------|-------------------|-------------|
+| 清除缓存实例 | 所有作用域 | 仅目标作用域 | 所有作用域 |
+| 移除已注册的提供者 | 否 | 否 | 是 |
+| 服务需要重新注册 | 否 | 否 | 是 |
+| 典型场景 | 使用相同设置的测试 | 会话失效 | 干净的测试环境 |
 
 ### 测试最佳实践
 

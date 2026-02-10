@@ -16,23 +16,121 @@
 </div>
 <br/>
 
-A lightweight, zero-dependency, type-safe dependency injection framework designed for modern Swift projects.
+A lightweight dependency injection framework built for Swift 6 concurrency — with explicit Sendable and MainActor APIs, zero external dependencies, and TaskLocal-based environment isolation.
 
-Elegant dependency injection through `@Service` property wrapper with familiar register/resolve patterns. Built for Swift 6 concurrency with TaskLocal-based environment isolation. Get started in minutes.
+## Core Features
 
-## ✨ Core Features
+- **Concurrency-First Design** — Swift concurrency is a first-class citizen. Sendable and MainActor constraints are part of the API, enforced by the compiler at every call site — not hidden behind `@unchecked Sendable`.
+- **Native MainActor Support** — Dedicated `registerMain()` / `@MainService` / `@MainProvider` for MainActor-isolated types. Aligned with Swift 6.2 Approachable Concurrency.
+- **Zero Dependencies** — Built entirely on Swift standard library primitives (`Synchronization.Mutex`, `@TaskLocal`).
+- **TaskLocal Environment Isolation** — Per-task environment switching for parallel-safe testing. No global state mutation needed.
+- **Flexible Scopes** — Singleton, transient, graph, and custom named scopes for fine-grained lifecycle control.
+- **Familiar Patterns** — register/resolve API inspired by Swinject. Property wrapper injection with modular Assembly support.
 
-- **🚀 Modern Swift**: Uses property wrappers, TaskLocal, and concurrency primitives, fully leverages modern Swift features
-- **🎯 Simple API, Ready to Use**: Use `@Service` property wrapper, no manual dependency passing needed, cleaner code
-- **📦 Zero Dependencies, Lightweight**: No third-party dependencies, adds no burden to your project, perfect for any Swift project
-- **🔒 Type-Safe, Compile-Time Checked**: Leverages Swift's type system to catch errors at compile time
-- **⚡ Thread-Safe, Concurrency-Friendly**: Built-in thread safety guarantees, perfect support for Swift 6 concurrency model
-- **🌍 Environment Isolation, Test-Friendly**: Task-level environment switching based on TaskLocal, easily swap dependencies in tests
-- **🎨 MainActor Support**: Dedicated `@MainService` API for SwiftUI view models and UI components
-- **🔍 Automatic Circular Dependency Detection**: Runtime detection of circular dependencies with clear error messages
-- **🧩 Modular Assembly**: Organize service registrations through ServiceAssembly pattern for clearer code structure
+## Quick Start
 
-## 📦 Installation
+### 1. Register Services
+
+```swift
+import Service
+
+// Sendable services — safe across threads
+ServiceEnv.current.register(DatabaseProtocol.self) {
+    DatabaseService(connectionString: "sqlite://app.db")
+}
+
+// MainActor services — for UI components, no @unchecked Sendable needed
+ServiceEnv.current.registerMain(UserViewModel.self) {
+    UserViewModel()
+}
+```
+
+### 2. Inject Dependencies
+
+```swift
+struct UserRepository {
+    @Service var database: DatabaseProtocol
+
+    func fetchUser(id: String) -> User? {
+        return database.findUser(id: id)
+    }
+}
+
+@MainActor
+struct UserView: View {
+    @MainService var viewModel: UserViewModel
+
+    var body: some View {
+        Text(viewModel.userName)
+    }
+}
+```
+
+### 3. Use Services
+
+```swift
+let repository = UserRepository()
+let user = repository.fetchUser(id: "123")
+// database is automatically injected, no manual passing needed!
+```
+
+### Test Environment Switching
+
+```swift
+await ServiceEnv.$current.withValue(.test) {
+    ServiceEnv.current.register(DatabaseProtocol.self) {
+        MockDatabase()
+    }
+
+    let repository = UserRepository()
+    // All resolutions use test environment
+}
+```
+
+## Service Scopes
+
+Control how service instances are created and cached:
+
+```swift
+// Singleton (default) — same instance reused globally
+env.register(DatabaseService.self) { DatabaseService() }
+
+// Transient — new instance every time
+env.register(RequestHandler.self, scope: .transient) { RequestHandler() }
+
+// Graph — shared within the same resolution chain
+env.register(UnitOfWork.self, scope: .graph) { UnitOfWork() }
+
+// Custom — named scope, can be selectively cleared
+env.register(SessionService.self, scope: .custom("user-session")) { SessionService() }
+env.resetScope(.custom("user-session"))  // Clear only this scope
+```
+
+### Property Wrappers
+
+Service provides four property wrappers in a 2x2 matrix:
+
+|  | **Sendable** | **MainActor** |
+|---|---|---|
+| **Lazy + cached** | `@Service` | `@MainService` |
+| **Scope-driven** | `@Provider` | `@MainProvider` |
+
+- **`@Service` / `@MainService`**: Resolves once on first access, caches the result internally.
+- **`@Provider` / `@MainProvider`**: Resolves on every access, caching behavior follows the registered scope.
+
+```swift
+@Provider var handler: RequestHandler   // transient → new instance each access
+@Service var database: DatabaseProtocol // singleton → resolved once, cached
+```
+
+All four support optional types — returns `nil` instead of crashing when the service is not registered:
+
+```swift
+@Service var analytics: AnalyticsService?
+@Provider var tracker: TrackingService?
+```
+
+## Installation
 
 Add to your `Package.swift`:
 
@@ -50,121 +148,20 @@ targets: [
 ]
 ```
 
-## 🚀 Quick Start
+## Documentation
 
-Get started with Service in just three steps:
+For comprehensive guides, tutorials, and API reference, see the [Service Documentation](https://nslogmeng.github.io/swift-service/documentation/service/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs).
 
-### 1. Register Services
-
-```swift
-import Service
-
-// Register a service (supports both protocols and concrete types)
-ServiceEnv.current.register(DatabaseProtocol.self) {
-    DatabaseService(connectionString: "sqlite://app.db")
-}
-```
-
-### 2. Inject Dependencies
-
-Use the `@Service` property wrapper to automatically resolve dependencies:
+## Why Service?
 
 ```swift
-struct UserRepository {
-    @Service
-    var database: DatabaseProtocol
-    
-    func fetchUser(id: String) -> User? {
-        return database.findUser(id: id)
-    }
-}
-```
-
-### 3. Use Services
-
-```swift
-let repository = UserRepository()
-let user = repository.fetchUser(id: "123")
-// database is automatically injected, no manual passing needed!
-```
-
-### 🎨 SwiftUI View Model Support
-
-```swift
-// Register MainActor service
-ServiceEnv.current.registerMain(UserViewModel.self) {
-    UserViewModel()
-}
-
-// Use @MainService in your views
-struct UserView: View {
-    @MainService
-    var viewModel: UserViewModel
-    
-    var body: some View {
-        Text(viewModel.userName)
-    }
-}
-```
-
-### 🧪 Test Environment Switching
-
-```swift
-// Switch to test environment in tests
-await ServiceEnv.$current.withValue(.test) {
-    // Register mock services for testing
-    ServiceEnv.current.register(DatabaseProtocol.self) {
-        MockDatabase()
-    }
-    
-    // All service resolutions use test environment
-    let repository = UserRepository()
-    // Test with mock database...
-}
-```
-
-## 📚 Documentation
-
-For comprehensive documentation, tutorials, and examples, see the [Service Documentation](https://nslogmeng.github.io/swift-service/documentation/service/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs).
-
-### Topics
-
-#### Essentials
-
-- **[Getting Started](https://nslogmeng.github.io/swift-service/documentation/service/gettingstarted/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - Quick setup guide
-- **[Basic Usage](https://nslogmeng.github.io/swift-service/documentation/service/basicusage/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - Core patterns and examples
-- **[Service Environments](https://nslogmeng.github.io/swift-service/documentation/service/serviceenvironments/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - Managing different service configurations
-
-#### Advanced Topics
-
-- **[MainActor Services](https://nslogmeng.github.io/swift-service/documentation/service/mainactorservices/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - Working with UI components
-- **[Service Assembly](https://nslogmeng.github.io/swift-service/documentation/service/serviceassembly/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - Organizing service registrations
-- **[Error Handling](https://nslogmeng.github.io/swift-service/documentation/service/errorhandling/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - Handling service resolution errors
-- **[Circular Dependencies](https://nslogmeng.github.io/swift-service/documentation/service/circulardependencies/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - Understanding and avoiding circular dependencies
-
-#### Examples
-
-- **[Real-World Examples](https://nslogmeng.github.io/swift-service/documentation/service/realworldexamples/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - Practical use cases
-
-#### Deep Dive
-
-- **[Understanding Service](https://nslogmeng.github.io/swift-service/documentation/service/understandingservice/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - Deep dive into architecture
-- **[Concurrency Model](https://nslogmeng.github.io/swift-service/documentation/service/concurrencymodel/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)** - Understanding Service's concurrency model
-
-## 💡 Why Service?
-
-### 🎯 Extremely Easy to Learn
-
-If you're familiar with traditional dependency injection patterns (like Swinject), Service will feel very familiar. With property wrappers, you don't even need to manually pass dependencies:
-
-```swift
-// Traditional way: need to manually pass dependencies
+// Traditional way: manually pass every dependency
 class UserService {
     init(database: DatabaseProtocol, logger: LoggerProtocol) { ... }
 }
 let service = UserService(database: db, logger: logger)
 
-// Service way: automatic injection, cleaner code
+// Service way: automatic injection
 class UserService {
     @Service var database: DatabaseProtocol
     @Service var logger: LoggerProtocol
@@ -172,34 +169,12 @@ class UserService {
 let service = UserService()  // Dependencies automatically injected!
 ```
 
-### 🚀 Built for Modern Swift
+Service uses the familiar register/resolve patterns from traditional DI containers. The key difference: concurrency constraints are part of the API, not hidden behind `@unchecked Sendable`. When you register with `register()`, the service must be `Sendable`. When you register with `registerMain()`, it lives on the main actor. The compiler enforces this at every call site — catching threading mistakes at build time, not runtime.
 
-- **Swift 6 Concurrency Model**: Perfect support for `Sendable` and `@MainActor`, with dedicated APIs for UI services
-- **TaskLocal Environment Isolation**: Task-based environment switching, no need to modify global state in tests
-- **Property Wrappers**: Leverages modern Swift features for elegant dependency injection
-
-### 🛡️ Safe and Reliable
-
-- **Compile-Time Type Checking**: Leverages Swift's type system to catch errors at compile time
-- **Thread Safety Guarantees**: Built-in locking mechanism, supports concurrent access
-- **Circular Dependency Detection**: Automatic runtime detection and reporting of circular dependencies
-
-### 📦 Lightweight, Zero Burden
-
-- **Zero Dependencies**: No third-party dependencies, won't add complexity to your project
-- **Minimal Runtime Cost**: Efficient implementation with minimal impact on app performance
-- **Wide Applicability**: Perfect for SwiftUI apps, server-side Swift, command-line tools, and any Swift project
-
-### 🧩 Flexible and Powerful
-
-- **Multiple Registration Methods**: Supports factory functions, direct instances, and ServiceKey protocol
-- **Modular Assembly**: Organize service registrations through ServiceAssembly for clearer code structure
-- **Environment Isolation**: Production, development, and test environments are completely isolated
-
-## 🙏 Acknowledgments
+## Acknowledgments
 
 Service was inspired by the excellent work of [Swinject](https://github.com/Swinject/Swinject) and [swift-dependencies](https://github.com/pointfreeco/swift-dependencies).
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.

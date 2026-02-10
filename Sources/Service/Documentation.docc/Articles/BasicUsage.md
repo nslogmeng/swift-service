@@ -24,6 +24,22 @@ ServiceEnv.current.register(LoggerService.self) {
 }
 ```
 
+You can also specify a **scope** to control the service's lifecycle:
+
+```swift
+// Transient: new instance every time
+ServiceEnv.current.register(RequestHandler.self, scope: .transient) {
+    RequestHandler()
+}
+
+// Custom scope: shared cache that can be independently invalidated
+ServiceEnv.current.register(SessionService.self, scope: .custom("user-session")) {
+    SessionService()
+}
+```
+
+For details on all available scopes, see <doc:BasicUsage#Service-Lifecycle-and-Scopes>.
+
 ### Direct Instance Registration
 
 For services that are already instantiated, you can register them directly:
@@ -119,6 +135,41 @@ struct UserController {
 }
 ```
 
+> Tip: All four property wrappers (`@Service`, `@MainService`, `@Provider`, `@MainProvider`) support optional types.
+
+### Using @Provider Property Wrapper
+
+The `@Provider` property wrapper resolves the service on **every access**, delegating caching behavior entirely to the service's registered scope. Unlike `@Service` which always caches locally, `@Provider` is ideal for transient or custom-scoped services:
+
+```swift
+// Register a transient service
+ServiceEnv.current.register(RequestHandler.self, scope: .transient) {
+    RequestHandler()
+}
+
+struct Controller {
+    @Provider var handler: RequestHandler  // New instance on every access
+}
+```
+
+`@Provider` also supports optional types:
+
+```swift
+struct Controller {
+    @Provider var analytics: AnalyticsService?  // Returns nil if not registered
+}
+```
+
+**When to use @Service vs @Provider:**
+
+| | `@Service` / `@MainService` | `@Provider` / `@MainProvider` |
+|---|---|---|
+| Resolution | Lazy, on first access | On every access |
+| Local caching | Always caches locally | No local cache; delegates to scope |
+| Best for | Singleton services | Transient or custom-scoped services |
+
+For MainActor-isolated equivalents, see `@MainProvider` in <doc:MainActorServices>.
+
 ### Manual Resolution
 
 You can also resolve services manually using `try`:
@@ -152,21 +203,54 @@ ServiceEnv.current.register(UserRepositoryProtocol.self) {
 }
 ```
 
-## Service Lifecycle
+## Service Lifecycle and Scopes
 
-By default, services are cached as singletons. The first time a service is resolved, it's created and cached. Subsequent resolutions return the same instance.
+By default, services are registered with `.singleton` scope -- the first time a service is resolved, it's created and cached. Subsequent resolutions return the same instance.
+
+Service supports four lifecycle scopes via ``ServiceScope``:
+
+| Scope | Behavior |
+|-------|----------|
+| `.singleton` | Single instance cached globally (default) |
+| `.transient` | New instance created on every resolution |
+| `.graph` | Shared within the same resolution graph; fresh instance for each top-level `resolve()` call |
+| `.custom("name")` | Named scope with independent cache, allowing targeted invalidation |
+
+```swift
+// Singleton (default) - same instance reused
+env.register(DatabaseService.self) { DatabaseService() }
+
+// Transient - new instance each time
+env.register(RequestHandler.self, scope: .transient) { RequestHandler() }
+
+// Graph - shared within one resolve chain
+env.register(UnitOfWork.self, scope: .graph) { UnitOfWork() }
+
+// Custom - named scope with independent cache
+env.register(SessionService.self, scope: .custom("user-session")) { SessionService() }
+```
+
+### Resetting Services
 
 To clear cached services (while keeping registrations):
 
 ```swift
-await ServiceEnv.current.resetCaches()
+ServiceEnv.current.resetCaches()
+```
+
+To clear only a specific scope (e.g., on user logout):
+
+```swift
+ServiceEnv.current.resetScope(.custom("user-session"))
 ```
 
 To completely reset the environment (clears cache and removes all registrations):
 
 ```swift
-await ServiceEnv.current.resetAll()
+ServiceEnv.current.resetAll()
 ```
+
+For more details on resetting, see <doc:ServiceEnvironments>.
 
 ## Next Steps
 

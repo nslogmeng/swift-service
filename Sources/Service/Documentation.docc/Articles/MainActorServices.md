@@ -34,13 +34,13 @@ This view model is `@MainActor`-isolated, meaning all access must happen on the 
 
 ### The Solution
 
-Service provides dedicated `registerMain` and `resolveMain` methods (along with the `@MainService` property wrapper) that work with `@MainActor`-isolated services without requiring `Sendable` conformance.
+Service provides dedicated `registerMain` and `resolveMain` methods (along with the `@MainService` and `@MainProvider` property wrappers) that work with `@MainActor`-isolated services without requiring `Sendable` conformance.
 
 ## Registering MainActor Services
 
 ### Using registerMain
 
-Register `@MainActor` services using `registerMain`:
+Register `@MainActor` services using `registerMain`. Like `register`, you can specify a scope parameter:
 
 ```swift
 @MainActor
@@ -49,9 +49,16 @@ final class UserViewModel {
     func loadUser() { /* ... */ }
 }
 
-// Register on main actor context
+// Register on main actor context (default: .singleton)
 await MainActor.run {
     ServiceEnv.current.registerMain(UserViewModel.self) {
+        UserViewModel()
+    }
+}
+
+// Register with a specific scope
+await MainActor.run {
+    ServiceEnv.current.registerMain(UserViewModel.self, scope: .transient) {
         UserViewModel()
     }
 }
@@ -131,6 +138,43 @@ class UserViewController {
     }
 }
 ```
+
+### Using @MainProvider Property Wrapper
+
+The `@MainProvider` property wrapper resolves the service on **every access**, delegating caching behavior to the service's registered scope. This is the MainActor equivalent of `@Provider`:
+
+```swift
+@MainActor
+class DashboardController {
+    @MainProvider var viewModel: DashboardViewModel  // Resolved on each access
+}
+```
+
+Use `@MainProvider` when the service is registered with a non-singleton scope and you want the scope to control the instance lifecycle:
+
+```swift
+// Register as transient - fresh instance each time
+ServiceEnv.current.registerMain(DashboardViewModel.self, scope: .transient) {
+    DashboardViewModel()
+}
+```
+
+`@MainProvider` also supports optional types:
+
+```swift
+@MainActor
+class DashboardController {
+    @MainProvider var analytics: AnalyticsViewModel?  // nil if not registered
+}
+```
+
+**Choosing between @MainService and @MainProvider:**
+
+| | `@MainService` | `@MainProvider` |
+|---|---|---|
+| Resolution | Lazy, on first access | On every access |
+| Local caching | Always caches locally | No local cache; delegates to scope |
+| Best for | Singleton services | Transient or custom-scoped services |
 
 ## Complete Example: SwiftUI App
 
