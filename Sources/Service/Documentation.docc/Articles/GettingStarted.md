@@ -59,4 +59,4 @@ That's it! You're ready to use Service in your application.
 
 - Learn about <doc:BasicUsage> for more registration patterns
 - Explore <doc:ServiceEnvironments> for environment-based configurations
-- Check out <doc:RealWorldExamples> for practical examples
+- Check out <doc:MigratingFromSwinject> if you're migrating from another DI framework

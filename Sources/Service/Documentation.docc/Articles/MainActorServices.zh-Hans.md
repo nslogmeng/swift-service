@@ -288,5 +288,5 @@ await MainActor.run {
 ## 下一步
 
 - 学习 <doc:ServiceAssembly> 了解如何组织服务注册
-- 探索 <doc:RealWorldExamples> 获取更多实用示例
+- 探索 <doc:MigratingFromSwinject> 了解如何从 Swinject 迁移
 - 阅读 <doc:ConcurrencyModel> 深入了解 Service 的并发模型

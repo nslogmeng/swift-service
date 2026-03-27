@@ -59,4 +59,4 @@ struct UserManager {
 
 - 学习 <doc:BasicUsage> 了解更多注册模式
 - 探索 <doc:ServiceEnvironments> 了解基于环境的配置
-- 查看 <doc:RealWorldExamples> 获取实用示例
+- 查看 <doc:MigratingFromSwinject> 了解如何从其他 DI 框架迁移

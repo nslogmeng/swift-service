@@ -261,5 +261,5 @@ func testNoCircularDependency() {
 ## Next Steps
 
 - Learn about <doc:ServiceAssembly> for organizing service registrations
-- Explore <doc:RealWorldExamples> for more patterns
+- Explore <doc:MigratingFromSwinject> if you're migrating from Swinject
 - Read <doc:UnderstandingService> for a deeper understanding of Service's resolution mechanism

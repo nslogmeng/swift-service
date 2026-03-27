@@ -288,5 +288,5 @@ await MainActor.run {
 ## Next Steps
 
 - Learn about <doc:ServiceAssembly> for organizing service registrations
-- Explore <doc:RealWorldExamples> for more practical examples
+- Explore <doc:MigratingFromSwinject> if you're migrating from Swinject
 - Read <doc:ConcurrencyModel> for a deeper understanding of Service's concurrency model

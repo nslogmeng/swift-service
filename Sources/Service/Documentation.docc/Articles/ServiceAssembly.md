@@ -260,6 +260,6 @@ await MainActor.run {
 
 ## Next Steps
 
-- Explore <doc:RealWorldExamples> for more assembly patterns
+- Explore <doc:MigratingFromSwinject> if you're migrating from Swinject
 - Learn about <doc:ServiceEnvironments> for environment-based configurations
 - Read <doc:UnderstandingService> for a deeper dive into Service's architecture

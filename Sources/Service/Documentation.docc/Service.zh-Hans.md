@@ -80,9 +80,9 @@ let user = repository.fetchUser(id: "123")
 - <doc:ErrorHandling>
 - <doc:CircularDependencies>
 
-### Examples
+### Migration
 
-- <doc:RealWorldExamples>
+- <doc:MigratingFromSwinject>
 
 ### Deep Dive
 
