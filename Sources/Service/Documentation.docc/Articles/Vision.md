@@ -8,11 +8,11 @@ The design philosophy behind Service and where it's headed.
 
 Swift 6 introduced strict concurrency checking. For most code, this was a welcome change — the compiler now catches data races at build time. But for dependency injection, it created a real problem.
 
-Consider a typical DI container. You register services, you resolve them, and you inject them into your types. Simple enough. But under strict concurrency, the compiler needs to know: is this service `Sendable`? Can it cross actor boundaries? If your `@MainActor` view model holds mutable state, it's not `Sendable` — and a container that hands out `T` without distinguishing between these cases is either lying to the compiler or forcing you to lie with `@unchecked Sendable`.
+Consider a typical DI container: you register services, resolve them, inject them into your types. But under strict concurrency, the compiler needs to know: is this service `Sendable`? Can it cross actor boundaries? If your `@MainActor` view model holds mutable state, it's not `Sendable` — and a container that hands out `T` without distinguishing between these cases is either lying to the compiler or forcing you to lie with `@unchecked Sendable`.
 
 Most existing DI libraries treat concurrency as an implementation detail — something handled internally with locks, something the API consumer shouldn't have to think about. Service takes a different position: **concurrency semantics should be part of the DI contract, not hidden behind it.**
 
-This isn't an academic distinction. When a library uses `@unchecked Sendable` to make its API compile, it shifts the responsibility of thread safety from the compiler to the developer. The whole point of Swift's concurrency model is to avoid exactly that.
+When a library uses `@unchecked Sendable` to make its API compile, it shifts the responsibility of thread safety from the compiler to the developer — the opposite of what Swift's concurrency model was designed to achieve.
 
 ## Core Design Principles
 

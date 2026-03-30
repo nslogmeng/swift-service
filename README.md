@@ -87,6 +87,28 @@ await ServiceEnv.$current.withValue(.test) {
 }
 ```
 
+## Installation
+
+Add to your `Package.swift`:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/nslogmeng/swift-service", .upToNextMajor(from: "1.0.0"))
+],
+targets: [
+    .target(
+        name: "MyProject",
+        dependencies: [
+            .product(name: "Service", package: "swift-service"),
+        ]
+    )
+]
+```
+
+## Documentation
+
+For comprehensive guides, tutorials, and API reference, see the [Service Documentation](https://nslogmeng.github.io/swift-service/documentation/service/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs).
+
 ## Service Scopes
 
 Control how service instances are created and cached:
@@ -129,28 +151,6 @@ All four support optional types — returns `nil` instead of crashing when the s
 @Service var analytics: AnalyticsService?
 @Provider var tracker: TrackingService?
 ```
-
-## Installation
-
-Add to your `Package.swift`:
-
-```swift
-dependencies: [
-    .package(url: "https://github.com/nslogmeng/swift-service", .upToNextMajor(from: "1.0.0"))
-],
-targets: [
-    .target(
-        name: "MyProject",
-        dependencies: [
-            .product(name: "Service", package: "swift-service"),
-        ]
-    )
-]
-```
-
-## Documentation
-
-For comprehensive guides, tutorials, and API reference, see the [Service Documentation](https://nslogmeng.github.io/swift-service/documentation/service/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs).
 
 ## Why Service?
 

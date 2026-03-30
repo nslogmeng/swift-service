@@ -87,6 +87,28 @@ await ServiceEnv.$current.withValue(.test) {
 }
 ```
 
+## 安装
+
+在 `Package.swift` 中添加：
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/nslogmeng/swift-service", .upToNextMajor(from: "1.0.0"))
+],
+targets: [
+    .target(
+        name: "MyProject",
+        dependencies: [
+            .product(name: "Service", package: "swift-service"),
+        ]
+    )
+]
+```
+
+## 文档
+
+完整的使用指南、教程和 API 参考，请查阅 [Service 文档](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)。
+
 ## 服务作用域
 
 控制服务实例的创建和缓存方式：
@@ -129,28 +151,6 @@ Service 提供四个属性包装器，构成 2x2 矩阵：
 @Service var analytics: AnalyticsService?
 @Provider var tracker: TrackingService?
 ```
-
-## 安装
-
-在 `Package.swift` 中添加：
-
-```swift
-dependencies: [
-    .package(url: "https://github.com/nslogmeng/swift-service", .upToNextMajor(from: "1.0.0"))
-],
-targets: [
-    .target(
-        name: "MyProject",
-        dependencies: [
-            .product(name: "Service", package: "swift-service"),
-        ]
-    )
-]
-```
-
-## 文档
-
-完整的使用指南、教程和 API 参考，请查阅 [Service 文档](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)。
 
 ## 为什么选择 Service？
 

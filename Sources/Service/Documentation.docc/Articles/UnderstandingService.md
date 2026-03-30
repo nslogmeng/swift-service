@@ -81,22 +81,12 @@ resolve(MyService.self)
          ▼
 ┌─────────────────────────┐
 │  4. Dispatch by scope   │
-└─────────────────────────┘
-    │         │        │         │
-    ▼         ▼        ▼         ▼
-singleton  transient  graph    custom
-    │         │        │         │
-    ▼         ▼        ▼         ▼
- Check     Call     Check      Check
- cache     factory  graph      named
-    │         │     cache      cache
-    │         │        │         │
-    ▼         ▼        ▼         ▼
-  Found?   Return   Found?    Found?
-  Yes→ret  new inst Yes→ret   Yes→ret
-  No→call           No→call   No→call
-  factory           factory   factory
-  + cache           + cache   + cache
+└────────┬────────────────┘
+         │
+         ├── singleton → check cache → hit: return │ miss: factory + cache
+         ├── transient → call factory → return new instance
+         ├── graph     → check graph cache → hit: return │ miss: factory + cache
+         └── custom    → check named cache → hit: return │ miss: factory + cache
 ```
 
 ### Scope-Specific Behavior
