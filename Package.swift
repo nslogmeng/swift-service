@@ -7,11 +7,11 @@ let package = Package(
     name: "swift-service",
     defaultLocalization: "en",
     platforms: [
-        .iOS(.v18),
-        .macOS(.v15),
-        .watchOS(.v11),
-        .tvOS(.v18),
-        .visionOS(.v2),
+        .iOS(.v16),
+        .macOS(.v13),
+        .watchOS(.v9),
+        .tvOS(.v16),
+        .visionOS(.v1),
     ],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
