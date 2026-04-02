@@ -4,7 +4,7 @@ This file provides guidance to AI coding assistants when working with code in th
 
 ## Project Overview
 
-Swift dependency injection framework with zero external dependencies. Supports Swift 6.2+ with strict concurrency model. Multi-platform: iOS 18+, macOS 15+, watchOS 11+, tvOS 18+, visionOS 2+.
+Swift dependency injection framework with zero external dependencies. Supports Swift 6.2+ with strict concurrency model. Multi-platform: iOS 16+, macOS 13+, watchOS 9+, tvOS 16+, visionOS 1+, Linux, Wasm, Android.
 
 ## Commands
 
@@ -39,7 +39,7 @@ python3 -m http.server 8000 --directory .build/docs
 - `@MainProvider<S>` — Uncached, MainActor-isolated, resolves on every access
 
 **Utility Types** (`Utils/`)
-- `Locked<Value: Sendable>` (`Lock.swift`) — Mutex-based thread-safe wrapper using `Synchronization.Mutex`
+- `Locked<Value: Sendable>` (`Lock.swift`) — Thread-safe wrapper using platform-specific locking via `LockStorage` (`LockStorage.swift`)
 - `Box<Value>` (`Box.swift`) — Reference-type wrapper for interior mutability, `@unchecked Sendable`. Thread safety is **not** provided by Box itself; callers must guarantee safety via external synchronization
 
 **Service Environment** (`ServiceEnv.swift`)
@@ -67,8 +67,11 @@ python3 -m http.server 8000 --directory .build/docs
 
 The framework uses two isolation models. Every `@unchecked Sendable` internal type relies on exactly one:
 
-**Mutex isolation** (for Sendable services and shared state):
-- `Locked<Value>` / `@Locked` — wraps `Synchronization.Mutex`, the primary synchronization primitive
+**Lock isolation** (for Sendable services and shared state):
+- `Locked<Value>` / `@Locked` — wraps `LockStorage`, a platform-specific lock abstraction:
+  - Apple: `OSAllocatedUnfairLock` (iOS 16+ / macOS 13+)
+  - Linux / Android: `Synchronization.Mutex`
+  - Wasm: no-op (single-threaded)
 - `@Service` uses `Locked<S?>` — check-and-set is fully atomic within `withLock`
 - `ServiceStorage` — all state (`caches`, `providers`, `mainProviders`) is `@Locked`
 - `GraphCacheBox` — cache dictionary is `@Locked`
