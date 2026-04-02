@@ -22,7 +22,7 @@ A lightweight dependency injection framework built for Swift 6 concurrency — w
 
 - **Concurrency-First Design** — Swift concurrency is a first-class citizen. Sendable and MainActor constraints are part of the API, enforced by the compiler at every call site — not hidden behind `@unchecked Sendable`.
 - **Native MainActor Support** — Dedicated `registerMain()` / `@MainService` / `@MainProvider` for MainActor-isolated types. Aligned with Swift 6.2 Approachable Concurrency.
-- **Zero Dependencies** — Built entirely on Swift standard library primitives (`Synchronization.Mutex`, `@TaskLocal`).
+- **Zero Dependencies** — Built entirely on Swift standard library primitives. Cross-platform locking and `@TaskLocal` for environment isolation.
 - **TaskLocal Environment Isolation** — Per-task environment switching for parallel-safe testing. No global state mutation needed.
 - **Flexible Scopes** — Singleton, transient, graph, and custom named scopes for fine-grained lifecycle control.
 - **Familiar Patterns** — register/resolve API inspired by Swinject. Property wrapper injection with modular Assembly support.

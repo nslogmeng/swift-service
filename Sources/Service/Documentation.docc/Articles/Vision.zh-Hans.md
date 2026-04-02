@@ -35,7 +35,7 @@ Service 提供两条并行的依赖注入路径：
 
 DI 框架位于依赖图的最底层。你的应用中几乎每个模块都直接或间接依赖它。如果 DI 库本身引入了外部包，这些包就会成为整个项目的传递依赖——带来版本冲突、编译时间增加和升级时的连锁反应。
 
-Service 只依赖 Swift 标准库。线程安全来自 `Synchronization.Mutex`，环境隔离来自 `@TaskLocal`，都是 Swift 的内建能力。
+Service 只依赖 Swift 标准库。线程安全来自跨平台锁机制（Linux 上使用 `Synchronization.Mutex`，Apple 上使用 `OSAllocatedUnfairLock`），环境隔离来自 `@TaskLocal`，都是 Swift 的内建能力。
 
 ### 熟悉的心智模型
 

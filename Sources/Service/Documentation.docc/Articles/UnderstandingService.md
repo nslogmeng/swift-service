@@ -222,7 +222,7 @@ env.resetScope(.custom("user-session"))  // Clear only this scope
 
 ### Thread Safety
 
-Service uses Swift's `Synchronization.Mutex` for thread-safe access:
+Service uses platform-specific locking for thread-safe access (`Synchronization.Mutex` on Linux/Android, `OSAllocatedUnfairLock` on Apple, no-op on Wasm):
 
 ```swift
 @Locked private var caches: [CacheKey: CacheBox]

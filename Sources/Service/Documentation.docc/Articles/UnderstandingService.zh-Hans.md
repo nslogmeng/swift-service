@@ -222,7 +222,7 @@ env.resetScope(.custom("user-session"))  // 仅清除此作用域
 
 ### 线程安全
 
-Service 使用 Swift 的 `Synchronization.Mutex` 实现线程安全访问：
+Service 使用跨平台锁机制实现线程安全访问（Linux/Android 上使用 `Synchronization.Mutex`，Apple 上使用 `OSAllocatedUnfairLock`，Wasm 上为无锁）：
 
 ```swift
 @Locked private var caches: [CacheKey: CacheBox]
