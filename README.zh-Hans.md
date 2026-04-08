@@ -87,6 +87,30 @@ await ServiceEnv.$current.withValue(.test) {
 }
 ```
 
+## 文档
+
+浏览完整的[文档站点](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)，获取使用指南、教程和 API 参考。
+
+**入门指南**
+
+- [快速开始](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/gettingstarted) — 几分钟内上手 Service
+- [基本用法](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/basicusage) — 注册、解析和注入服务
+- [从 Swinject 迁移](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/migratingfromswinject) — 逐步迁移指南
+
+**架构与设计**
+
+- [深入理解 Service](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/understandingservice) — 架构设计与实现细节
+- [并发模型](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/concurrencymodel) — Sendable 与 MainActor 的线程安全设计
+- [MainActor 服务](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/mainactorservices) — MainActor 隔离类型的专属支持
+- [设计愿景](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/vision) — 设计哲学与发展方向
+
+**进阶主题**
+
+- [服务环境](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/serviceenvironments) — 基于 TaskLocal 的环境隔离
+- [服务组装](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/serviceassembly) — 使用 Assembly 模式模块化注册
+- [循环依赖](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/circulardependencies) — 自动检测与解决方案
+- [错误处理](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/errorhandling) — 诊断与错误恢复
+
 ## 安装
 
 在 `Package.swift` 中添加：
@@ -104,10 +128,6 @@ targets: [
     )
 ]
 ```
-
-## 文档
-
-完整的使用指南、教程和 API 参考，请查阅 [Service 文档](https://nslogmeng.github.io/swift-service/zh-Hans/documentation/service/?utm_source=github&utm_medium=referral&utm_campaign=service-github&utm_content=readme-docs)。
 
 ## 服务作用域
 
