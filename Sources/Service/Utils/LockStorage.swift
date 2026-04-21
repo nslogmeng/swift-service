@@ -47,13 +47,22 @@ import Synchronization
 
 /// Linux / Android: Synchronization.Mutex from Swift stdlib.
 /// No OS version restriction on non-Apple platforms.
+///
+/// The lock is instantiated as `Mutex<Void>` rather than `Mutex<Value>`.
+/// Swift 6.0.3 on Linux crashes `swift-frontend` with a signal 11 in
+/// `emitArchetypeTypeMetadataRef` when generating IR for a generic
+/// `final class` whose stored property is `Mutex<Value>` where `Value`
+/// is a generic archetype. Storing the value outside the mutex (gated by
+/// `nonisolated(unsafe)`) sidesteps the archetype-metadata path entirely
+/// and still gives us mutex-backed serialization.
 final class LockStorage<Value: Sendable>: @unchecked Sendable {
-    private let mutex: Mutex<Value>
+    private let mutex = Mutex<Void>(())
+    nonisolated(unsafe) private var _value: Value
 
-    init(_ value: Value) { mutex = Mutex(value) }
+    init(_ value: Value) { _value = value }
 
     func withLock<R>(_ body: (inout sending Value) throws -> sending R) rethrows -> R {
-        try mutex.withLock(body)
+        try mutex.withLock { _ in try body(&_value) }
     }
 }
 #endif
