@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Changelog tracks minor version releases only. Patch releases are folded into their parent minor version.
 
+## [Unreleased]
+
+Swift 6.0 back deploy via dual package manifest.
+
+### Features
+
+- **Swift 6.0 Toolchain Support** — Added `Package@swift-6.0.swift` companion manifest so the package builds on Swift 6.0 toolchains (Xcode 16). The primary `Package.swift` keeps Swift 6.2 strict memory safety and `NonisolatedNonsendingByDefault`; the 6.0 manifest drops settings that are 6.2-only while preserving `ExistentialAny` and `InternalImportsByDefault`.
+- **CI Matrix** — `build.yml` and `test.yml` now cover Swift 6.0 and 6.2 across macOS and Ubuntu.
+
+### Improvements
+
+- Gated the `unsafe` expression markers in `LockStorage` behind `#if compiler(>=6.2)` so the source compiles on both toolchains. Runtime semantics are unchanged: the markers only exist to silence strict-memory-safety diagnostics.
+
+---
+
 ## [1.3.0]
 
 Cross-platform support and lowered minimum platform versions.
@@ -85,6 +100,7 @@ First release. Complete rewrite with Swift 6.2 strict concurrency support.
 
 ---
 
+[Unreleased]: https://github.com/nslogmeng/swift-service/compare/1.3.0...HEAD
 [1.3.0]: https://github.com/nslogmeng/swift-service/compare/1.2.0...1.3.0
 [1.2.0]: https://github.com/nslogmeng/swift-service/compare/1.1.0...1.2.0
 [1.1.0]: https://github.com/nslogmeng/swift-service/compare/1.0.0...1.1.0

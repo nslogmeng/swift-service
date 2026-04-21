@@ -115,6 +115,8 @@ await ServiceEnv.$current.withValue(.test) {
 
 ## 安装
 
+**环境要求：** Swift 6.0+（Xcode 16+）。在 Swift 6.2 工具链下通过独立 manifest 自动启用 strict memory safety 与 `nonisolated(nonsending)` 默认语义。
+
 在 `Package.swift` 中添加：
 
 ```swift

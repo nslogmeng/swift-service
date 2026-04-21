@@ -115,6 +115,8 @@ Explore the full [Documentation Site](https://nslogmeng.github.io/swift-service/
 
 ## Installation
 
+**Requirements:** Swift 6.0+ (Xcode 16+). Built with Swift 6.2 when the toolchain supports it — strict memory safety and `nonisolated(nonsending)` default are enabled automatically on 6.2 via a companion manifest.
+
 Add to your `Package.swift`:
 
 ```swift
