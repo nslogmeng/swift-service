@@ -12,18 +12,12 @@ final class LockStorage<Value: Sendable>: @unchecked Sendable {
     private let _lock = OSAllocatedUnfairLock()
     nonisolated(unsafe) private var _value: Value
 
-    // `unsafe` expression markers are only available on Swift 6.2+.
-    // They silence strict-memory-safety diagnostics; the runtime semantics
-    // are identical on 6.0, where the markers are neither required nor accepted.
-    #if compiler(>=6.2)
-    init(_ value: Value) { unsafe _value = value }
-
-    func withLock<R>(_ body: (inout sending Value) throws -> sending R) rethrows -> R {
-        _lock.lock()
-        defer { _lock.unlock() }
-        return try unsafe body(&_value)
-    }
-    #else
+    // The `unsafe` expression marker required by SE-0458 on reads/writes
+    // of `_value` is intentionally omitted so the source parses on Swift 6.0
+    // toolchains — Linux 6.0.3 does not fully skip-parse `#if compiler(>=6.2)`
+    // branches that contain the `unsafe` keyword. Strict-memory-safety on 6.2
+    // surfaces these two accesses as warnings; the `nonisolated(unsafe)`
+    // annotation still declares the intent and runtime semantics are unchanged.
     init(_ value: Value) { _value = value }
 
     func withLock<R>(_ body: (inout sending Value) throws -> sending R) rethrows -> R {
@@ -31,7 +25,6 @@ final class LockStorage<Value: Sendable>: @unchecked Sendable {
         defer { _lock.unlock() }
         return try body(&_value)
     }
-    #endif
 }
 
 #elseif canImport(WASILibc)

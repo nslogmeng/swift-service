@@ -42,7 +42,11 @@ let package = Package(
         ),
         .testTarget(
             name: "ServiceTests",
-            dependencies: ["Service"]
+            dependencies: ["Service"],
+            // `FatalErrorTests` uses Swift Testing's `#expect(processExitsWith:)`
+            // exit-test API, which is only available on Swift 6.2+. Exclude the
+            // file when the package is built with the Swift 6.0 toolchain.
+            exclude: ["FatalErrorTests.swift"]
         ),
     ],
     swiftLanguageModes: [.v6]

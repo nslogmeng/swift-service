@@ -18,7 +18,8 @@ Swift 6.0 back deploy via dual package manifest.
 
 ### Improvements
 
-- Gated the `unsafe` expression markers in `LockStorage` behind `#if compiler(>=6.2)` so the source compiles on both toolchains. Runtime semantics are unchanged: the markers only exist to silence strict-memory-safety diagnostics.
+- Dropped the `unsafe` expression markers on `_value` reads/writes in `LockStorage`. Swift 6.0.3 on Linux does not fully skip-parse `#if compiler(>=6.2)` branches that contain the `unsafe` keyword, so version gating the markers was not a viable workaround. Under strict memory safety on 6.2 the accesses now emit warnings instead of being silenced; the `nonisolated(unsafe)` property annotation still declares the intent and runtime semantics are unchanged.
+- `Package@swift-6.0.swift` excludes `FatalErrorTests.swift` from the test target. The test relies on Swift Testing's `#expect(processExitsWith:)` exit-test API, which is only available on Swift 6.2+; excluding the file at the manifest level avoids any reliance on `#if compiler(...)` skip-parse in Linux 6.0.
 
 ---
 
