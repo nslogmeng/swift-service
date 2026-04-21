@@ -265,19 +265,23 @@ struct ServiceEnvTests {
             #expect(configs[ServiceEnv(name: "dev")] == "development")
         }
 
-        @Test func allowsEnvironmentComparisonInAssembly() async throws {
-            try await ServiceEnv.$current.withValue(.test) { @MainActor in
-                await MainActor.run {
-                    ServiceEnv.current.assemble(EnvironmentAwareAssembly())
-                }
+        @Test @MainActor func allowsEnvironmentComparisonInAssembly() throws {
+            // Pin the entire test to `MainActor` and drive `withValue` synchronously.
+            // On Swift 6.0.3 Linux, combining `withValue` with `await MainActor.run`
+            // observably fails to propagate the TaskLocal into the MainActor body —
+            // the assembly registers on `.online` (the default) instead of the scoped
+            // env, and the follow-up resolve then throws `notRegistered`. Staying on
+            // the main actor for the whole test keeps the TaskLocal scope and the
+            // assembly call in the same synchronous frame, which behaves consistently
+            // across all supported toolchains.
+            try ServiceEnv.$current.withValue(.test) {
+                ServiceEnv.current.assemble(EnvironmentAwareAssembly())
                 let value = try ServiceEnv.current.resolve(String.self)
                 #expect(value == "mock-value")
             }
 
-            try await ServiceEnv.$current.withValue(.online) { @MainActor in
-                await MainActor.run {
-                    ServiceEnv.current.assemble(EnvironmentAwareAssembly())
-                }
+            try ServiceEnv.$current.withValue(.online) {
+                ServiceEnv.current.assemble(EnvironmentAwareAssembly())
                 let value = try ServiceEnv.current.resolve(String.self)
                 #expect(value == "real-value")
             }
