@@ -18,6 +18,8 @@
 
 A lightweight dependency injection framework built for Swift 6 concurrency — with explicit Sendable and MainActor APIs, zero external dependencies, and TaskLocal-based environment isolation.
 
+**Concurrency constraints belong in the API — not hidden behind `@unchecked Sendable`.**
+
 ## Core Features
 
 - **Concurrency-First Design** — Swift concurrency is a first-class citizen. Sendable and MainActor constraints are part of the API, enforced by the compiler at every call site — not hidden behind `@unchecked Sendable`.
@@ -74,7 +76,7 @@ let user = repository.fetchUser(id: "123")
 // database is automatically injected, no manual passing needed!
 ```
 
-### Test Environment Switching
+### 4. Test Environment Switching
 
 ```swift
 await ServiceEnv.$current.withValue(.test) {
@@ -148,7 +150,7 @@ env.register(SessionService.self, scope: .custom("user-session")) { SessionServi
 env.resetScope(.custom("user-session"))  // Clear only this scope
 ```
 
-### Property Wrappers
+## Property Wrappers
 
 Service provides four property wrappers in a 2x2 matrix:
 

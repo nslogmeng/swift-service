@@ -18,6 +18,8 @@
 
 一个为 Swift 6 并发模型而生的轻量级依赖注入框架——提供显式的 Sendable 和 MainActor API、零外部依赖、基于 TaskLocal 的环境隔离。
 
+**并发约束是 API 的一部分——而非隐藏在 `@unchecked Sendable` 背后。**
+
 ## 核心特性
 
 - **并发优先设计** — Swift 并发是一等公民。Sendable 和 MainActor 约束直接体现在 API 中，由编译器在每个调用点强制执行——无需 `@unchecked Sendable` 妥协。
@@ -74,7 +76,7 @@ let user = repository.fetchUser(id: "123")
 // database 已自动注入，无需手动传递！
 ```
 
-### 测试环境切换
+### 4. 测试环境切换
 
 ```swift
 await ServiceEnv.$current.withValue(.test) {
@@ -148,7 +150,7 @@ env.register(SessionService.self, scope: .custom("user-session")) { SessionServi
 env.resetScope(.custom("user-session"))  // 仅清除该作用域
 ```
 
-### 属性包装器
+## 属性包装器
 
 Service 提供四个属性包装器，构成 2x2 矩阵：
 
