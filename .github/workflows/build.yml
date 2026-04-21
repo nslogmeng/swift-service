@@ -13,9 +13,10 @@ jobs:
   build:
     name: Swift ${{ matrix.swift }} on ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [macos-latest, ubuntu-latest]
-        swift: ["6.2"]
+        swift: ["6.0", "6.2"]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: swift-actions/setup-swift@v3
