@@ -293,6 +293,81 @@ await MainActor.run {
 
 4. **在 SwiftUI 应用中**：在 SwiftUI 的 `App` 初始化器和视图中，通常已经在主 actor 上，因此可以直接调用 `registerMain` 和 `resolveMain`，无需 `await MainActor.run`。
 
+## 默认 MainActor 隔离的模块
+
+启用默认 MainActor 隔离的模块（package manifest 中的 `.defaultIsolation(MainActor.self)`，或 Xcode 的 Default Actor Isolation 构建设置），会把所有未显式标注隔离的声明视为 `@MainActor`。新建的 Xcode app target 默认启用该设置。
+
+### MainActor 服务
+
+在这类模块中，`registerMain`、`resolveMain`、`@MainService`、`@MainProvider` 和 `ServiceAssembly` 无需任何标注：
+
+```swift
+protocol Store {
+    var name: String { get }
+}
+
+final class MemoryStore: Store {
+    var name = "memory"
+}
+
+struct Screen {
+    @MainService var store: any Store
+}
+
+ServiceEnv.current.registerMain((any Store).self) { MemoryStore() }
+```
+
+### Sendable 服务
+
+用 `register` 注册的服务必须退出默认隔离。把它的协议声明为 `nonisolated` 且继承 `Sendable`。遵循这种协议的类型会被推断为 nonisolated：
+
+```swift
+nonisolated protocol Logger: Sendable {
+    func log(_ message: String)
+}
+
+struct ConsoleLogger: Logger {
+    let prefix: String
+
+    init(prefix: String) {
+        self.prefix = prefix
+    }
+
+    func log(_ message: String) {
+        print("\(prefix): \(message)")
+    }
+}
+
+ServiceEnv.current.register((any Logger).self) { ConsoleLogger(prefix: "app") }
+```
+
+不经协议、直接注册具体类型时，把该类型标注为 `nonisolated`：
+
+```swift
+nonisolated final class Cache: Sendable {
+    let capacity: Int
+
+    init(capacity: Int) {
+        self.capacity = capacity
+    }
+}
+
+ServiceEnv.current.register(Cache.self) { Cache(capacity: 100) }
+```
+
+遵循 `ServiceKey` 的类型无需标注，因为 `ServiceKey` 是 nonisolated 的，并且继承 `Sendable`。
+
+声明为 `protocol Logger: Sendable` 而没有 `nonisolated` 的协议仍然是 `@MainActor` 的。`register` 接受它，但它的成员以及遵循它的类型的初始化器都留在 MainActor 上。
+
+### 常见编译错误
+
+| 代码 | 编译错误 | 修复 |
+|---|---|---|
+| `protocol Logger` 用于 `register` 或 `@Service` | `type 'any Logger' does not conform to the 'Sendable' protocol` | 声明为 `nonisolated protocol Logger: Sendable`，或改用 `registerMain` |
+| 带显式 `init` 的类型在 `register` 的工厂函数中创建 | `call to main actor-isolated initializer ... in a synchronous nonisolated context` | 把该类型标注为 `nonisolated`，或改用 `registerMain` |
+| 在 MainActor 之外调用 `Sendable` 服务的方法 | `main actor-isolated instance method ... cannot be called from outside of the actor` | 把协议或类型标注为 `nonisolated` |
+| 带可变存储属性的 `final class ViewModel: ServiceKey` | `stored property ... of 'Sendable'-conforming class 'ViewModel' is mutable` | 使用带工厂函数的 `registerMain`。`ServiceKey` 用于 Sendable 服务 |
+
 ## 下一步
 
 - 学习 <doc:ServiceAssembly> 了解如何组织服务注册
