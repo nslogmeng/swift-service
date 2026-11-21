@@ -79,15 +79,20 @@ let user = repository.fetchUser(id: "123")
 ### 4. 测试环境切换
 
 ```swift
-await ServiceEnv.$current.withValue(.test) {
-    ServiceEnv.current.register(DatabaseProtocol.self) {
-        MockDatabase()
-    }
+@Test func fetchesUser() {
+    let env = ServiceEnv(name: "test")
+    ServiceEnv.$current.withValue(env) {
+        env.register(DatabaseProtocol.self) {
+            MockDatabase()
+        }
 
-    let repository = UserRepository()
-    // 所有解析都使用测试环境
+        let repository = UserRepository()
+        // 所有解析都使用这个测试的环境
+    }
 }
 ```
+
+每个 `ServiceEnv(name:)` 实例拥有独立的注册表与缓存，因此测试可以并行运行。
 
 ## 文档
 

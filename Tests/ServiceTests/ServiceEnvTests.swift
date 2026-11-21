@@ -230,6 +230,20 @@ struct ServiceEnvTests {
             #expect(ServiceEnv.dev != ServiceEnv.test)
         }
 
+        @Test func sameNameInstanceHasIndependentRegistry() async throws {
+            let env = ServiceEnv(name: "test")
+            #expect(env == ServiceEnv.test)
+
+            try ServiceEnv.$current.withValue(env) {
+                env.register(IsolatedMarker.self) { IsolatedMarker() }
+                _ = try env.resolve(IsolatedMarker.self)
+            }
+
+            #expect(throws: ServiceError.self) {
+                try ServiceEnv.test.resolve(IsolatedMarker.self)
+            }
+        }
+
         @Test func canBeUsedInSet() async throws {
             var environments: Set<ServiceEnv> = []
 
@@ -288,6 +302,8 @@ struct ServiceEnvTests {
 // MARK: - Test Types
 
 extension ServiceEnvTests {
+    struct IsolatedMarker: Sendable {}
+
     struct EnvironmentAwareAssembly: ServiceAssembly {
         func assemble(env: ServiceEnv) {
             if env == .test {

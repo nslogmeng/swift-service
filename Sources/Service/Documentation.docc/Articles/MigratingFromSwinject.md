@@ -273,7 +273,7 @@ For details, see <doc:ConcurrencyModel>.
 
 ## Testing
 
-Swinject tests typically create a new container per test. Service leverages TaskLocal for environment isolation:
+Swinject tests typically create a new container per test. In Service, each test creates a new ``ServiceEnv`` and binds it with TaskLocal:
 
 ```swift
 // Swinject
@@ -295,19 +295,17 @@ class UserServiceTests: XCTestCase {
 }
 
 // Service
-final class UserServiceTests: XCTestCase {
-    func testFetchUser() async throws {
-        let testEnv = ServiceEnv.test
-        testEnv.resetAll()
-
-        await ServiceEnv.$current.withValue(testEnv) {
-            ServiceEnv.current.register(DatabaseProtocol.self) { MockDatabase() }
-            ServiceEnv.current.register(UserServiceProtocol.self) {
+struct UserServiceTests {
+    @Test func fetchesUser() throws {
+        let env = ServiceEnv(name: "test")
+        try ServiceEnv.$current.withValue(env) {
+            env.register(DatabaseProtocol.self) { MockDatabase() }
+            env.register(UserServiceProtocol.self) {
                 let db = try ServiceEnv.current.resolve(DatabaseProtocol.self)
                 return UserService(database: db)
             }
 
-            let service = try ServiceEnv.current.resolve(UserServiceProtocol.self)
+            let service = try env.resolve(UserServiceProtocol.self)
             // ...
         }
     }
@@ -315,9 +313,11 @@ final class UserServiceTests: XCTestCase {
 ```
 
 Benefits of TaskLocal-based testing:
-- Each test function can use its own environment
-- Tests can run in parallel without shared state conflicts
+- Each test function uses its own environment
+- Tests can run in parallel without shared state conflicts, because each `ServiceEnv` instance has its own registry and caches
 - No need for `setUp`/`tearDown` container lifecycle management
+
+Do not register into the predefined environments such as `.test` from tests. They are shared by the whole process.
 
 For details, see <doc:ServiceEnvironments>.
 
@@ -333,7 +333,7 @@ Use this checklist to track your migration progress:
 6. Replace `Assembly` with `ServiceAssembly`, remove `Assembler` usage
 7. Add `@Service` / `@MainService` property wrappers to replace manual resolution at call sites
 8. Use `registerMain` / `@MainService` for MainActor-bound services (view models, UI controllers)
-9. Replace test `setUp` container creation with `ServiceEnv.$current.withValue(.test)`
+9. Replace test `setUp` container creation with a new `ServiceEnv(name: "test")` per test, bound with `ServiceEnv.$current.withValue(_:)`
 10. Remove `container.synchronize()` calls — thread safety is built-in
 11. Remove Swinject from your `Package.swift` or Podfile dependencies
 

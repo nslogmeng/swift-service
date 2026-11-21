@@ -94,23 +94,31 @@ stagingEnv.register(DatabaseProtocol.self) {
 }
 ```
 
+## 环境隔离
+
+- 预定义环境 `.online`、`.dev`、`.test` 是整个进程共享的实例。
+- `withValue(.test)` 只把共享实例绑定到当前 task。在其中调用 `register`、`resetCaches()` 或 `resetAll()` 会修改进程级状态。
+- 每个 `ServiceEnv(name:)` 实例拥有独立的服务注册表与缓存。
+- 相等性与哈希只比较 `name`。`ServiceEnv(name: "test") == .test` 为 `true`，但两者不共享注册与缓存。
+- Swift Testing 默认并行运行测试。每个测试创建自己的 `ServiceEnv` 实例，不向预定义环境注册。
+
 ## 在测试中使用环境
 
-环境在测试中特别有用：
+在每个测试中新建环境：
 
 ```swift
-func testUserCreation() async throws {
-    // 使用测试环境
-    await ServiceEnv.$current.withValue(.test) {
+@Test func createsUser() {
+    let env = ServiceEnv(name: "test")
+    ServiceEnv.$current.withValue(env) {
         // 注册模拟服务
-        ServiceEnv.current.register(DatabaseProtocol.self) {
+        env.register(DatabaseProtocol.self) {
             MockDatabase()
         }
-        
+
         // 测试你的代码
         let userService = UserService()
         let user = userService.createUser(name: "Test")
-        XCTAssertNotNil(user)
+        #expect(user.name == "Test")
     }
 }
 ```
@@ -121,16 +129,20 @@ Service 环境的一个关键优势是能够在切换环境的同时保持相同
 
 ### 在最外层作用域切换环境
 
-在测试中，你可以在最外层作用域切换到 `.test` 环境，并保持相同的 Assembly 结构：
+在测试中，你可以在最外层作用域切换到新建的 `test` 环境，并保持相同的 Assembly 结构：
 
 ```swift
-await ServiceEnv.$current.withValue(.test) {
-    ServiceEnv.current.assemble([
-        AppAssembly()
-        // ... 其他 assemblies
-    ])
+@MainActor
+@Test func runsWithAppAssembly() {
+    let env = ServiceEnv(name: "test")
+    ServiceEnv.$current.withValue(env) {
+        env.assemble([
+            AppAssembly()
+            // ... 其他 assemblies
+        ])
 
-    // 在 .test 环境中运行你的测试逻辑
+        // 在测试环境中运行你的测试逻辑
+    }
 }
 ```
 

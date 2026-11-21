@@ -241,12 +241,15 @@ func goodExample() {
 ### 使用 TaskLocal 进行测试隔离
 
 ```swift
-@Test func testServiceBehavior() async throws {
-    await ServiceEnv.$current.withValue(.test) {
-        // 测试代码使用隔离的测试环境
+@Test func testServiceBehavior() {
+    let env = ServiceEnv(name: "test")
+    ServiceEnv.$current.withValue(env) {
+        // 测试代码使用隔离的环境
     }
 }
 ```
+
+在每个测试中新建 `ServiceEnv`。预定义环境是整个进程共享的实例，详见 <doc:ServiceEnvironments>。
 
 ## 常见模式
 

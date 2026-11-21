@@ -273,7 +273,7 @@ ServiceEnv.current.registerMain(UserViewModel.self) { UserViewModel() }
 
 ## 测试
 
-Swinject 测试通常为每个测试创建新的 Container。Service 利用 TaskLocal 实现环境隔离：
+Swinject 测试通常为每个测试创建新的 Container。在 Service 中，每个测试新建一个 ``ServiceEnv``，并用 TaskLocal 绑定：
 
 ```swift
 // Swinject
@@ -295,19 +295,17 @@ class UserServiceTests: XCTestCase {
 }
 
 // Service
-final class UserServiceTests: XCTestCase {
-    func testFetchUser() async throws {
-        let testEnv = ServiceEnv.test
-        testEnv.resetAll()
-
-        await ServiceEnv.$current.withValue(testEnv) {
-            ServiceEnv.current.register(DatabaseProtocol.self) { MockDatabase() }
-            ServiceEnv.current.register(UserServiceProtocol.self) {
+struct UserServiceTests {
+    @Test func fetchesUser() throws {
+        let env = ServiceEnv(name: "test")
+        try ServiceEnv.$current.withValue(env) {
+            env.register(DatabaseProtocol.self) { MockDatabase() }
+            env.register(UserServiceProtocol.self) {
                 let db = try ServiceEnv.current.resolve(DatabaseProtocol.self)
                 return UserService(database: db)
             }
 
-            let service = try ServiceEnv.current.resolve(UserServiceProtocol.self)
+            let service = try env.resolve(UserServiceProtocol.self)
             // ...
         }
     }
@@ -315,9 +313,11 @@ final class UserServiceTests: XCTestCase {
 ```
 
 基于 TaskLocal 的测试优势：
-- 每个测试函数可以使用独立的环境
-- 测试可以并行运行，无共享状态冲突
+- 每个测试函数使用独立的环境
+- 测试可以并行运行，无共享状态冲突，因为每个 `ServiceEnv` 实例拥有独立的注册表与缓存
 - 无需 `setUp`/`tearDown` 管理容器生命周期
+
+不要在测试中向 `.test` 等预定义环境注册。它们是整个进程共享的实例。
 
 详情请参阅 <doc:ServiceEnvironments>。
 
@@ -333,7 +333,7 @@ final class UserServiceTests: XCTestCase {
 6. 将 `Assembly` 替换为 `ServiceAssembly`，移除 `Assembler` 的使用
 7. 添加 `@Service` / `@MainService` 属性包装器替代调用处的手动解析
 8. 对 MainActor 绑定的服务（ViewModel、UI 控制器）使用 `registerMain` / `@MainService`
-9. 将测试中 `setUp` 的 Container 创建替换为 `ServiceEnv.$current.withValue(.test)`
+9. 将测试中 `setUp` 的 Container 创建替换为每个测试新建的 `ServiceEnv(name: "test")`，并用 `ServiceEnv.$current.withValue(_:)` 绑定
 10. 移除 `container.synchronize()` 调用 —— 线程安全是内置的
 11. 从 `Package.swift` 或 Podfile 中移除 Swinject 依赖
 
