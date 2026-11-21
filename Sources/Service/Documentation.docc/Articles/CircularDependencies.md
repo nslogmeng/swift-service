@@ -64,6 +64,14 @@ Current chain: ServiceA -> ServiceB -> ... -> ServiceN
 This may indicate a circular dependency or overly deep dependency graph.
 ```
 
+## Cycles Resolved from Multiple Threads
+
+Detection follows a single resolution chain. Resolving a cycle from one thread always throws ``ServiceError/circularDependency(serviceType:chain:)``.
+
+For singleton and custom-scoped services, a thread that is creating a service makes other threads wait for that service. If two threads resolve the same cycle for the first time at the same moment, each starting from a different service in the cycle, each thread can hold one service while it waits for the other. This is a deadlock, and no error is thrown.
+
+Remove the cycle from your registrations instead of relying on the runtime error. See <doc:ConcurrencyModel>.
+
 ## Breaking Circular Dependencies
 
 Here are common strategies to break circular dependencies:

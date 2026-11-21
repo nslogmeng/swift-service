@@ -159,12 +159,12 @@ Service scopes interact with concurrency in important ways:
 
 ### Singleton and Custom Scopes
 
-Singleton and custom-scoped services use double-check locking to ensure that only one instance is created even under concurrent resolution:
+For singleton and custom-scoped services, the factory runs at most once per cached instance. When several threads resolve the same service for the first time, one thread runs the factory. The other threads wait for it and receive the same instance. Resolving a different service is not blocked.
 
 ```swift
 env.register(DatabaseService.self, scope: .singleton) { DatabaseService() }
 
-// Safe: concurrent resolves return the same instance
+// Safe: the factory runs once, and concurrent resolves return the same instance
 await withTaskGroup(of: DatabaseService.self) { group in
     for _ in 0..<10 {
         group.addTask {
@@ -173,6 +173,17 @@ await withTaskGroup(of: DatabaseService.self) { group in
     }
 }
 ```
+
+The semantics match `swift_once` and the lazy initialization of global variables:
+
+- **A failed factory is retried.** If the factory throws, nothing is cached. The next resolution runs the factory again.
+- **A reset does not wait for a running factory.** If `resetCaches()`, `resetScope(_:)`, or `resetAll()` is called while a factory is running, that resolution and the resolutions already waiting for it still return the instance it creates. The instance is not cached, and later resolutions create a new one.
+
+The same limitations apply:
+
+- **A factory must not block on another thread that resolves the same service.** The other thread waits for the factory to finish, so neither thread can continue. For example, the factory of a service that the main thread also resolves must not call `DispatchQueue.main.sync`.
+- **A factory must not run another task on its own thread that resolves the same service.** Cycle detection follows one task. It does not cover a different task that runs on the same thread before the factory returns, for example a main-actor task that a nested run loop inside the factory executes. That resolution re-enters creation on the same thread, and the process crashes.
+- **A dependency cycle that two threads enter at different services can deadlock.** Resolving a cycle from one thread always throws ``ServiceError/circularDependency(serviceType:chain:)``. If two threads resolve the same cycle for the first time at the same moment, each starting from a different service, each thread can hold one service while it waits for the other. See <doc:CircularDependencies>.
 
 ### Graph Scope
 
@@ -290,6 +301,7 @@ Service provides these thread-safety guarantees:
 
 - **Registration**: Thread-safe through internal locking
 - **Resolution**: Thread-safe through internal locking
+- **Singleton and custom-scope creation**: The factory runs at most once per cached instance; concurrent resolvers of the same service wait
 - **Environment switching**: Thread-safe through `TaskLocal` storage
 - **Cache management**: Thread-safe through internal locking
 
