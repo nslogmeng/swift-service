@@ -41,6 +41,16 @@ let package = Package(
                 .enableUpcomingFeature("NonisolatedNonsendingByDefault")
             ]
         ),
+        // Built with the concurrency settings of a new Xcode app target.
+        .testTarget(
+            name: "DefaultMainActorIsolationTests",
+            dependencies: ["Service"],
+            swiftSettings: [
+                .defaultIsolation(MainActor.self),
+                .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
+                .enableUpcomingFeature("InferIsolatedConformances"),
+            ]
+        ),
     ],
     swiftLanguageModes: [.v6]
 )
