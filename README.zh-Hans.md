@@ -41,7 +41,7 @@ ServiceEnv.current.register(DatabaseProtocol.self) {
     DatabaseService(connectionString: "sqlite://app.db")
 }
 
-// MainActor 服务——用于 UI 组件，无需 @unchecked Sendable
+// MainActor 服务——在 MainActor 上创建和解析
 ServiceEnv.current.registerMain(UserViewModel.self) {
     UserViewModel()
 }

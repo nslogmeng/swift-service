@@ -78,10 +78,10 @@ extension ServiceEnv {
     /// }
     /// ```
     ///
-    /// **Background**: In Swift 6's strict concurrency model, `@MainActor` classes are
-    /// thread-safe (all access is serialized on the main thread) but are NOT automatically
-    /// `Sendable`. This method provides a way to register and resolve such services without
-    /// requiring `Sendable` conformance.
+    /// **Background**: The factory passed to `register` is nonisolated, so it cannot call a
+    /// main-actor-isolated initializer, and `register` requires a `Sendable` service type.
+    /// This method takes a `@MainActor` factory and does not require `Sendable` conformance.
+    /// The instance is created, cached, and resolved on the main actor.
     ///
     /// - Parameters:
     ///   - type: The service type to register.
