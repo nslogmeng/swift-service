@@ -7,6 +7,9 @@
 /// to ensure safe concurrent access. Service instances are created and cached on first resolution,
 /// and subsequent resolutions return the same instance (singleton behavior).
 ///
+/// For singleton and custom scopes, the factory runs at most once per cached instance.
+/// Concurrent first resolutions of the same cache key wait for the one that runs the factory.
+///
 /// The storage supports two categories of services:
 /// - **Sendable services**: Thread-safe services that can be shared across concurrent contexts.
 /// - **MainActor services**: Services isolated to the main actor, typically UI-related components
@@ -54,11 +57,21 @@ final class ServiceStorage: @unchecked Sendable {
 
     // MARK: - Unified Cache Storage
 
+    /// The cache slot for one `CacheKey`.
+    ///
+    /// The slot holds `nil` until a factory succeeds, then holds the write-once `Box` of the instance.
+    /// The slot's lock is held while the factory runs, which serializes creation for that key only.
+    /// The lock is not recursive: a thread must never lock a slot whose factory it is running.
+    private typealias CacheSlot = Locked<Box<Any>?>
+
     /// Thread-safe cache storage for all service instances (both Sendable and MainActor).
     /// Uses composite `CacheKey` (type + scope) so singleton and custom-scoped instances
     /// coexist in a single dictionary. Transient and graph scopes bypass this cache entirely.
+    ///
+    /// Lock order: the dictionary lock is held only to look up, insert, or remove slots.
+    /// While it is held, no slot lock is acquired and no factory runs.
     @Locked
-    private var caches: [CacheKey: Box<Any>]
+    private var caches: [CacheKey: CacheSlot]
 
     // MARK: - Provider Storage
 
@@ -85,6 +98,10 @@ final class ServiceStorage: @unchecked Sendable {
     ///   - factory: A closure that creates a new service instance.
     /// - Returns: The resolved service instance, or nil if the factory returns nil.
     /// - Throws: Rethrows any error from the factory closure.
+    /// - Important: For singleton and custom scopes, the calling thread must not already be running
+    ///   the factory for `key`, because the slot lock is not recursive. Within one task,
+    ///   `ServiceContext.withResolutionTracking` rejects such re-entrant resolution with
+    ///   `circularDependency` before the storage is reached.
     private func resolveWithScope<Service>(
         key: CacheKey,
         scope: ServiceScope,
@@ -94,27 +111,24 @@ final class ServiceStorage: @unchecked Sendable {
         case .singleton, .custom:
             // Singleton and custom scopes share the same caching logic.
             // The composite CacheKey (type + scope) ensures isolation between scopes.
+            let slot = cacheSlot(for: key)
 
-            // First, try to get from cache (fast path)
-            if let box = caches[key], let service = box.value as? Service {
-                return service
-            }
-
-            // Create service instance (factory may be slow, so we do it outside the lock)
-            guard let newService = try factory() else {
-                return nil
-            }
-
-            // Use withLock to ensure atomic check-and-set operation (double-check pattern)
-            let box = $caches.withLock { (caches: inout sending [CacheKey: Box<Any>]) -> sending Box<Any> in
-                if let existing = caches[key] {
-                    return existing
+            // The slot lock is held while the factory runs, so concurrent first resolutions of this key
+            // wait here and then read the cached box. If the factory throws or returns nil, the slot
+            // stays empty and the next resolution runs the factory again.
+            // The box is cast outside the lock because `Service` is not required to be Sendable.
+            let box = try slot.withLock { (cached: inout sending Box<Any>?) throws -> sending Box<Any>? in
+                if let cached {
+                    return cached
+                }
+                guard let newService = try factory() else {
+                    return nil
                 }
                 let newBox = Box<Any>(newService)
-                caches[key] = newBox
+                cached = newBox
                 return newBox
             }
-            return box.value as? Service
+            return box?.value as? Service
 
         case .transient:
             return try factory()
@@ -125,6 +139,21 @@ final class ServiceStorage: @unchecked Sendable {
             }
             // Fallback: no graph context (e.g., direct storage access), behave like transient
             return try factory()
+        }
+    }
+
+    /// Returns the cache slot for a key, inserting an empty slot if none exists.
+    ///
+    /// Only the dictionary lock is taken, and it is released before this method returns.
+    /// A slot that a reset removes from the dictionary stays usable by resolutions that already hold it.
+    private func cacheSlot(for key: CacheKey) -> CacheSlot {
+        $caches.withLock { (caches: inout sending [CacheKey: CacheSlot]) -> sending CacheSlot in
+            if let existing = caches[key] {
+                return existing
+            }
+            let newSlot = CacheSlot()
+            caches[key] = newSlot
+            return newSlot
         }
     }
 
@@ -226,6 +255,11 @@ final class ServiceStorage: @unchecked Sendable {
     }
 
     // MARK: - Reset
+
+    // Reset methods take only the dictionary lock, so they never wait for a running factory.
+    // A resolution whose factory is running during a reset, and the resolutions waiting on its slot,
+    // return the instance it creates. That instance stays out of the cache, and later resolutions
+    // create a new one.
 
     /// Clears all cached service instances (both Sendable and MainActor services),
     /// including all custom-scoped caches.
