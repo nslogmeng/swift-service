@@ -156,7 +156,7 @@ Property wrappers use `fatalError` for missing non-optional services:
 
 ```swift
 @propertyWrapper
-public struct Service<S: Sendable>: @unchecked Sendable {
+public struct Service<S: Sendable>: Sendable {
     private let storage: Locked<S?>
     private let env: ServiceEnv
 

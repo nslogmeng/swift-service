@@ -33,7 +33,7 @@
 /// }
 /// ```
 @propertyWrapper
-public struct Service<S: Sendable>: @unchecked Sendable {
+public struct Service<S: Sendable>: Sendable {
     /// Thread-safe storage for the resolved service instance.
     private let storage: Locked<S?>
 
