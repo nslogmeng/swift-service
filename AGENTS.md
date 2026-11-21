@@ -15,6 +15,9 @@ swift build
 # Run all tests
 swift test
 
+# Run benchmarks (separate package, see Benchmarks/README.md)
+swift run -c release --package-path Benchmarks ServiceBenchmarks
+
 # Format code (uses .swift-format config)
 swift format format --in-place --recursive ./
 
@@ -122,6 +125,7 @@ All public documentation must provide multi-language versions. Currently support
 - **README**: `README.md` (English), `README.zh-Hans.md` (Chinese)
 - **DocC Articles**: Each article in `Documentation.docc/Articles/` has both `.md` (English) and `.zh-Hans.md` versions
 - **Scripts README**: `scripts/README.md` and `scripts/README.zh-Hans.md`
+- **Benchmarks README**: `Benchmarks/README.md` and `Benchmarks/README.zh-Hans.md`
 
 When adding or modifying documentation, ensure all language versions are updated.
 
