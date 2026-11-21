@@ -225,12 +225,25 @@ env.resetScope(.custom("user-session"))  // Clear only this scope
 Service uses platform-specific locking for thread-safe access (`Synchronization.Mutex` on Linux/Android, `OSAllocatedUnfairLock` on Apple, no-op on Wasm):
 
 ```swift
-@Locked private var caches: [CacheKey: CacheBox]
+@Locked private var caches: [CacheKey: Locked<Box<Any>?>]
 @Locked private var providers: [CacheKey: ProviderEntry]
 @Locked private var mainProviders: [CacheKey: MainProviderEntry]
 ```
 
 The `@Locked` property wrapper ensures atomic read/write operations. The `CacheKey` is a composite of the service type (`ObjectIdentifier`) and its scope, ensuring that services registered under different scopes have isolated caches.
+
+### Once-per-Key Creation
+
+Each entry in `caches` is a slot with its own lock. A singleton or custom-scoped resolution takes two steps:
+
+1. Take the dictionary lock, get the slot for the key (insert an empty slot if there is none), and release the dictionary lock.
+2. Take the slot lock. If the slot holds an instance, return it. Otherwise, run the factory and store the result in the slot.
+
+The slot lock is held while the factory runs. As a result, the factory runs at most once per cached instance, and concurrent first resolvers of the same key wait for it. The dictionary lock is never held while a factory runs, so a slow factory blocks only the resolvers of its own key.
+
+Reset methods remove slots from the dictionary and do not take slot locks. A resolution that already holds a removed slot finishes with that slot. Later resolutions get a new slot.
+
+For the guarantees and limitations that follow from this design, see <doc:ConcurrencyModel>.
 
 ### Circular Dependency Detection and Graph Caching
 
@@ -283,8 +296,8 @@ ServiceEnv.current.register(MyService.self)  // Uses default
 | Operation | Complexity | Notes |
 |-----------|------------|-------|
 | Registration | O(1) | Dictionary insertion |
-| First resolution (singleton/custom) | O(1) + factory | Plus cycle detection, double-check caching |
-| Cached resolution (singleton/custom) | O(1) | Dictionary lookup by composite key |
+| First resolution (singleton/custom) | O(1) + factory | Plus cycle detection; the factory runs under the key's slot lock |
+| Cached resolution (singleton/custom) | O(1) | Dictionary lookup by composite key, then slot read (two uncontended locks) |
 | Transient resolution | O(1) + factory | No caching overhead |
 | Graph resolution | O(1) + factory | Lookup in task-local graph cache |
 | Environment switch | O(1) | TaskLocal binding |

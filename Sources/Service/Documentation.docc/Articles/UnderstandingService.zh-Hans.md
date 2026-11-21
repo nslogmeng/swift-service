@@ -225,12 +225,25 @@ env.resetScope(.custom("user-session"))  // 仅清除此作用域
 Service 使用跨平台锁机制实现线程安全访问（Linux/Android 上使用 `Synchronization.Mutex`，Apple 上使用 `OSAllocatedUnfairLock`，Wasm 上为无锁）：
 
 ```swift
-@Locked private var caches: [CacheKey: CacheBox]
+@Locked private var caches: [CacheKey: Locked<Box<Any>?>]
 @Locked private var providers: [CacheKey: ProviderEntry]
 @Locked private var mainProviders: [CacheKey: MainProviderEntry]
 ```
 
 `@Locked` 属性包装器确保原子读写操作。`CacheKey` 是服务类型（`ObjectIdentifier`）和其作用域的复合键，确保在不同作用域下注册的服务拥有隔离的缓存。
+
+### 按键的一次性创建
+
+`caches` 中的每个条目是一个自带锁的槽位。Singleton 或 custom 作用域的解析分两步：
+
+1. 获取字典锁，取出该键的槽位（没有则插入一个空槽位），然后释放字典锁。
+2. 获取槽位锁。槽位中已有实例时直接返回。否则执行工厂函数，并把结果存入槽位。
+
+工厂函数执行期间持有槽位锁。因此，每个缓存实例的工厂函数至多执行一次，同一个键的并发首次解析方会等待它完成。工厂函数执行期间从不持有字典锁，所以慢的工厂函数只阻塞同一个键的解析方。
+
+重置方法只从字典中移除槽位，不获取槽位锁。已经持有被移除槽位的解析会用该槽位完成。之后的解析拿到新的槽位。
+
+这一设计带来的保证和限制，请参阅 <doc:ConcurrencyModel>。
 
 ### 循环依赖检测和 Graph 缓存
 
@@ -283,8 +296,8 @@ ServiceEnv.current.register(MyService.self)  // 使用默认实现
 | 操作 | 复杂度 | 说明 |
 |------|--------|------|
 | 注册 | O(1) | 字典插入 |
-| 首次解析（singleton/custom） | O(1) + 工厂函数 | 加上循环检测、双重检查缓存 |
-| 缓存解析（singleton/custom） | O(1) | 按复合键查找字典 |
+| 首次解析（singleton/custom） | O(1) + 工厂函数 | 加上循环检测；工厂函数在该键的槽位锁内执行 |
+| 缓存解析（singleton/custom） | O(1) | 按复合键查找字典，再读取槽位（两次无竞争加锁） |
 | Transient 解析 | O(1) + 工厂函数 | 无缓存开销 |
 | Graph 解析 | O(1) + 工厂函数 | 在任务本地 graph 缓存中查找 |
 | 环境切换 | O(1) | TaskLocal 绑定 |

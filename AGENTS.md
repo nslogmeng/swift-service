@@ -49,7 +49,7 @@ python3 -m http.server 8000 --directory .build/docs
 
 **Service Storage** (`ServiceStorage.swift`)
 - Dual storage: Sendable services use mutex-based `@Locked`, MainActor services use actor isolation
-- Implements singleton caching behavior
+- Implements singleton caching behavior: the factory runs at most once per cached instance (see Thread Safety Model)
 
 **Registration & Resolution** (`ServiceEnv+Register.swift`, `ServiceEnv+Resolver.swift`)
 - `register<Service: Sendable>` / `registerMain<S>` for registration
@@ -76,19 +76,28 @@ The framework uses two isolation models. Every `@unchecked Sendable` internal ty
 - `ServiceStorage` — all state (`caches`, `providers`, `mainProviders`) is `@Locked`
 - `GraphCacheBox` — cache dictionary is `@Locked`
 
+**Per-key once in `ServiceStorage`** (singleton and custom scopes):
+- `caches` is `[CacheKey: Locked<Box<Any>?>]`. Each key has one slot with its own lock. A slot holds `nil` until a factory succeeds, then the instance's `Box`
+- Resolution gets or inserts the slot under the dictionary lock, releases that lock, then runs `slot.withLock { return the cached box, or run the factory and store its box }`. The factory runs at most once per cached instance; concurrent first resolvers of the same key block until it finishes. Semantics match `swift_once`
+- Lock order: never acquire a slot lock or run a factory while holding the dictionary lock. Holding a slot lock while taking the dictionary lock is allowed (nested resolution of another key, reset inside a factory)
+- Slot locks are not recursive: re-locking on the same thread crashes the process (`OSAllocatedUnfairLock` aborts, `Mutex` traps on Linux). `ServiceEnv.resolve` / `resolveMain` must call storage inside `ServiceContext.withResolutionTracking`, which throws `circularDependency` for re-entrance within one task before storage is reached. The resolution stack is task-local, so a different task that runs on the same thread before the factory returns (e.g. from a nested run loop inside the factory) is not rejected and hits the slot lock
+- A factory that throws or returns `nil` leaves the slot empty, so the next resolution runs it again
+- `resetCaches()` / `resetScope(_:)` / `resetAll()` take only the dictionary lock and never wait for a running factory. Resolutions that already hold a removed slot (the one running the factory and those waiting on it) return the instance created in that slot; later resolutions insert a new slot
+- Use only `withLock` on slots. It is the one operation shared by all three `LockStorage` implementations
+
 **MainActor isolation** (for non-Sendable UI services):
 - `@MainService` / `@MainProvider` — struct-level `@MainActor`, compiler-enforced serial access
 - `@MainService` uses `Box<S?>` for interior mutability without mutating getter; safe because all access is on MainActor
 
 **`Box<Value>` conventions:**
 - In `@MainService`: mutable storage, protected by `@MainActor`
-- In `ServiceStorage` / `GraphCacheBox`: stored in `@Locked` dictionaries as **write-once** — `Box` is initialized with its final value and `box.value` must **never** be mutated after insertion into the dictionary. This invariant is by convention, not enforced by the type system
+- In `ServiceStorage` cache slots and the `GraphCacheBox` dictionary: stored in `@Locked` state as **write-once** — `Box` is initialized with its final value and `box.value` must **never** be mutated after it is stored. A cache slot is assigned at most once (`nil` → `Box`). This invariant is by convention, not enforced by the type system
 
 **Rules for modifying or adding code:**
 - New concurrent mutable state → use `Locked<Value>` (Value must be `Sendable`)
 - Interior mutability in `@MainActor` context → use `Box<Value>`
 - `@unchecked Sendable` → internal types only; always document which isolation mechanism guarantees safety
-- Never mutate `Box.value` on instances retrieved from `@Locked` dictionaries
+- Never mutate `Box.value` on instances retrieved from `@Locked` dictionaries or cache slots
 - Never mark public types as `@unchecked Sendable` — this framework's design philosophy explicitly avoids exposing unchecked Sendable in public API
 
 ### Documentation

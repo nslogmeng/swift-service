@@ -159,12 +159,12 @@ await withTaskGroup(of: Worker.self) { group in
 
 ### Singleton 和 Custom 作用域
 
-Singleton 和 custom 作用域的服务使用双重检查锁定，确保在并发解析下也只创建一个实例：
+对于 singleton 和 custom 作用域的服务，每个缓存实例的工厂函数至多执行一次。多个线程同时首次解析同一个服务时，只有一个线程执行工厂函数。其他线程等待它完成，并拿到同一个实例。解析其他服务不会被阻塞。
 
 ```swift
 env.register(DatabaseService.self, scope: .singleton) { DatabaseService() }
 
-// 安全：并发解析返回同一实例
+// 安全：工厂函数只执行一次，并发解析返回同一实例
 await withTaskGroup(of: DatabaseService.self) { group in
     for _ in 0..<10 {
         group.addTask {
@@ -173,6 +173,17 @@ await withTaskGroup(of: DatabaseService.self) { group in
     }
 }
 ```
+
+这一语义与 `swift_once` 以及全局变量的惰性初始化一致：
+
+- **工厂函数失败后会重试。** 工厂函数抛出错误时不缓存任何内容。下一次解析会重新执行工厂函数。
+- **重置不等待执行中的工厂函数。** 工厂函数执行期间调用 `resetCaches()`、`resetScope(_:)` 或 `resetAll()` 时，这次解析以及已经在等待它的解析，仍然返回它创建的实例。该实例不进入缓存，之后的解析会创建新实例。
+
+它也有相同的限制：
+
+- **工厂函数不能阻塞等待另一个会解析同一服务的线程。** 那个线程在等待工厂函数完成，两个线程都无法继续。例如，如果主线程也会解析某个服务，这个服务的工厂函数就不能调用 `DispatchQueue.main.sync`。
+- **工厂函数不能在自己的线程上运行另一个会解析同一服务的任务。** 循环检测跟随单个任务。它不覆盖在工厂函数返回前运行在同一线程上的其他任务，例如工厂函数内的嵌套 run loop 执行的 MainActor 任务。这样的解析会在同一线程上重入创建过程，进程会崩溃。
+- **两个线程从不同的服务进入同一个依赖循环时，可能死锁。** 在单个线程上解析依赖循环，始终抛出 ``ServiceError/circularDependency(serviceType:chain:)``。如果两个线程同时首次解析同一个依赖循环，并且各自从循环中不同的服务开始，每个线程可能各持有一个服务并等待对方。参见 <doc:CircularDependencies>。
 
 ### Graph 作用域
 
@@ -293,6 +304,7 @@ Service 提供以下线程安全保证：
 
 - **注册**：通过内部锁实现线程安全
 - **解析**：通过内部锁实现线程安全
+- **Singleton 和 custom 作用域的创建**：每个缓存实例的工厂函数至多执行一次；同一服务的并发解析方会等待
 - **环境切换**：通过 `TaskLocal` 存储实现线程安全
 - **缓存管理**：通过内部锁实现线程安全
 

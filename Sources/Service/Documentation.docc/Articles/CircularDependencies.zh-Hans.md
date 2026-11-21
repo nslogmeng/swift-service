@@ -64,6 +64,14 @@ Current chain: ServiceA -> ServiceB -> ... -> ServiceN
 This may indicate a circular dependency or overly deep dependency graph.
 ```
 
+## 多线程解析同一个依赖循环
+
+循环检测沿单条解析链进行。在单个线程上解析依赖循环，始终抛出 ``ServiceError/circularDependency(serviceType:chain:)``。
+
+对于 singleton 和 custom 作用域的服务，一个线程正在创建某个服务时，其他线程会等待这个服务。如果两个线程同时首次解析同一个依赖循环，并且各自从循环中不同的服务开始，每个线程可能各持有一个服务并等待对方。这是死锁，不会抛出错误。
+
+请在注册阶段消除依赖循环，不要依赖运行时的错误。参见 <doc:ConcurrencyModel>。
+
 ## 打破循环依赖
 
 以下是打破循环依赖的常用策略：
