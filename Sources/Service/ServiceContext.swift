@@ -20,11 +20,14 @@
 /// resolve(A) -> resolve(B) -> resolve(C) -> resolve(A) // Detected!
 /// ```
 ///
-/// The context maintains a stack of service types currently being resolved:
-/// 1. Push "A" onto stack -> stack: ["A"]
-/// 2. Push "B" onto stack -> stack: ["A", "B"]
-/// 3. Push "C" onto stack -> stack: ["A", "B", "C"]
-/// 4. Attempt to push "A" -> "A" already in stack -> Circular dependency detected!
+/// The context maintains a stack of service types currently being resolved.
+/// Types are compared by identity, so distinct types that share a short name are not confused:
+/// 1. Push `A` onto stack -> stack: [A]
+/// 2. Push `B` onto stack -> stack: [A, B]
+/// 3. Push `C` onto stack -> stack: [A, B, C]
+/// 4. Attempt to push `A` -> `A` already in stack -> Circular dependency detected!
+///
+/// Type names are only generated when an error is constructed.
 ///
 /// ## Error Handling
 ///
@@ -38,9 +41,9 @@
 /// ```
 enum ServiceContext {
     /// The current resolution stack for this task.
-    /// Contains type names of services currently being resolved.
+    /// Contains the types of services currently being resolved, compared by `ObjectIdentifier`.
     @TaskLocal
-    static var resolutionStack: [String] = []
+    static var resolutionStack: [any Any.Type] = []
 
     /// The graph cache for the current resolution chain.
     /// When a top-level `resolve()` call begins, a new `GraphCacheBox` is created and propagated
@@ -67,23 +70,23 @@ enum ServiceContext {
         _ type: Service.Type,
         resolve: () throws -> Service
     ) throws(ServiceError) -> Service {
-        let typeName = String(describing: type)
+        let typeID = ObjectIdentifier(type)
 
         // Check for circular dependency
-        if resolutionStack.contains(typeName) {
-            let chain = resolutionStack + [typeName]
-            throw ServiceError.circularDependency(serviceType: typeName, chain: chain)
+        if resolutionStack.contains(where: { ObjectIdentifier($0) == typeID }) {
+            let chain = (resolutionStack + [type]).map { String(describing: $0) }
+            throw ServiceError.circularDependency(serviceType: String(describing: type), chain: chain)
         }
 
         // Check for excessive depth
         let maxDepth = ServiceEnv.maxResolutionDepth
         if resolutionStack.count >= maxDepth {
-            throw ServiceError.maxDepthExceeded(depth: maxDepth, chain: resolutionStack)
+            throw ServiceError.maxDepthExceeded(depth: maxDepth, chain: resolutionStack.map { String(describing: $0) })
         }
 
         // Execute with the type added to the resolution stack
         var newStack = resolutionStack
-        newStack.append(typeName)
+        newStack.append(type)
 
         // Create a new GraphCacheBox at the top-level resolve if one doesn't exist yet
         let isTopLevel = graphCacheBox == nil
@@ -104,7 +107,7 @@ enum ServiceContext {
             throw error
         } catch {
             // Wrap other errors (from factory) in factoryFailed
-            throw ServiceError.factoryFailed(serviceType: typeName, underlyingError: error)
+            throw ServiceError.factoryFailed(serviceType: String(describing: type), underlyingError: error)
         }
     }
 }
