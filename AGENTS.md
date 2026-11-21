@@ -106,6 +106,11 @@ The framework uses two isolation models. Every `@unchecked Sendable` internal ty
 - Never mutate `Box.value` on instances retrieved from `@Locked` dictionaries or cache slots
 - Never mark public types as `@unchecked Sendable` — this framework's design philosophy explicitly avoids exposing unchecked Sendable in public API
 
+### Test Targets
+
+- `ServiceTests` — behavior tests for the library
+- `DefaultMainActorIsolationTests` — compiled with `.defaultIsolation(MainActor.self)`, the setting of new Xcode app targets. Its fixtures carry only the annotations that the MainActorServices article requires in such modules. The target fails to compile when a public API stops working there, so add a fixture when adding public API
+
 ### Documentation
 
 DocC documentation in `/Sources/Service/Documentation.docc/` with multi-language support (en, zh-Hans). Build with `./scripts/build-docc.sh`.
