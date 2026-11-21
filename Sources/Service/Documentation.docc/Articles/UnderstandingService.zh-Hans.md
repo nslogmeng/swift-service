@@ -238,13 +238,13 @@ Service 使用跨平台锁机制实现线程安全访问（Linux/Android 上使�
 
 ```swift
 enum ServiceContext {
-    @TaskLocal static var resolutionStack: [String] = []
+    @TaskLocal static var resolutionStack: [any Any.Type] = []
     @TaskLocal static var graphCacheBox: GraphCacheBox?
 }
 ```
 
 解析服务时：
-1. 检查服务类型是否已在栈中（循环依赖检测）
+1. 检查服务类型是否已在栈中，按类型身份比较（循环依赖检测）
 2. 如果是，抛出 `ServiceError.circularDependency`
 3. 如果否，添加到栈中并继续
 4. 如果是顶层 resolve，创建新的 `GraphCacheBox` 用于 graph 作用域的服务

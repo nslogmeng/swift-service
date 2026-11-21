@@ -238,13 +238,13 @@ The `@Locked` property wrapper ensures atomic read/write operations. The `CacheK
 
 ```swift
 enum ServiceContext {
-    @TaskLocal static var resolutionStack: [String] = []
+    @TaskLocal static var resolutionStack: [any Any.Type] = []
     @TaskLocal static var graphCacheBox: GraphCacheBox?
 }
 ```
 
 When resolving a service:
-1. Check if the service type is already in the stack (circular dependency detection)
+1. Check if the service type is already in the stack, compared by type identity (circular dependency detection)
 2. If yes, throw `ServiceError.circularDependency`
 3. If no, add to stack and proceed
 4. If this is a top-level resolve, create a new `GraphCacheBox` for graph-scoped services

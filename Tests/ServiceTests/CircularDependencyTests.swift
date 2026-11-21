@@ -157,4 +157,90 @@ struct CircularDependencyTests {
             #expect(result == "env1-value")
         }
     }
+
+    // MARK: - Same Short Name, Different Types
+
+    @Test func resolvesDistinctTypesSharingShortName() async throws {
+        let testEnv = ServiceEnv(name: "circular-test-same-name")
+        try ServiceEnv.$current.withValue(testEnv) {
+            ServiceEnv.current.register(NamespaceA.Config.self) { NamespaceA.Config(value: "a") }
+            ServiceEnv.current.register(NamespaceB.Config.self) {
+                NamespaceB.Config(a: try ServiceEnv.current.resolve(NamespaceA.Config.self))
+            }
+
+            let result = try ServiceEnv.current.resolve(NamespaceB.Config.self)
+            #expect(result.a.value == "a")
+        }
+    }
+
+    @Test func resolvesMainActorDistinctTypesSharingShortName() async throws {
+        let testEnv = ServiceEnv(name: "circular-test-same-name-main")
+        try await ServiceEnv.$current.withValue(testEnv) {
+            try await MainActor.run {
+                ServiceEnv.current.registerMain(NamespaceA.MainConfig.self) {
+                    let service = NamespaceA.MainConfig()
+                    service.value = "a"
+                    return service
+                }
+                ServiceEnv.current.registerMain(NamespaceB.MainConfig.self) {
+                    let service = NamespaceB.MainConfig()
+                    service.value = try ServiceEnv.current.resolveMain(NamespaceA.MainConfig.self).value
+                    return service
+                }
+
+                let result = try ServiceEnv.current.resolveMain(NamespaceB.MainConfig.self)
+                #expect(result.value == "a")
+            }
+        }
+    }
+
+    @Test func detectsCycleBetweenTypesSharingShortName() async throws {
+        let testEnv = ServiceEnv(name: "circular-test-same-name-cycle")
+        ServiceEnv.$current.withValue(testEnv) {
+            ServiceEnv.current.register(NamespaceA.CyclicConfig.self) {
+                _ = try ServiceEnv.current.resolve(NamespaceB.CyclicConfig.self)
+                return NamespaceA.CyclicConfig()
+            }
+            ServiceEnv.current.register(NamespaceB.CyclicConfig.self) {
+                _ = try ServiceEnv.current.resolve(NamespaceA.CyclicConfig.self)
+                return NamespaceB.CyclicConfig()
+            }
+
+            do {
+                _ = try ServiceEnv.current.resolve(NamespaceA.CyclicConfig.self)
+                Issue.record("Expected circularDependency to be thrown")
+            } catch ServiceError.circularDependency(let serviceType, let chain) {
+                #expect(serviceType == "CyclicConfig")
+                #expect(chain == ["CyclicConfig", "CyclicConfig", "CyclicConfig"])
+            } catch {
+                Issue.record("Unexpected error: \(error)")
+            }
+        }
+    }
+}
+
+// MARK: - Fixtures
+
+private enum NamespaceA {
+    struct Config: Sendable {
+        let value: String
+    }
+
+    @MainActor final class MainConfig {
+        var value = ""
+    }
+
+    struct CyclicConfig: Sendable {}
+}
+
+private enum NamespaceB {
+    struct Config: Sendable {
+        let a: NamespaceA.Config
+    }
+
+    @MainActor final class MainConfig {
+        var value = ""
+    }
+
+    struct CyclicConfig: Sendable {}
 }
