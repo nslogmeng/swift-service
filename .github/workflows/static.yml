@@ -18,7 +18,8 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    container: swift:6.2-noble
+    # The documentation is built with the latest Swift release.
+    container: swift:6.4-noble
     environment:
       name: DocC Site
       url: ${{ steps.deployment.outputs.page_url }}
