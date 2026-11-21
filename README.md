@@ -79,15 +79,20 @@ let user = repository.fetchUser(id: "123")
 ### 4. Test Environment Switching
 
 ```swift
-await ServiceEnv.$current.withValue(.test) {
-    ServiceEnv.current.register(DatabaseProtocol.self) {
-        MockDatabase()
-    }
+@Test func fetchesUser() {
+    let env = ServiceEnv(name: "test")
+    ServiceEnv.$current.withValue(env) {
+        env.register(DatabaseProtocol.self) {
+            MockDatabase()
+        }
 
-    let repository = UserRepository()
-    // All resolutions use test environment
+        let repository = UserRepository()
+        // All resolutions use this test's environment
+    }
 }
 ```
+
+Each `ServiceEnv(name:)` instance has its own registry and caches, so tests can run in parallel.
 
 ## Documentation
 

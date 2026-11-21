@@ -241,12 +241,15 @@ func goodExample() {
 ### Use TaskLocal for Test Isolation
 
 ```swift
-@Test func testServiceBehavior() async throws {
-    await ServiceEnv.$current.withValue(.test) {
-        // Test code uses isolated test environment
+@Test func testServiceBehavior() {
+    let env = ServiceEnv(name: "test")
+    ServiceEnv.$current.withValue(env) {
+        // Test code uses an isolated environment
     }
 }
 ```
+
+Create a new `ServiceEnv` in each test. Predefined environments are shared by the whole process; see <doc:ServiceEnvironments>.
 
 ## Common Patterns
 

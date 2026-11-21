@@ -94,23 +94,31 @@ stagingEnv.register(DatabaseProtocol.self) {
 }
 ```
 
+## Environment Isolation
+
+- The predefined environments `.online`, `.dev`, and `.test` are instances shared by the whole process.
+- `withValue(.test)` only binds the shared instance to the current task. Calling `register`, `resetCaches()`, or `resetAll()` inside it changes process-wide state.
+- Each `ServiceEnv(name:)` instance has its own service registry and caches.
+- Equality and hashing compare only `name`. `ServiceEnv(name: "test") == .test` is `true`, but the two instances share no registrations or caches.
+- Swift Testing runs tests in parallel. Each test creates its own `ServiceEnv` instance instead of registering into a predefined environment.
+
 ## Testing with Environments
 
-Environments are particularly useful in tests:
+Create a new environment in each test:
 
 ```swift
-func testUserCreation() async throws {
-    // Use test environment
-    await ServiceEnv.$current.withValue(.test) {
+@Test func createsUser() {
+    let env = ServiceEnv(name: "test")
+    ServiceEnv.$current.withValue(env) {
         // Register mock services
-        ServiceEnv.current.register(DatabaseProtocol.self) {
+        env.register(DatabaseProtocol.self) {
             MockDatabase()
         }
-        
+
         // Test your code
         let userService = UserService()
         let user = userService.createUser(name: "Test")
-        XCTAssertNotNil(user)
+        #expect(user.name == "Test")
     }
 }
 ```
@@ -121,16 +129,20 @@ One of the key benefits of Service environments is the ability to switch environ
 
 ### Switching Environments at the Outermost Scope
 
-In tests, you can switch to a `.test` environment at the outermost scope and keep the same Assembly structure:
+In tests, you can switch to a new `test` environment at the outermost scope and keep the same Assembly structure:
 
 ```swift
-await ServiceEnv.$current.withValue(.test) {
-    ServiceEnv.current.assemble([
-        AppAssembly()
-        // ... other assemblies
-    ])
+@MainActor
+@Test func runsWithAppAssembly() {
+    let env = ServiceEnv(name: "test")
+    ServiceEnv.$current.withValue(env) {
+        env.assemble([
+            AppAssembly()
+            // ... other assemblies
+        ])
 
-    // Run your test logic inside the .test environment
+        // Run your test logic inside the test environment
+    }
 }
 ```
 
