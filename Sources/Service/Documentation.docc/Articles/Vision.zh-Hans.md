@@ -8,7 +8,7 @@ Service 的设计哲学与未来方向。
 
 Swift 6 引入了严格的并发检查。对于大部分代码来说，这是好事——编译器能在构建期捕获数据竞争。但对依赖注入来说，这带来了一个实际问题。
 
-考虑一个典型的 DI 容器：注册服务、解析服务、注入到类型中。但在严格并发下，编译器需要知道：这个服务是 `Sendable` 的吗？能跨 actor 边界传递吗？如果你的 `@MainActor` ViewModel 持有可变状态，它就不是 `Sendable` 的——而一个不区分这些情况就直接返回 `T` 的容器，要么在欺骗编译器，要么在迫使你用 `@unchecked Sendable` 来撒谎。
+考虑一个典型的 DI 容器：注册服务、解析服务、注入到类型中。但在严格并发下，编译器需要知道：这个服务是 `Sendable` 的吗？能跨 actor 边界传递吗？可以在哪里创建？`@MainActor` 的 ViewModel 必须在 MainActor 上创建，注册它所用的协议也往往不是 `Sendable` 的——而一个不区分这些情况就直接返回 `T` 的容器，要么在欺骗编译器，要么在迫使你用 `@unchecked Sendable` 来撒谎。
 
 现有的 DI 库大多把并发当作实现细节——在内部用锁处理掉，不让 API 使用者操心。Service 的立场不同：**并发语义应该是 DI 契约的一部分，而不是被隐藏在背后。**
 
@@ -27,7 +27,7 @@ Service 提供两条并行的依赖注入路径：
 | **缓存式注入** | `@Service` | `@MainService` |
 | **作用域驱动注入** | `@Provider` | `@MainProvider` |
 
-这种拆分是对 Swift 类型系统的直接回应。`@MainActor` 类不是 `Sendable` 的。与其假装它是，Service 要求你在注册时就做出明确选择。然后编译器会在每一个解析点强制执行这个契约。
+这种拆分是对 Swift 隔离模型的直接回应。一个服务要么跨隔离域共享，这要求类型是 `Sendable` 的，且工厂函数可以在任意线程执行；要么只存在于 MainActor 上，在那里创建和解析。与其抹平这个差别，Service 要求你在注册时就做出明确选择。然后编译器会在每一个解析点强制执行这个契约。
 
 这意味着，当你试图在非隔离上下文中解析 MainActor 服务时，你会得到一个编译期错误——而不是运行时崩溃。
 
@@ -82,7 +82,7 @@ struct Repository {
 
 ## 与 Swift 演进方向的契合
 
-Swift 6.2 引入了 [Approachable Concurrency](https://www.swift.org/blog/approachable-concurrency/)，改变了默认的隔离行为，让并发代码更容易编写。函数只在真正需要时才默认为 `@concurrent`，减少了不必要的 Sendable 要求。
+Swift 6.2 引入了 [Approachable Concurrency](https://www.swift.org/blog/approachable-concurrency/)，改变了默认的隔离行为，让并发代码更容易编写。启用后，模块可以把 MainActor 设为默认隔离；其中 nonisolated 的 async 函数在调用方的 actor 上执行，除非标注了 `@concurrent`。两者都减少了不必要的 `Sendable` 要求。
 
 这与 Service 的设计有两重关联。
 

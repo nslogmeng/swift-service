@@ -62,7 +62,7 @@ struct UserRepository: Sendable {
 
 ## MainActor 服务
 
-隔离到 `@MainActor` 的服务是线程安全的，但不是 `Sendable`。需要使用单独的 API。
+在 MainActor 上创建和使用的服务有单独的 API。工厂函数在 MainActor 上执行，服务类型无需遵循 `Sendable`。
 
 ### 注册和解析
 

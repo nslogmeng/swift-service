@@ -123,10 +123,12 @@ public struct ServiceEnv: Sendable {
 
 ### Why Separate MainActor APIs?
 
-Swift 6 requires `Sendable` for values crossing actor boundaries. However, `@MainActor` classes:
-- Have mutable state (not automatically `Sendable`)
-- Are thread-safe through actor isolation
-- Cannot be safely passed to other actors
+`register` stores a factory that can run on any thread and an instance that is shared across isolation domains. The factory must be a nonisolated `@Sendable` closure, and the service type must be `Sendable`. Services that live on the main actor often cannot meet these requirements:
+- Their initializers are main-actor-isolated, so a nonisolated factory cannot call them
+- The protocols they are registered under are often not `Sendable`, for example a `@MainActor` protocol
+- A `@MainActor` class that inherits from a non-`Sendable` base class is not `Sendable`
+
+Apart from that last case, a `@MainActor` class is implicitly `Sendable`. Its initializer and members are what stay on the main actor.
 
 Service solves this with separate APIs:
 

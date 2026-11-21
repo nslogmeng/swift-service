@@ -6,7 +6,7 @@ Service provides specialized APIs for working with `@MainActor`-isolated service
 
 ## Background: Why MainActor Services?
 
-In Swift 6's strict concurrency model, `@MainActor` classes are thread-safe (all access is serialized on the main thread) but are **not** automatically `Sendable`. This means they cannot be used with the standard `register`/`resolve` APIs which require `Sendable` conformance.
+The standard `register`/`resolve` APIs are built for services that are shared across isolation domains. The factory is a nonisolated `@Sendable` closure that can run on any thread, and the service type must conform to `Sendable`. A service that is created and used on the main actor often cannot meet these requirements.
 
 ### The Problem
 
@@ -14,10 +14,19 @@ Consider a typical view model:
 
 ```swift
 @MainActor
-final class UserViewModel {
+protocol UserViewModelProtocol {
+    var userName: String { get }
+}
+
+@MainActor
+final class UserViewModel: UserViewModelProtocol {
     var userName: String = ""
     var isLoading: Bool = false
-    
+
+    init() {
+        // ... set up initial state
+    }
+
     func loadUser() {
         isLoading = true
         // ... load user data
@@ -26,15 +35,14 @@ final class UserViewModel {
 }
 ```
 
-This view model is `@MainActor`-isolated, meaning all access must happen on the main thread. However, it doesn't conform to `Sendable` because:
+This view model is `@MainActor`-isolated, meaning all access must happen on the main thread. A `@MainActor` class like this one is implicitly `Sendable`: a reference to it can cross isolation domains, because every access to its state goes through the main actor. Its initializer and members stay isolated, and that is where `register` stops working:
 
-1. It has mutable state (`userName`, `isLoading`)
-2. `@MainActor` classes are not automatically `Sendable` in Swift 6
-3. The standard `register`/`resolve` APIs require `Sendable` conformance
+1. The initializer is main-actor-isolated. The `register` factory is nonisolated and synchronous, so it cannot call `UserViewModel()`.
+2. The type a service is registered under is often not `Sendable`. `any UserViewModelProtocol` is not `Sendable`, because the protocol is `@MainActor` and does not inherit `Sendable`. A `@MainActor` class that inherits from a non-`Sendable` base class is not `Sendable` either.
 
 ### The Solution
 
-Service provides dedicated `registerMain` and `resolveMain` methods (along with the `@MainService` and `@MainProvider` property wrappers) that work with `@MainActor`-isolated services without requiring `Sendable` conformance.
+Service provides dedicated `registerMain` and `resolveMain` methods (along with the `@MainService` and `@MainProvider` property wrappers). The factory is a `@MainActor` closure, and the instance is created, cached, and resolved only on the main actor. The factory can call main-actor-isolated initializers and resolve other main-actor services, and the service type does not need to conform to `Sendable`.
 
 ## Registering MainActor Services
 

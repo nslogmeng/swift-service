@@ -91,7 +91,7 @@ The framework uses two isolation models. Every `@unchecked Sendable` internal ty
 - `resetCaches()` / `resetScope(_:)` / `resetAll()` take only the dictionary lock and never wait for a running factory. Resolutions that already hold a removed slot (the one running the factory and those waiting on it) return the instance created in that slot; later resolutions insert a new slot
 - Use only `withLock` on slots. It is the one operation shared by all three `LockStorage` implementations
 
-**MainActor isolation** (for non-Sendable UI services):
+**MainActor isolation** (for services created and used on the main actor; no `Sendable` requirement):
 - `@MainService` / `@MainProvider` — struct-level `@MainActor`, compiler-enforced serial access
 - `@MainService` uses `Box<S?>` for interior mutability without mutating getter; safe because all access is on MainActor
 

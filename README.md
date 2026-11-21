@@ -41,7 +41,7 @@ ServiceEnv.current.register(DatabaseProtocol.self) {
     DatabaseService(connectionString: "sqlite://app.db")
 }
 
-// MainActor services — for UI components, no @unchecked Sendable needed
+// MainActor services — created and resolved on the main actor
 ServiceEnv.current.registerMain(UserViewModel.self) {
     UserViewModel()
 }

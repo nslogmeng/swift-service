@@ -132,8 +132,8 @@ public struct Service<S: Sendable>: Sendable {
 /// Use this for services that are bound to the main actor and were registered using `registerMain` methods.
 /// These services don't need to conform to `Sendable` since they're always accessed from the main thread.
 ///
-/// **Background**: In Swift 6's strict concurrency model, `@MainActor` classes are thread-safe
-/// (all access is serialized on the main thread) but are NOT automatically `Sendable`.
+/// **Background**: A main-actor service is created by a `@MainActor` factory and resolved only on
+/// the main actor, so its initializer can be main-actor-isolated and its type does not need to be `Sendable`.
 /// This property wrapper provides a convenient way to inject such services in UI components.
 ///
 /// Usage example:

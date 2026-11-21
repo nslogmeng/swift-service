@@ -62,7 +62,7 @@ struct UserRepository: Sendable {
 
 ## MainActor Services
 
-Services isolated to `@MainActor` are thread-safe but not `Sendable`. Use separate APIs for these services.
+Services that are created and used on the main actor have separate APIs. The factory runs on the main actor, and the service type does not need to conform to `Sendable`.
 
 ### Registration and Resolution
 

@@ -6,7 +6,7 @@ Service 为处理 `@MainActor` 隔离的服务（如视图模型和 UI 控制器
 
 ## 背景：为什么需要 MainActor 服务？
 
-在 Swift 6 的严格并发模型中，`@MainActor` 类是线程安全的（所有访问都在主线程上序列化），但**不会**自动成为 `Sendable`。这意味着它们无法使用需要 `Sendable` 遵循的标准 `register`/`resolve` API。
+标准的 `register`/`resolve` API 面向跨隔离域共享的服务。工厂函数是 nonisolated 的 `@Sendable` 闭包，可以在任意线程执行，服务类型必须遵循 `Sendable`。在 MainActor 上创建和使用的服务往往满足不了这些要求。
 
 ### 问题
 
@@ -14,10 +14,19 @@ Service 为处理 `@MainActor` 隔离的服务（如视图模型和 UI 控制器
 
 ```swift
 @MainActor
-final class UserViewModel {
+protocol UserViewModelProtocol {
+    var userName: String { get }
+}
+
+@MainActor
+final class UserViewModel: UserViewModelProtocol {
     var userName: String = ""
     var isLoading: Bool = false
-    
+
+    init() {
+        // ... 设置初始状态
+    }
+
     func loadUser() {
         isLoading = true
         // ... 加载用户数据
@@ -26,15 +35,14 @@ final class UserViewModel {
 }
 ```
 
-这个视图模型是 `@MainActor` 隔离的，意味着所有访问必须在主线程上进行。但是，它不遵循 `Sendable`，因为：
+这个视图模型是 `@MainActor` 隔离的，意味着所有访问必须在主线程上进行。这样的 `@MainActor` 类隐式遵循 `Sendable`：它的引用可以跨隔离域传递，因为对其状态的每次访问都经过 MainActor。它的初始化器和成员仍然是隔离的，`register` 正是在这里行不通：
 
-1. 它有可变状态（`userName`、`isLoading`）
-2. `@MainActor` 类在 Swift 6 中不会自动成为 `Sendable`
-3. 标准的 `register`/`resolve` API 需要 `Sendable` 遵循
+1. 初始化器是 MainActor 隔离的。`register` 的工厂函数是 nonisolated 的同步闭包，无法调用 `UserViewModel()`。
+2. 注册服务所用的类型往往不是 `Sendable`。`any UserViewModelProtocol` 不是 `Sendable`，因为该协议是 `@MainActor` 的，且没有继承 `Sendable`。继承自非 `Sendable` 基类的 `@MainActor` 类同样不是 `Sendable`。
 
 ### 解决方案
 
-Service 提供了专门的 `registerMain` 和 `resolveMain` 方法（以及 `@MainService` 和 `@MainProvider` 属性包装器），它们可以与 `@MainActor` 隔离的服务一起工作，而无需 `Sendable` 遵循。
+Service 提供了专门的 `registerMain` 和 `resolveMain` 方法（以及 `@MainService` 和 `@MainProvider` 属性包装器）。工厂函数是 `@MainActor` 闭包，实例只在 MainActor 上创建、缓存和解析。工厂函数可以调用 MainActor 隔离的初始化器，也可以解析其他 MainActor 服务，服务类型无需遵循 `Sendable`。
 
 ## 注册 MainActor 服务
 

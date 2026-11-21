@@ -123,10 +123,12 @@ public struct ServiceEnv: Sendable {
 
 ### 为什么需要单独的 MainActor API？
 
-Swift 6 要求跨 actor 边界传递的值必须是 `Sendable`。但是，`@MainActor` 类：
-- 有可变状态（不会自动成为 `Sendable`）
-- 通过 actor 隔离实现线程安全
-- 无法安全地传递给其他 actor
+`register` 保存的工厂函数可以在任意线程执行，创建出的实例跨隔离域共享。因此工厂函数必须是 nonisolated 的 `@Sendable` 闭包，服务类型必须是 `Sendable`。存在于 MainActor 上的服务往往满足不了这些要求：
+- 它们的初始化器是 MainActor 隔离的，nonisolated 的工厂函数无法调用
+- 注册它们所用的协议往往不是 `Sendable`，例如 `@MainActor` 协议
+- 继承自非 `Sendable` 基类的 `@MainActor` 类不是 `Sendable`
+
+除最后一种情况外，`@MainActor` 类隐式遵循 `Sendable`。留在 MainActor 上的是它的初始化器和成员。
 
 Service 通过单独的 API 解决这个问题：
 

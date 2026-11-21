@@ -8,7 +8,7 @@ The design philosophy behind Service and where it's headed.
 
 Swift 6 introduced strict concurrency checking. For most code, this was a welcome change — the compiler now catches data races at build time. But for dependency injection, it created a real problem.
 
-Consider a typical DI container: you register services, resolve them, inject them into your types. But under strict concurrency, the compiler needs to know: is this service `Sendable`? Can it cross actor boundaries? If your `@MainActor` view model holds mutable state, it's not `Sendable` — and a container that hands out `T` without distinguishing between these cases is either lying to the compiler or forcing you to lie with `@unchecked Sendable`.
+Consider a typical DI container: you register services, resolve them, inject them into your types. But under strict concurrency, the compiler needs to know: is this service `Sendable`? Can it cross actor boundaries? Where can it be created? A `@MainActor` view model must be created on the main actor, and the protocol it is registered under is often not `Sendable` — and a container that hands out `T` without distinguishing between these cases is either lying to the compiler or forcing you to lie with `@unchecked Sendable`.
 
 Most existing DI libraries treat concurrency as an implementation detail — something handled internally with locks, something the API consumer shouldn't have to think about. Service takes a different position: **concurrency semantics should be part of the DI contract, not hidden behind it.**
 
@@ -27,7 +27,7 @@ Service provides two parallel tracks for dependency injection:
 | **Cached Injection** | `@Service` | `@MainService` |
 | **Scope-driven Injection** | `@Provider` | `@MainProvider` |
 
-This split is a direct response to Swift's type system. A `@MainActor` class isn't `Sendable`. Rather than pretending otherwise, Service asks you to make the choice explicitly at registration time. The compiler then enforces the contract at every resolution site.
+This split is a direct response to Swift's isolation model. A service is either shared across isolation domains, which requires a `Sendable` type and a factory that can run on any thread, or it lives on the main actor, where it is created and resolved. Rather than erasing that difference, Service asks you to make the choice explicitly at registration time. The compiler then enforces the contract at every resolution site.
 
 This means you get a compile-time error — not a runtime crash — if you try to resolve a MainActor service from a non-isolated context.
 
@@ -82,7 +82,7 @@ Each combination addresses a different use case without adding API complexity.
 
 ## Alignment with Swift's Direction
 
-Swift 6.2 introduced [Approachable Concurrency](https://www.swift.org/blog/approachable-concurrency/), which changes the default isolation behavior to make concurrent code easier to write. Functions are now `@concurrent` by default only when they need to be, reducing unnecessary Sendable requirements.
+Swift 6.2 introduced [Approachable Concurrency](https://www.swift.org/blog/approachable-concurrency/), which changes the default isolation behavior to make concurrent code easier to write. A module that opts in can use the main actor as its default isolation, and its nonisolated async functions run on the caller's actor unless they are marked `@concurrent`. Both reduce unnecessary `Sendable` requirements.
 
 This is relevant to Service's design in two ways.
 
