@@ -23,7 +23,7 @@
 ## 核心特性
 
 - **并发优先设计** — Swift 并发是一等公民。Sendable 和 MainActor 约束直接体现在 API 中，由编译器在每个调用点强制执行——无需 `@unchecked Sendable` 妥协。
-- **原生 MainActor 支持** — 为 MainActor 隔离类型提供专属的 `registerMain()` / `@MainService` / `@MainProvider`。契合 Swift 6.2 Approachable Concurrency 的方向。
+- **原生 MainActor 支持** — 为 MainActor 隔离类型提供专属的 `registerMain()` / `@MainService` / `@MainProvider`。在启用默认 MainActor 隔离的模块中，这些 API 无需任何标注。
 - **零依赖** — 完全基于 Swift 标准库原语构建。跨平台锁机制与 `@TaskLocal` 环境隔离。
 - **TaskLocal 环境隔离** — 任务级环境切换，支持并行安全的测试。无需修改全局状态。
 - **灵活的作用域** — singleton、transient、graph 和自定义命名作用域，精细控制实例生命周期。

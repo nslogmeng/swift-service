@@ -285,6 +285,81 @@ await MainActor.run {
 
 4. **In SwiftUI apps**: You're typically already on the main actor in SwiftUI's `App` initializer and views, so you can call `registerMain` and `resolveMain` directly without `await MainActor.run`.
 
+## Modules with Default MainActor Isolation
+
+A module built with default MainActor isolation (`.defaultIsolation(MainActor.self)` in a package manifest, or the Default Actor Isolation build setting in Xcode) treats every declaration without an explicit isolation as `@MainActor`. New Xcode app targets enable this setting.
+
+### MainActor Services
+
+In such a module, `registerMain`, `resolveMain`, `@MainService`, `@MainProvider`, and `ServiceAssembly` work without annotations:
+
+```swift
+protocol Store {
+    var name: String { get }
+}
+
+final class MemoryStore: Store {
+    var name = "memory"
+}
+
+struct Screen {
+    @MainService var store: any Store
+}
+
+ServiceEnv.current.registerMain((any Store).self) { MemoryStore() }
+```
+
+### Sendable Services
+
+A service registered with `register` must opt out of the default isolation. Declare its protocol `nonisolated` and `Sendable`. Types that conform to such a protocol are inferred nonisolated:
+
+```swift
+nonisolated protocol Logger: Sendable {
+    func log(_ message: String)
+}
+
+struct ConsoleLogger: Logger {
+    let prefix: String
+
+    init(prefix: String) {
+        self.prefix = prefix
+    }
+
+    func log(_ message: String) {
+        print("\(prefix): \(message)")
+    }
+}
+
+ServiceEnv.current.register((any Logger).self) { ConsoleLogger(prefix: "app") }
+```
+
+Mark a concrete type `nonisolated` when you register it without a protocol:
+
+```swift
+nonisolated final class Cache: Sendable {
+    let capacity: Int
+
+    init(capacity: Int) {
+        self.capacity = capacity
+    }
+}
+
+ServiceEnv.current.register(Cache.self) { Cache(capacity: 100) }
+```
+
+Types that conform to `ServiceKey` need no annotation, because `ServiceKey` is nonisolated and inherits `Sendable`.
+
+A protocol declared as `protocol Logger: Sendable`, without `nonisolated`, is still `@MainActor`. `register` accepts it, but its members and the initializers of its conforming types stay on the main actor.
+
+### Common Compiler Errors
+
+| Code | Compiler error | Fix |
+|---|---|---|
+| `protocol Logger` used with `register` or `@Service` | `type 'any Logger' does not conform to the 'Sendable' protocol` | Declare `nonisolated protocol Logger: Sendable`, or use `registerMain` |
+| A type with an explicit `init`, created in a `register` factory | `call to main actor-isolated initializer ... in a synchronous nonisolated context` | Mark the type `nonisolated`, or use `registerMain` |
+| A method of a `Sendable` service, called off the main actor | `main actor-isolated instance method ... cannot be called from outside of the actor` | Mark the protocol or the type `nonisolated` |
+| `final class ViewModel: ServiceKey` with mutable stored properties | `stored property ... of 'Sendable'-conforming class 'ViewModel' is mutable` | Use `registerMain` with a factory. `ServiceKey` is for Sendable services |
+
 ## Next Steps
 
 - Learn about <doc:ServiceAssembly> for organizing service registrations
