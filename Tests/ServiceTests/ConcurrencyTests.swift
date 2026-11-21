@@ -96,3 +96,330 @@ struct ConcurrencyTests {
         }
     }
 }
+
+// MARK: - Singleton Creation
+
+extension ConcurrencyTests {
+    /// Resolutions that can wait for another thread run on their own threads through `ThreadResult`, and
+    /// the suite has a time limit. A regression that leaves such a resolver blocked then fails the test
+    /// instead of stalling the run.
+    @Suite("Singleton Creation", .timeLimit(.minutes(1)))
+    struct SingletonCreationTests {
+        // MARK: Factory runs once
+
+        @Test(arguments: [ServiceScope.singleton, .custom("once")])
+        func runsFactoryOnceForConcurrentFirstResolutions(scope: ServiceScope) async throws {
+            // A resolver that reaches the cache after the first factory run has finished cannot expose a
+            // second run. Repeating the race keeps the test sensitive without relying on timing.
+            let rounds = 10
+            let resolverCount = 8
+            var factoryRunsPerRound: [Int] = []
+            var instancesPerRound: [Int] = []
+
+            for _ in 0..<rounds {
+                let env = ServiceEnv(name: "once-concurrent")
+                let allResolversStarted = Latch(count: resolverCount)
+                let factoryRuns = Locked<Int>(default: 0)
+
+                env.register(Probe.self, scope: scope) {
+                    let run = factoryRuns.increment()
+                    // Keeps the factory running until every resolver is in flight.
+                    allResolversStarted.wait()
+                    return Probe(id: run)
+                }
+
+                let resolvers = (0..<resolverCount).map { _ in
+                    ThreadResult {
+                        allResolversStarted.countDown()
+                        return try env.resolve(Probe.self)
+                    }
+                }
+                var instances: Set<ObjectIdentifier> = []
+                for resolver in resolvers {
+                    instances.insert(ObjectIdentifier(try await resolver.value))
+                }
+
+                factoryRunsPerRound.append(factoryRuns.wrappedValue)
+                instancesPerRound.append(instances.count)
+            }
+
+            #expect(factoryRunsPerRound == Array(repeating: 1, count: rounds))
+            #expect(instancesPerRound == Array(repeating: 1, count: rounds))
+        }
+
+        @Test func resolvesOtherKeysWhileFactoryIsRunning() async throws {
+            let env = ServiceEnv(name: "once-independent-keys")
+            let slowFactoryEntered = Latch()
+            let releaseSlowFactory = Latch()
+
+            env.register(SlowProbe.self) {
+                slowFactoryEntered.countDown()
+                releaseSlowFactory.wait()
+                return SlowProbe()
+            }
+            env.register(Probe.self) { Probe(id: 1) }
+
+            let slow = ThreadResult { try env.resolve(SlowProbe.self) }
+            let other = ThreadResult {
+                slowFactoryEntered.wait()
+                return try env.resolve(Probe.self)
+            }
+
+            // The slow factory stays blocked until the latch opens below,
+            // so this returns only if resolving `Probe` does not wait for it.
+            _ = try await other.value
+            releaseSlowFactory.countDown()
+            _ = try await slow.value
+        }
+
+        // MARK: Failure and reset
+
+        @Test func retriesFactoryAfterItThrows() throws {
+            let env = ServiceEnv(name: "once-retry")
+            let factoryRuns = Locked<Int>(default: 0)
+
+            env.register(Probe.self) {
+                let run = factoryRuns.increment()
+                if run == 1 {
+                    throw FactoryError.firstRunFails
+                }
+                return Probe(id: run)
+            }
+
+            #expect(throws: ServiceError.self) { try env.resolve(Probe.self) }
+
+            let retried = try env.resolve(Probe.self)
+            let cached = try env.resolve(Probe.self)
+            #expect(retried.id == 2)
+            #expect(cached === retried)
+            #expect(factoryRuns.wrappedValue == 2)
+        }
+
+        @Test(arguments: ResetOperation.allCases)
+        func resetDuringCreationKeepsInFlightInstanceOutOfCache(operation: ResetOperation) async throws {
+            let env = ServiceEnv(name: "once-reset")
+            let factoryRuns = Locked<Int>(default: 0)
+            let firstFactoryEntered = Latch()
+            let releaseFirstFactory = Latch()
+            let register: @Sendable () -> Void = {
+                env.register(Probe.self) {
+                    let run = factoryRuns.increment()
+                    if run == 1 {
+                        firstFactoryEntered.countDown()
+                        releaseFirstFactory.wait()
+                    }
+                    return Probe(id: run)
+                }
+            }
+            register()
+
+            let inFlight = ThreadResult { try env.resolve(Probe.self) }
+            let afterReset = ThreadResult {
+                firstFactoryEntered.wait()
+                operation.apply(to: env)
+                if operation == .all {
+                    register()
+                }
+                return try env.resolve(Probe.self)
+            }
+
+            // The first factory stays blocked until the latch opens below,
+            // so this returns only if the reset and the next resolution do not wait for it.
+            let fresh = try await afterReset.value
+            releaseFirstFactory.countDown()
+            let original = try await inFlight.value
+
+            #expect(original.id == 1)
+            #expect(fresh.id == 2)
+            #expect(try env.resolve(Probe.self) === fresh)
+            #expect(factoryRuns.wrappedValue == 2)
+        }
+
+        // MARK: Re-entrant resolution
+
+        // A factory that reaches its own key again must fail with `circularDependency` before the storage
+        // is reached. The lock that guards a key's creation is not recursive, so locking it again on the
+        // same thread crashes the process.
+
+        @Test(arguments: [ServiceScope.singleton, .custom("reentrant")])
+        func throwsWhenFactoryResolvesItsOwnKey(scope: ServiceScope) {
+            let env = ServiceEnv(name: "once-reentrant-direct")
+            env.register(Probe.self, scope: scope) {
+                try env.resolve(Probe.self)
+            }
+
+            let error = #expect(throws: ServiceError.self) { try env.resolve(Probe.self) }
+            #expect(error?.isCircularDependency == true)
+        }
+
+        @Test(arguments: [ServiceScope.singleton, .custom("reentrant")])
+        func throwsWhenFactoryResolvesItsOwnKeyThroughDependency(scope: ServiceScope) {
+            let env = ServiceEnv(name: "once-reentrant-indirect")
+            env.register(Probe.self, scope: scope) {
+                try env.resolve(ProbeOwner.self).probe
+            }
+            env.register(ProbeOwner.self, scope: scope) {
+                ProbeOwner(probe: try env.resolve(Probe.self))
+            }
+
+            let error = #expect(throws: ServiceError.self) { try env.resolve(Probe.self) }
+            #expect(error?.isCircularDependency == true)
+        }
+
+        @Test(arguments: [ServiceScope.singleton, .custom("reentrant")])
+        @MainActor func throwsWhenMainFactoryResolvesItsOwnKey(scope: ServiceScope) {
+            let env = ServiceEnv(name: "once-reentrant-main-direct")
+            env.registerMain(MainProbe.self, scope: scope) {
+                try env.resolveMain(MainProbe.self)
+            }
+
+            let error = #expect(throws: ServiceError.self) { try env.resolveMain(MainProbe.self) }
+            #expect(error?.isCircularDependency == true)
+        }
+
+        @Test(arguments: [ServiceScope.singleton, .custom("reentrant")])
+        @MainActor func throwsWhenMainFactoryResolvesItsOwnKeyThroughDependency(scope: ServiceScope) {
+            let env = ServiceEnv(name: "once-reentrant-main-indirect")
+            env.registerMain(MainProbe.self, scope: scope) {
+                try env.resolveMain(MainProbeOwner.self).probe
+            }
+            env.registerMain(MainProbeOwner.self, scope: scope) {
+                MainProbeOwner(probe: try env.resolveMain(MainProbe.self))
+            }
+
+            let error = #expect(throws: ServiceError.self) { try env.resolveMain(MainProbe.self) }
+            #expect(error?.isCircularDependency == true)
+        }
+    }
+}
+
+// MARK: - Singleton Creation Test Types
+
+extension ConcurrencyTests.SingletonCreationTests {
+    final class Probe: Sendable {
+        /// The factory run that created this instance.
+        let id: Int
+
+        init(id: Int) {
+            self.id = id
+        }
+    }
+
+    final class SlowProbe: Sendable {}
+
+    struct ProbeOwner: Sendable {
+        let probe: Probe
+    }
+
+    @MainActor
+    final class MainProbe {}
+
+    @MainActor
+    final class MainProbeOwner {
+        let probe: MainProbe
+
+        init(probe: MainProbe) {
+            self.probe = probe
+        }
+    }
+
+    enum FactoryError: Error {
+        case firstRunFails
+    }
+
+    enum ResetOperation: CaseIterable, Sendable {
+        case caches
+        case scope
+        case all
+
+        func apply(to env: ServiceEnv) {
+            switch self {
+            case .caches: env.resetCaches()
+            case .scope: env.resetScope(.singleton)
+            case .all: env.resetAll()
+            }
+        }
+    }
+}
+
+// MARK: - Blocking Test Support
+
+/// A countdown latch for synchronous code. `wait()` blocks until `countDown()` has been called `count` times,
+/// and returns immediately after that.
+private final class Latch: @unchecked Sendable {
+    private let condition = NSCondition()
+
+    /// Guarded by `condition`.
+    private var remaining: Int
+
+    init(count: Int = 1) {
+        remaining = count
+    }
+
+    func countDown() {
+        condition.lock()
+        defer { condition.unlock() }
+        remaining -= 1
+        if remaining == 0 {
+            condition.broadcast()
+        }
+    }
+
+    func wait() {
+        condition.lock()
+        defer { condition.unlock() }
+        while remaining > 0 {
+            condition.wait()
+        }
+    }
+}
+
+/// The eventual result of synchronous work that runs on its own thread.
+///
+/// Resolving a service can block the calling thread, so these tests keep it off the cooperative thread pool.
+/// `value` stops waiting when the awaiting task is cancelled, so a time limit ends a test whose thread
+/// stays blocked.
+private struct ThreadResult<Value: Sendable>: Sendable {
+    private let stream: AsyncThrowingStream<Value, any Error>
+
+    /// Starts `body` on a new thread.
+    init(_ body: @escaping @Sendable () throws -> Value) {
+        stream = AsyncThrowingStream { continuation in
+            Thread.detachNewThread {
+                continuation.yield(with: Result { try body() })
+                continuation.finish()
+            }
+        }
+    }
+
+    /// The value returned by the thread. Await it at most once.
+    ///
+    /// - Throws: The error thrown by the thread, or `CancellationError` if the task is cancelled first.
+    var value: Value {
+        get async throws {
+            for try await value in stream {
+                return value
+            }
+            throw CancellationError()
+        }
+    }
+}
+
+extension Locked<Int> {
+    /// Adds one and returns the new value.
+    fileprivate func increment() -> Int {
+        withLock { value in
+            value += 1
+            return value
+        }
+    }
+}
+
+extension ServiceError {
+    fileprivate var isCircularDependency: Bool {
+        if case .circularDependency = self {
+            return true
+        }
+        return false
+    }
+}
