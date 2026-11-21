@@ -28,6 +28,12 @@ swift format format --in-place --recursive ./
 python3 -m http.server 8000 --directory .build/docs
 ```
 
+## Swift Versions
+
+- Minimum: Swift 6.2, set by `swift-tools-version` in `Package.swift`. Code that needs a newer compiler must be guarded with `#if compiler(>=...)`.
+- `main` must build and pass tests on every Swift release from the minimum to the latest. `build.yml` and `test.yml` run that matrix on Linux and macOS.
+- When a new Swift release ships, add it to both matrices. Each macOS entry pins a runner image and an Xcode version; the macOS READMEs in `actions/runner-images` list the Xcode versions each image carries.
+
 ## Architecture
 
 ### Core Components

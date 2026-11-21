@@ -11,28 +11,46 @@ on:
 
 jobs:
   linux:
-    name: Swift 6.2 on Linux
+    name: Swift ${{ matrix.swift }} on Linux
     runs-on: ubuntu-latest
-    container: swift:6.2-noble
+    container: swift:${{ matrix.swift }}-noble
+    strategy:
+      fail-fast: false
+      matrix:
+        swift: ["6.2", "6.3", "6.4"]
     steps:
       - uses: actions/checkout@v5
 
+      - name: Check toolchain
+        run: swift --version | grep -F "Swift version ${{ matrix.swift }}"
+
       - name: Build
-        run: |
-          swift --version
-          swift build
+        run: swift build
 
   macos:
-    name: Swift 6.2 on macOS
-    # Pinned because the Xcode path below exists only on this image.
-    runs-on: macos-26
+    name: Swift ${{ matrix.swift }} on macOS
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Each Xcode path exists only on the runner image listed with it.
+        include:
+          - swift: "6.2"
+            runner: macos-26
+            xcode: "26.3"
+          - swift: "6.3"
+            runner: macos-26
+            xcode: "26.4"
+          - swift: "6.4"
+            runner: xcode-27
+            xcode: "27.2"
     env:
-      # Xcode 26.3 ships Swift 6.2.
-      DEVELOPER_DIR: /Applications/Xcode_26.3.app
+      DEVELOPER_DIR: /Applications/Xcode_${{ matrix.xcode }}.app
     steps:
       - uses: actions/checkout@v5
 
+      - name: Check toolchain
+        run: swift --version | grep -F "Swift version ${{ matrix.swift }}"
+
       - name: Build
-        run: |
-          swift --version
-          swift build
+        run: swift build
