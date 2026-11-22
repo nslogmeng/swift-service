@@ -59,22 +59,22 @@ Registration and the first resolution that fills the cache happen before measure
 | Machine | Apple M4 Max, 16 cores, 128 GB |
 | OS | macOS 27.0.1 (26A434) |
 | Swift | 6.4.2 (swiftlang-6.4.2.1.9) |
-| Library commit | `2a029f2` |
+| Library | `main` with #16 |
 
 ```
 benchmark                                   wall p50 (ns)  wall min (ns)   instructions
-resolve singleton (concrete)                        368.0          355.8           7870
-resolve singleton (existential)                     427.0          412.5           9388
-resolve transient                                   309.1          295.8           6435
-resolve graph                                       455.2          430.6           9471
-resolve custom scope                                376.0          359.0           7999
-resolve nested (transient + 2 hits)                 850.9          797.5          16751
-@Service cached                                      11.9           11.3            248
-@Service first access                               515.5          486.8          11818
-@Provider                                           361.3          319.5           7924
-resolve singleton (8 threads)                      3579.0         3153.0          97967
-resolveMain singleton                               361.9          322.4           7837
-@MainService cached                                  29.0           28.0            766
-@MainProvider                                       368.4          345.5           7889
-control: mutex + dictionary + downcast               17.2           17.0            482
+resolve singleton (concrete)                        323.5          273.1           7130
+resolve singleton (existential)                     318.4          275.4           7183
+resolve transient                                   265.8          240.0           5937
+resolve graph                                       419.1          368.9           9325
+resolve custom scope                                330.5          275.1           7269
+resolve nested (transient + 2 hits)                 723.0          638.4          15317
+@Service cached                                      11.3           10.0            248
+@Service first access                               467.8          426.5          11014
+@Provider                                           321.5          289.0           7184
+resolve singleton (8 threads)                      4424.9         2874.9          84690
+resolveMain singleton                               333.8          314.4           7212
+@MainService cached                                  29.6           28.3            765
+@MainProvider                                       342.5          282.8           7264
+control: mutex + dictionary + downcast               17.5           15.5            482
 ```
