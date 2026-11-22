@@ -205,6 +205,21 @@ struct ServiceRegistrationTests {
                 #expect(resolved.buildNumber == config.buildNumber)
             }
         }
+
+        @Test func resolvesRegistrationOfStaticTypeForSubclassMetatype() throws {
+            let env = ServiceEnv(name: "static-type-registration-test")
+            env.register(BaseClassService.self) { BaseClassService() }
+            env.register(SubclassService.self) { SubclassService() }
+
+            // The metatype value names the subclass. The static type, which selects the registration,
+            // is the base class.
+            let metatype: BaseClassService.Type = SubclassService.self
+            let resolvedByMetatype = try env.resolve(metatype)
+            #expect(type(of: resolvedByMetatype) == BaseClassService.self)
+
+            let subclassInstance = try env.resolve(SubclassService.self)
+            #expect(type(of: subclassInstance) == SubclassService.self)
+        }
     }
 
     // MARK: - Override Registration Tests

@@ -226,6 +226,14 @@ final class MainActorKeyService: ServiceKey {
     }
 }
 
+// MARK: - Class Hierarchy Test Services
+
+/// A base class without state. `@unchecked`, because a class that is not final cannot be checked.
+class BaseClassService: @unchecked Sendable {}
+
+/// A subclass of `BaseClassService`. Its metatype is also a value of `BaseClassService.Type`.
+final class SubclassService: BaseClassService, @unchecked Sendable {}
+
 // MARK: - ServiceAssembly Test Implementations
 
 struct DatabaseAssembly: ServiceAssembly {

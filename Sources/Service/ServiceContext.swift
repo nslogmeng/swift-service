@@ -127,27 +127,30 @@ extension ServiceContext {
     /// since the `@TaskLocal` scope ends and no more references exist.
     final class GraphCacheBox: @unchecked Sendable {
         @Locked
-        private var cache: [ServiceStorage.CacheKey: AnyCacheBox]
+        private var cache: [ObjectIdentifier: AnyCacheBox]
 
         init() {}
 
-        /// Retrieves a cached instance for the given key, or creates and caches one using the factory.
+        /// Retrieves the cached instance of a service type, or creates and caches one using the factory.
         ///
         /// - Parameters:
-        ///   - key: The cache key identifying the service type.
+        ///   - typeId: The identifier of the service type.
         ///   - factory: A closure that creates a new instance if none is cached.
         /// - Returns: The cached or newly created instance, or `nil` if the factory returns `nil`.
         ///   A `nil` result is not cached.
         /// - Throws: Rethrows any error from the factory closure.
-        func resolve<Service>(key: ServiceStorage.CacheKey, factory: () throws -> Service?) rethrows -> Service? {
-            if let cached = $cache.withLock({ $0[key] }) {
+        func resolve<Service>(typeId: ObjectIdentifier, factory: () throws -> Service?) rethrows -> Service? {
+            if let cached = $cache.withLock({ $0[typeId] }) {
                 return (cached as? CacheBox<Service>)?.value
             }
             guard let instance = try factory() else {
                 return nil
             }
             let newBox = CacheBox<Service>(instance)
-            $cache.withLock { $0[key] = newBox }
+            // A box that this one replaces is released after the lock: its instance can have a `deinit`
+            // that resolves from this cache.
+            let replaced = $cache.withLock { $0.updateValue(newBox, forKey: typeId) }
+            withExtendedLifetime(replaced) {}
             return instance
         }
     }
