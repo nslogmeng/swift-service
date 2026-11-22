@@ -280,7 +280,9 @@ struct ServiceEnvTests {
         }
 
         @Test func allowsEnvironmentComparisonInAssembly() async throws {
-            try await ServiceEnv.$current.withValue(.test) { @MainActor in
+            // New instances compare equal to the predefined environments and share no registrations
+            // with them, so tests that use the predefined environments cannot interfere.
+            try await ServiceEnv.$current.withValue(ServiceEnv(name: "test")) { @MainActor in
                 await MainActor.run {
                     ServiceEnv.current.assemble(EnvironmentAwareAssembly())
                 }
@@ -288,7 +290,7 @@ struct ServiceEnvTests {
                 #expect(value == "mock-value")
             }
 
-            try await ServiceEnv.$current.withValue(.online) { @MainActor in
+            try await ServiceEnv.$current.withValue(ServiceEnv(name: "online")) { @MainActor in
                 await MainActor.run {
                     ServiceEnv.current.assemble(EnvironmentAwareAssembly())
                 }
