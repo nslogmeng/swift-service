@@ -104,6 +104,7 @@ The framework uses two isolation models. Every `@unchecked Sendable` internal ty
 
 **Rules for modifying or adding code:**
 - New concurrent mutable state → use `Locked<Value>` (Value must be `Sendable`)
+- Change `@Locked` state only inside `withLock`. `wrappedValue` is read-only: a get followed by a set is two critical sections and loses concurrent updates
 - Interior mutability in `@MainActor` context → use `Box<Value>`
 - `@unchecked Sendable` → internal types only; always document which isolation mechanism guarantees safety
 - Never mutate `Box.value` on instances retrieved from `@Locked` dictionaries or cache slots
