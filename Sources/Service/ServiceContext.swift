@@ -60,16 +60,18 @@ enum ServiceContext {
     /// - Automatic stack cleanup via TaskLocal scoping
     ///
     /// - Parameters:
-    ///   - type: The service type being resolved.
+    ///   - type: The service type being resolved. Only its static type `Service` is used. The value can be
+    ///     the metatype of a subclass, and registrations are selected by the static type.
     ///   - resolve: The closure that performs the actual resolution. May throw any error.
     /// - Returns: The resolved service instance.
     /// - Throws: Always throws `ServiceError`. Framework errors (circularDependency, maxDepthExceeded)
     ///           are thrown directly. ServiceError from the resolve closure is propagated.
     ///           Other errors from the resolve closure are wrapped in `factoryFailed`.
     static func withResolutionTracking<Service>(
-        _ type: Service.Type,
+        _: Service.Type,
         resolve: () throws -> Service
     ) throws(ServiceError) -> Service {
+        let type = Service.self
         let typeID = ObjectIdentifier(type)
 
         // Each access to a task-local is a lookup in the task's storage, so each one is read once.
