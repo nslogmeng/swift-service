@@ -315,6 +315,63 @@ extension ConcurrencyTests {
     }
 }
 
+// MARK: - Instance Release
+
+extension ConcurrencyTests {
+    /// The `deinit` of a cached instance can call back into its environment. If the storage released
+    /// the instance inside one of its locks, that call would lock again on the same thread and crash
+    /// the process.
+    @Suite("Instance Release")
+    struct InstanceReleaseTests {
+        @Test(arguments: SingletonCreationTests.ResetOperation.allCases)
+        func releasesCachedInstanceOutsideLocksOnReset(operation: SingletonCreationTests.ResetOperation) throws {
+            let env = ServiceEnv(name: "release-on-reset")
+            let deinitCount = Locked<Int>(default: 0)
+            env.register(ReentrantOnDeinit.self) {
+                ReentrantOnDeinit(env: env, deinitCount: deinitCount)
+            }
+            try env.resolve(ReentrantOnDeinit.self)
+
+            operation.apply(to: env)
+
+            #expect(deinitCount.wrappedValue == 1)
+        }
+
+        @Test func releasesCachedInstanceOutsideLocksOnRegistrationWithAnotherScope() throws {
+            let env = ServiceEnv(name: "release-on-scope-change")
+            let deinitCount = Locked<Int>(default: 0)
+            env.register(ReentrantOnDeinit.self) {
+                ReentrantOnDeinit(env: env, deinitCount: deinitCount)
+            }
+            try env.resolve(ReentrantOnDeinit.self)
+
+            env.register(ReentrantOnDeinit.self, scope: .custom("other")) {
+                ReentrantOnDeinit(env: env, deinitCount: deinitCount)
+            }
+
+            #expect(deinitCount.wrappedValue == 1)
+        }
+    }
+}
+
+extension ConcurrencyTests.InstanceReleaseTests {
+    /// A service whose `deinit` registers a service in its environment.
+    final class ReentrantOnDeinit: Sendable {
+        private let env: ServiceEnv
+        private let deinitCount: Locked<Int>
+
+        init(env: ServiceEnv, deinitCount: Locked<Int>) {
+            self.env = env
+            self.deinitCount = deinitCount
+        }
+
+        deinit {
+            env.register(Int.self) { 0 }
+            _ = deinitCount.increment()
+        }
+    }
+}
+
 // MARK: - Singleton Creation Test Types
 
 extension ConcurrencyTests.SingletonCreationTests {
