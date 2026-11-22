@@ -52,6 +52,11 @@ enum ServiceContext {
     @TaskLocal
     static var graphCacheBox: GraphCacheBox?
 
+    /// Whether the current task is resolving `typeID`, that is, whether the type is in its resolution stack.
+    static func isResolving(_ typeID: ObjectIdentifier) -> Bool {
+        resolutionStack.contains { ObjectIdentifier($0) == typeID }
+    }
+
     /// Executes a service resolution with circular dependency tracking.
     ///
     /// This method wraps the actual resolution logic and provides:

@@ -127,8 +127,9 @@ final class ServiceStorage: @unchecked Sendable {
     /// - Returns: The resolved service instance, or nil if the factory returns nil.
     /// - Throws: Rethrows any error from the factory closure.
     /// - Important: The calling thread must not already be running the factory of `slot`, because
-    ///   the slot lock is not recursive. Within one task, `ServiceContext.withResolutionTracking`
-    ///   rejects such re-entrant resolution with `circularDependency` before the storage is reached.
+    ///   the slot lock is not recursive. Call this method only inside
+    ///   `ServiceContext.withResolutionTracking`, which rejects such re-entrant resolution within one task
+    ///   with `circularDependency`.
     private func resolveWithScope<Service>(
         typeId: ObjectIdentifier,
         scope: ServiceScope,
@@ -165,6 +166,25 @@ final class ServiceStorage: @unchecked Sendable {
         return try factory()
     }
 
+    /// Returns the box that a slot holds, without resolution tracking.
+    ///
+    /// Returning a cached instance runs no factory, so there is no cycle to detect and no depth to add.
+    /// If another thread is running the factory of the slot, this method waits for it.
+    ///
+    /// - Parameters:
+    ///   - slot: The cache slot of the registration, or `nil` if it has none.
+    ///   - typeId: The identifier of the service type.
+    /// - Returns: The cached box. `nil` if there is no slot, if the slot is empty, or if the current task
+    ///   is resolving `typeId`. In the last case the task can be running the factory of the slot and hold
+    ///   its lock, so the caller must continue with `ServiceContext.withResolutionTracking`, which reports
+    ///   the cycle.
+    private func cachedBox(in slot: CacheSlot?, typeId: ObjectIdentifier) -> AnyCacheBox? {
+        guard let slot, !ServiceContext.isResolving(typeId) else {
+            return nil
+        }
+        return slot.withLock { $0 }
+    }
+
     // MARK: - Sendable Services
 
     /// Resolves a Sendable service instance by its type.
@@ -174,16 +194,33 @@ final class ServiceStorage: @unchecked Sendable {
     /// - `.graph`: Shares the instance within the current resolution graph.
     /// - `.custom`: Caches the instance within a named scope.
     ///
+    /// A cached instance is returned without resolution tracking. Every other resolution runs inside
+    /// `ServiceContext.withResolutionTracking`.
+    ///
+    /// The result is not optional. An `Optional<Service>` result would become a generic argument of
+    /// `withResolutionTracking` and `TaskLocal.withValue`, and generic code that is not specialized
+    /// looks up the metadata of such a type at run time on every call.
+    ///
     /// - Parameter type: The service type.
-    /// - Returns: The service instance, or nil if not registered.
-    /// - Throws: Rethrows any error from the factory function.
-    func resolve<Service: Sendable>(_ type: Service.Type) throws -> Service? {
+    /// - Returns: The service instance.
+    /// - Throws: `ServiceError.notRegistered` if the type is not registered, or if its factory returns
+    ///   a value of another type. Otherwise, the errors of `ServiceContext.withResolutionTracking`.
+    func resolve<Service: Sendable>(_ type: Service.Type) throws(ServiceError) -> Service {
         let typeId = ObjectIdentifier(Service.self)
         guard let entry = provider(for: typeId) else {
-            return nil
+            throw ServiceError.notRegistered(serviceType: String(describing: Service.self))
         }
-        return try resolveWithScope(typeId: typeId, scope: entry.scope, slot: entry.slot) {
-            try entry.factory() as? Service
+        if let box = cachedBox(in: entry.slot, typeId: typeId) as? CacheBox<Service> {
+            return box.value
+        }
+        return try ServiceContext.withResolutionTracking(type) {
+            let service = try resolveWithScope(typeId: typeId, scope: entry.scope, slot: entry.slot) {
+                try entry.factory() as? Service
+            }
+            guard let service else {
+                throw ServiceError.notRegistered(serviceType: String(describing: Service.self))
+            }
+            return service
         }
     }
 
@@ -225,17 +262,34 @@ final class ServiceStorage: @unchecked Sendable {
     /// - `.graph`: Shares the instance within the current resolution graph.
     /// - `.custom`: Caches the instance within a named scope.
     ///
+    /// A cached instance is returned without resolution tracking. Every other resolution runs inside
+    /// `ServiceContext.withResolutionTracking`.
+    ///
+    /// The result is not optional. An `Optional<Service>` result would become a generic argument of
+    /// `withResolutionTracking` and `TaskLocal.withValue`, and generic code that is not specialized
+    /// looks up the metadata of such a type at run time on every call.
+    ///
     /// - Parameter type: The service type.
-    /// - Returns: The service instance, or nil if not registered.
-    /// - Throws: Rethrows any error from the factory function.
+    /// - Returns: The service instance.
+    /// - Throws: `ServiceError.notRegistered` if the type is not registered, or if its factory returns
+    ///   a value of another type. Otherwise, the errors of `ServiceContext.withResolutionTracking`.
     @MainActor
-    func resolveMain<Service>(_ type: Service.Type) throws -> Service? {
+    func resolveMain<Service>(_ type: Service.Type) throws(ServiceError) -> Service {
         let typeId = ObjectIdentifier(Service.self)
         guard let entry = mainProvider(for: typeId) else {
-            return nil
+            throw ServiceError.notRegistered(serviceType: String(describing: Service.self))
         }
-        return try resolveWithScope(typeId: typeId, scope: entry.scope, slot: entry.slot) {
-            try entry.factory() as? Service
+        if let box = cachedBox(in: entry.slot, typeId: typeId) as? CacheBox<Service> {
+            return box.value
+        }
+        return try ServiceContext.withResolutionTracking(type) {
+            let service = try resolveWithScope(typeId: typeId, scope: entry.scope, slot: entry.slot) {
+                try entry.factory() as? Service
+            }
+            guard let service else {
+                throw ServiceError.notRegistered(serviceType: String(describing: Service.self))
+            }
+            return service
         }
     }
 
