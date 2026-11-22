@@ -72,30 +72,32 @@ enum ServiceContext {
     ) throws(ServiceError) -> Service {
         let typeID = ObjectIdentifier(type)
 
+        // Each access to a task-local is a lookup in the task's storage, so each one is read once.
+        let stack = resolutionStack
+
         // Check for circular dependency
-        if resolutionStack.contains(where: { ObjectIdentifier($0) == typeID }) {
-            let chain = (resolutionStack + [type]).map { String(describing: $0) }
+        if stack.contains(where: { ObjectIdentifier($0) == typeID }) {
+            let chain = (stack + [type]).map { String(describing: $0) }
             throw ServiceError.circularDependency(serviceType: String(describing: type), chain: chain)
         }
 
         // Check for excessive depth
         let maxDepth = ServiceEnv.maxResolutionDepth
-        if resolutionStack.count >= maxDepth {
-            throw ServiceError.maxDepthExceeded(depth: maxDepth, chain: resolutionStack.map { String(describing: $0) })
+        if stack.count >= maxDepth {
+            throw ServiceError.maxDepthExceeded(depth: maxDepth, chain: stack.map { String(describing: $0) })
         }
 
         // Execute with the type added to the resolution stack
-        var newStack = resolutionStack
+        var newStack = stack
         newStack.append(type)
 
         // Create a new GraphCacheBox at the top-level resolve if one doesn't exist yet
-        let isTopLevel = graphCacheBox == nil
-        let cacheBox = graphCacheBox ?? GraphCacheBox()
+        let newCacheBox = graphCacheBox == nil ? GraphCacheBox() : nil
 
         do {
             return try $resolutionStack.withValue(newStack) {
-                if isTopLevel {
-                    return try $graphCacheBox.withValue(cacheBox) {
+                if let newCacheBox {
+                    return try $graphCacheBox.withValue(newCacheBox) {
                         try resolve()
                     }
                 } else {
