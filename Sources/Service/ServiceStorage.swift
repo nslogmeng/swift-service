@@ -200,7 +200,8 @@ final class ServiceStorage: @unchecked Sendable {
                     + "A service type can only be registered as either Sendable or MainActor, not both."
             )
         }
-        providers[key] = ProviderEntry(scope: scope, factory: factory)
+        let entry = ProviderEntry(scope: scope, factory: factory)
+        $providers.withLock { $0[key] = entry }
     }
 
     // MARK: - MainActor Services
@@ -251,7 +252,8 @@ final class ServiceStorage: @unchecked Sendable {
                     + "A service type can only be registered as either Sendable or MainActor, not both."
             )
         }
-        mainProviders[key] = MainProviderEntry(scope: scope, factory: factory)
+        let entry = MainProviderEntry(scope: scope, factory: factory)
+        $mainProviders.withLock { $0[key] = entry }
     }
 
     // MARK: - Reset
@@ -266,16 +268,16 @@ final class ServiceStorage: @unchecked Sendable {
     /// Registered service providers remain intact, so services will be recreated
     /// on the next resolution using their registered factory functions.
     func resetCaches() {
-        caches.removeAll()
+        $caches.withLock { $0.removeAll() }
     }
 
     /// Clears all cached service instances and removes all registered service providers
     /// (both Sendable and MainActor services).
     /// This completely resets the storage to its initial state.
     func resetAll() {
-        caches.removeAll()
-        providers.removeAll()
-        mainProviders.removeAll()
+        $caches.withLock { $0.removeAll() }
+        $providers.withLock { $0.removeAll() }
+        $mainProviders.withLock { $0.removeAll() }
     }
 
     /// Clears all cached service instances for a specific scope.

@@ -9,10 +9,13 @@
 final class Locked<Value: Sendable>: @unchecked Sendable {
     private let storage: LockStorage<Value>
 
-    /// Returns the current value, locking for thread safety.
+    /// The current value, read under the lock.
+    ///
+    /// The property has no setter. A mutation through a setter reads the value, changes the copy, and
+    /// writes it back in two separate critical sections, so concurrent mutations can overwrite each other.
+    /// Use `withLock` to change the value.
     var wrappedValue: Value {
-        get { storage.withLock { $0 } }
-        set { storage.withLock { $0 = newValue } }
+        storage.withLock { $0 }
     }
 
     /// Returns the property wrapper itself.
