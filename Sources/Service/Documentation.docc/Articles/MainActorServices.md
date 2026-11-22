@@ -83,25 +83,6 @@ await MainActor.run {
 }
 ```
 
-### Using ServiceKey
-
-For services with default implementations:
-
-```swift
-@MainActor
-final class UserViewModel: ServiceKey {
-    var userName: String = ""
-    
-    static var `default`: UserViewModel {
-        UserViewModel()
-    }
-}
-
-await MainActor.run {
-    ServiceEnv.current.registerMain(UserViewModel.self)
-}
-```
-
 ## Resolving MainActor Services
 
 ### Using resolveMain

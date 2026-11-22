@@ -76,6 +76,8 @@ ServiceEnv.current.register(DatabaseService.self) {
 - Simple services that don't require complex initialization
 - Reducing registration boilerplate in assemblies
 
+`ServiceKey` is for Sendable services: it inherits `Sendable`, and `default` is nonisolated. Register a MainActor service with a factory; see <doc:MainActorServices>.
+
 For more details on the design of ServiceKey, see <doc:UnderstandingService>.
 
 ## Injecting Services

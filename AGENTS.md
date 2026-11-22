@@ -77,6 +77,7 @@ python3 -m http.server 8000 --directory .build/docs
 
 **ServiceKey Protocol** (`ServiceKey.swift`)
 - Types conforming provide `static var default: Self` for simple registration
+- For Sendable services only: `ServiceKey` inherits `Sendable` and `default` is nonisolated. `registerMain` has no `ServiceKey` overload
 
 ### Thread Safety Model
 

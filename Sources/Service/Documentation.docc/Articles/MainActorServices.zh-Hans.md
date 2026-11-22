@@ -83,25 +83,6 @@ await MainActor.run {
 }
 ```
 
-### 使用 ServiceKey
-
-对于具有默认实现的服务：
-
-```swift
-@MainActor
-final class UserViewModel: ServiceKey {
-    var userName: String = ""
-    
-    static var `default`: UserViewModel {
-        UserViewModel()
-    }
-}
-
-await MainActor.run {
-    ServiceEnv.current.registerMain(UserViewModel.self)
-}
-```
-
 ## 解析 MainActor 服务
 
 ### 使用 resolveMain
