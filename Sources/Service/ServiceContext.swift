@@ -46,9 +46,10 @@ enum ServiceContext {
     static var resolutionStack: [any Any.Type] = []
 
     /// The graph cache for the current resolution chain.
-    /// When a top-level `resolve()` call begins, a new `GraphCacheBox` is created and propagated
-    /// through `@TaskLocal` to all nested resolutions. Services registered with `.graph` scope
-    /// use this cache to share instances within the same resolution graph.
+    /// The first tracked resolution of a chain in an environment that has graph-scoped services creates
+    /// a new `GraphCacheBox` and propagates it through `@TaskLocal` to all nested resolutions.
+    /// Services registered with `.graph` scope use this cache to share instances within the same
+    /// resolution graph.
     @TaskLocal
     static var graphCacheBox: GraphCacheBox?
 
@@ -67,6 +68,8 @@ enum ServiceContext {
     /// - Parameters:
     ///   - type: The service type being resolved. Only its static type `Service` is used. The value can be
     ///     the metatype of a subclass, and registrations are selected by the static type.
+    ///   - needsGraphCache: Whether the environment of this resolution has graph-scoped services.
+    ///     If it has, and no enclosing resolution has bound a graph cache, this resolution binds one.
     ///   - resolve: The closure that performs the actual resolution. May throw any error.
     /// - Returns: The resolved service instance.
     /// - Throws: Always throws `ServiceError`. Framework errors (circularDependency, maxDepthExceeded)
@@ -74,6 +77,7 @@ enum ServiceContext {
     ///           Other errors from the resolve closure are wrapped in `factoryFailed`.
     static func withResolutionTracking<Service>(
         _: Service.Type,
+        needsGraphCache: Bool,
         resolve: () throws -> Service
     ) throws(ServiceError) -> Service {
         let type = Service.self
@@ -98,8 +102,9 @@ enum ServiceContext {
         var newStack = stack
         newStack.append(type)
 
-        // Create a new GraphCacheBox at the top-level resolve if one doesn't exist yet
-        let newCacheBox = graphCacheBox == nil ? GraphCacheBox() : nil
+        // Bind a new GraphCacheBox if the environment has graph-scoped services and no enclosing
+        // resolution has bound one. Without graph-scoped services, nothing would read the cache.
+        let newCacheBox = needsGraphCache && graphCacheBox == nil ? GraphCacheBox() : nil
 
         do {
             return try $resolutionStack.withValue(newStack) {
@@ -126,11 +131,11 @@ enum ServiceContext {
 extension ServiceContext {
     /// A reference-type cache used for graph-scoped service resolution.
     ///
-    /// `GraphCacheBox` is created at the start of a top-level `resolve()` call and
-    /// propagated through `@TaskLocal` to all nested resolutions. Services registered
-    /// with `.graph` scope store and retrieve instances from this cache.
+    /// `GraphCacheBox` is created by the first tracked resolution of a chain in an environment that has
+    /// graph-scoped services, and propagated through `@TaskLocal` to all nested resolutions.
+    /// Services registered with `.graph` scope store and retrieve instances from this cache.
     ///
-    /// The cache is automatically released when the top-level `resolve()` call completes,
+    /// The cache is automatically released when the resolution that created it completes,
     /// since the `@TaskLocal` scope ends and no more references exist.
     final class GraphCacheBox: @unchecked Sendable {
         @Locked

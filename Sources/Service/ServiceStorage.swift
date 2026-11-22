@@ -83,6 +83,14 @@ final class ServiceStorage: @unchecked Sendable {
     private struct Registry: Sendable {
         var providers: [ObjectIdentifier: ProviderEntry] = [:]
         var mainProviders: [ObjectIdentifier: MainProviderEntry] = [:]
+
+        /// Whether a graph-scoped service has been registered in this registry.
+        /// A resolution binds a graph cache only if this is `true`.
+        ///
+        /// It is set in the critical section that stores a graph-scoped entry, so every resolution that
+        /// finds such an entry also finds the flag set. It stays `true` when that entry is replaced.
+        /// `resetAll()` starts with a new registry.
+        var hasGraphProviders = false
     }
 
     /// Thread-safe storage for all registrations.
@@ -100,14 +108,22 @@ final class ServiceStorage: @unchecked Sendable {
     @Locked(default: Registry())
     private var registry: Registry
 
-    /// Returns the entry of a Sendable service type. The lookup runs inside the registry lock.
-    private func provider(for typeId: ObjectIdentifier) -> ProviderEntry? {
-        $registry.withLock { $0.providers[typeId] }
+    /// Returns the entry of a Sendable service type, and whether the registry has graph-scoped services.
+    /// Both are read in one critical section.
+    private func provider(for typeId: ObjectIdentifier) -> (entry: ProviderEntry, hasGraphProviders: Bool)? {
+        $registry.withLock { registry in
+            registry.providers[typeId].map { ($0, registry.hasGraphProviders) }
+        }
     }
 
-    /// Returns the entry of a MainActor service type. The lookup runs inside the registry lock.
-    private func mainProvider(for typeId: ObjectIdentifier) -> MainProviderEntry? {
-        $registry.withLock { $0.mainProviders[typeId] }
+    /// Returns the entry of a MainActor service type, and whether the registry has graph-scoped services.
+    /// Both are read in one critical section.
+    private func mainProvider(
+        for typeId: ObjectIdentifier
+    ) -> (entry: MainProviderEntry, hasGraphProviders: Bool)? {
+        $registry.withLock { registry in
+            registry.mainProviders[typeId].map { ($0, registry.hasGraphProviders) }
+        }
     }
 
     /// Creates a new service storage instance.
@@ -161,8 +177,8 @@ final class ServiceStorage: @unchecked Sendable {
             return try graphCache.resolve(typeId: typeId, factory: factory)
         }
 
-        // Transient scope. A graph-scoped service without a graph context (e.g., direct storage access)
-        // also gets here and behaves like a transient one.
+        // Transient scope. A graph-scoped service always finds a graph cache above: its entry is stored
+        // together with `hasGraphProviders`, and resolution tracking then binds a cache.
         return try factory()
     }
 
@@ -207,13 +223,13 @@ final class ServiceStorage: @unchecked Sendable {
     ///   a value of another type. Otherwise, the errors of `ServiceContext.withResolutionTracking`.
     func resolve<Service: Sendable>(_ type: Service.Type) throws(ServiceError) -> Service {
         let typeId = ObjectIdentifier(Service.self)
-        guard let entry = provider(for: typeId) else {
+        guard let (entry, hasGraphProviders) = provider(for: typeId) else {
             throw ServiceError.notRegistered(serviceType: String(describing: Service.self))
         }
         if let box = cachedBox(in: entry.slot, typeId: typeId) as? CacheBox<Service> {
             return box.value
         }
-        return try ServiceContext.withResolutionTracking(type) {
+        return try ServiceContext.withResolutionTracking(type, needsGraphCache: hasGraphProviders) {
             let service = try resolveWithScope(typeId: typeId, scope: entry.scope, slot: entry.slot) {
                 try entry.factory() as? Service
             }
@@ -242,6 +258,9 @@ final class ServiceStorage: @unchecked Sendable {
             let previous = registry.providers[typeId]
             let slot = Self.slot(for: scope, replacing: previous.map { ($0.scope, $0.slot) })
             registry.providers[typeId] = ProviderEntry(scope: scope, factory: factory, slot: slot)
+            if case .graph = scope {
+                registry.hasGraphProviders = true
+            }
             return (previous, registry.mainProviders[typeId] != nil)
         }
         withExtendedLifetime(replaced) {}
@@ -276,13 +295,13 @@ final class ServiceStorage: @unchecked Sendable {
     @MainActor
     func resolveMain<Service>(_ type: Service.Type) throws(ServiceError) -> Service {
         let typeId = ObjectIdentifier(Service.self)
-        guard let entry = mainProvider(for: typeId) else {
+        guard let (entry, hasGraphProviders) = mainProvider(for: typeId) else {
             throw ServiceError.notRegistered(serviceType: String(describing: Service.self))
         }
         if let box = cachedBox(in: entry.slot, typeId: typeId) as? CacheBox<Service> {
             return box.value
         }
-        return try ServiceContext.withResolutionTracking(type) {
+        return try ServiceContext.withResolutionTracking(type, needsGraphCache: hasGraphProviders) {
             let service = try resolveWithScope(typeId: typeId, scope: entry.scope, slot: entry.slot) {
                 try entry.factory() as? Service
             }
@@ -315,6 +334,9 @@ final class ServiceStorage: @unchecked Sendable {
             let previous = registry.mainProviders[typeId]
             let slot = Self.slot(for: scope, replacing: previous.map { ($0.scope, $0.slot) })
             registry.mainProviders[typeId] = MainProviderEntry(scope: scope, factory: factory, slot: slot)
+            if case .graph = scope {
+                registry.hasGraphProviders = true
+            }
             return (previous, registry.providers[typeId] != nil)
         }
         withExtendedLifetime(replaced) {}

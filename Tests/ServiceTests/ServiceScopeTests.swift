@@ -154,6 +154,17 @@ struct ServiceScopeTests {
             }
         }
 
+        @Test func bindsGraphCacheOnlyForEnvironmentsWithGraphScopedServices() throws {
+            let env = ServiceEnv(name: "scope-graph-on-demand-test")
+            env.register(Bool.self, scope: .transient) {
+                ServiceContext.graphCacheBox != nil
+            }
+            #expect(try env.resolve(Bool.self) == false)
+
+            env.register(Int.self, scope: .graph) { 1 }
+            #expect(try env.resolve(Bool.self) == true)
+        }
+
         @Test func graphScopeNestedDependencies() throws {
             let env = ServiceEnv(name: "scope-graph-nested-test")
             try ServiceEnv.$current.withValue(env) {
