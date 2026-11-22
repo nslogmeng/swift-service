@@ -26,10 +26,11 @@ Service is built around five core concepts:
 │                          │                          │
 │              ┌───────────▼───────────┐              │
 │              │    ServiceStorage     │              │
-│              │  • providers (locked) │              │
+│              │  registry (locked):   │              │
+│              │  • providers          │              │
 │              │  • mainProviders      │              │
-│              │  • caches (locked)    │              │
-│              │    key: Type + Scope  │              │
+│              │    entry: scope,      │              │
+│              │    factory, slot      │              │
 │              └───────────────────────┘              │
 └─────────────────────────────────────────────────────┘
 ```
@@ -63,24 +64,31 @@ resolve(MyService.self)
          ▼
 ┌─────────────────────────┐
 │  1. Get provider entry  │──── Not found? ──▶ Throw notRegistered
-│     (includes scope)    │
+│     (scope, factory,    │
+│     cache slot)         │
 └─────────────────────────┘
          │ Found
          ▼
 ┌─────────────────────────┐
-│  2. Check for cycle     │──── In chain? ──▶ Throw circularDependency
+│  2. Read the cache slot │──── Holds an instance? ──▶ Return it
+│     (singleton, custom) │
+└─────────────────────────┘
+         │ Empty, or no slot
+         ▼
+┌─────────────────────────┐
+│  3. Check for cycle     │──── In chain? ──▶ Throw circularDependency
 └─────────────────────────┘
          │ OK
          ▼
 ┌─────────────────────────┐
-│  3. Track in chain +    │
+│  4. Track in chain +    │
 │     create graph cache  │──── (if top-level resolve)
 │     if needed           │
 └─────────────────────────┘
          │
          ▼
 ┌─────────────────────────┐
-│  4. Dispatch by scope   │
+│  5. Dispatch by scope   │
 └────────┬────────────────┘
          │
          ├── singleton → check cache → hit: return │ miss: factory + cache
@@ -91,12 +99,12 @@ resolve(MyService.self)
 
 ### Scope-Specific Behavior
 
-| Scope | Caching | Cache Key | Reset |
+| Scope | Caching | Stored In | Reset |
 |-------|---------|-----------|-------|
-| `.singleton` | Global cache, one instance per type | Type + `.singleton` | `resetCaches()` or `resetScope(.singleton)` |
+| `.singleton` | Global cache, one instance per type | Cache slot of the registration | `resetCaches()` or `resetScope(.singleton)` |
 | `.transient` | No caching, new instance every time | N/A | N/A |
-| `.graph` | Shared within one resolve chain | Type + `.graph` (in `GraphCacheBox`) | Automatic (released when top-level resolve completes) |
-| `.custom("name")` | Named cache, independent of other scopes | Type + `.custom("name")` | `resetScope(.custom("name"))` |
+| `.graph` | Shared within one resolve chain | `GraphCacheBox` of the chain, by type | Automatic (released when top-level resolve completes) |
+| `.custom("name")` | Named cache, independent of other scopes | Cache slot of the registration | `resetScope(.custom("name"))` |
 
 ## Design Decisions
 
@@ -227,23 +235,38 @@ env.resetScope(.custom("user-session"))  // Clear only this scope
 Service uses platform-specific locking for thread-safe access (`Synchronization.Mutex` on Linux/Android, `OSAllocatedUnfairLock` on Apple, no-op on Wasm):
 
 ```swift
-@Locked private var caches: [CacheKey: Locked<AnyCacheBox?>]
-@Locked private var providers: [CacheKey: ProviderEntry]
-@Locked private var mainProviders: [CacheKey: MainProviderEntry]
+private struct Registry: Sendable {
+    var providers: [ObjectIdentifier: ProviderEntry] = [:]
+    var mainProviders: [ObjectIdentifier: MainProviderEntry] = [:]
+}
+
+@Locked(default: Registry())
+private var registry: Registry
 ```
 
-The `@Locked` property wrapper guards each value with a lock. Reading the property returns the value under the lock. Every change runs inside `withLock`, so reading, changing, and writing back are one critical section. The `CacheKey` is a composite of the service type (`ObjectIdentifier`) and its scope, ensuring that services registered under different scopes have isolated caches.
+The `@Locked` property wrapper guards each value with a lock. Reading the property returns the value under the lock. Every change runs inside `withLock`, so reading, changing, and writing back are one critical section.
+
+One lock guards the registrations of both service categories. A registration can therefore check the other category, and a reset can clear the caches of both, in one critical section.
+
+Both dictionaries are keyed by the identifier of the static service type. An entry holds the scope and the factory of one registration. For singleton and custom scopes, it also holds a cache slot of type `Locked<AnyCacheBox?>`.
 
 ### Once-per-Key Creation
 
-Each entry in `caches` is a slot with its own lock. A singleton or custom-scoped resolution takes two steps:
+The cache slot of a singleton or custom-scoped registration has its own lock. A resolution takes these steps:
 
-1. Take the dictionary lock, get the slot for the key (insert an empty slot if there is none), and release the dictionary lock.
-2. Take the slot lock. If the slot holds an instance, return it. Otherwise, run the factory and store the result in the slot.
+1. Take the registry lock, copy the entry, and release the registry lock.
+2. Take the slot lock and read the slot. If the slot holds an instance, return it.
+3. Otherwise, start resolution tracking and take the slot lock again. If the slot holds an instance now, return it. If not, run the factory and store the result in the slot.
 
-The slot lock is held while the factory runs. As a result, the factory runs at most once per cached instance, and concurrent first resolvers of the same key wait for it. The dictionary lock is never held while a factory runs, so a slow factory blocks only the resolvers of its own key.
+Step 2 runs no factory. It skips cycle detection and does not count toward `maxResolutionDepth`. If the current task is already resolving the same type, the task can hold the slot lock. The resolution then skips step 2, and step 3 reports the cycle.
 
-Reset methods remove slots from the dictionary and do not take slot locks. A resolution that already holds a removed slot finishes with that slot. Later resolutions get a new slot.
+The slot lock is held while the factory runs. As a result, the factory runs at most once per cached instance, and concurrent first resolvers of the same service wait for it. The registry lock is never held while a factory runs, so a slow factory blocks only the resolvers of its own service.
+
+Reset methods give the affected entries new, empty slots and do not take slot locks. A resolution that already holds an old slot finishes with that slot. Later resolutions use the new slot.
+
+The storage releases an old slot, and the instance cached in it, after it has released the registry lock. The `deinit` of a service can therefore use its environment.
+
+Registering a type again replaces its entry. If the scope is the same, the new entry keeps the slot, so an instance that is already cached stays until a reset. If the scope is different, the new entry starts with an empty slot.
 
 For the guarantees and limitations that follow from this design, see <doc:ConcurrencyModel>.
 
@@ -258,7 +281,7 @@ enum ServiceContext {
 }
 ```
 
-When resolving a service:
+A resolution that returns a cached instance skips tracking. When a resolution has to run a factory:
 1. Check if the service type is already in the stack, compared by type identity (circular dependency detection)
 2. If yes, throw `ServiceError.circularDependency`
 3. If no, add to stack and proceed
@@ -298,17 +321,17 @@ ServiceEnv.current.register(MyService.self)  // Uses default
 | Operation | Complexity | Notes |
 |-----------|------------|-------|
 | Registration | O(1) | Dictionary insertion |
-| First resolution (singleton/custom) | O(1) + factory | Plus cycle detection; the factory runs under the key's slot lock |
-| Cached resolution (singleton/custom) | O(1) | Dictionary lookup by composite key, then slot read (two uncontended locks) |
+| First resolution (singleton/custom) | O(1) + factory | Plus cycle detection; the factory runs under the registration's slot lock |
+| Cached resolution (singleton/custom) | O(1) | One registry lookup by type, then slot read (two uncontended locks); no resolution tracking |
 | Transient resolution | O(1) + factory | No caching overhead |
 | Graph resolution | O(1) + factory | Lookup in task-local graph cache |
 | Environment switch | O(1) | TaskLocal binding |
-| Reset all caches | O(n) | Clears all cached instances |
+| Reset all caches | O(n) | Gives every cached registration a new slot |
 | Reset specific scope | O(n) | Filters by scope |
 
 ### Memory Considerations
 
-- Each registered service stores one factory closure
+- Each registered service stores one factory closure and, for singleton and custom scopes, one cache slot
 - Each resolved service stores one cached instance
 - Resolution chain tracking uses stack-allocated array
 - Environment switching has minimal memory overhead
