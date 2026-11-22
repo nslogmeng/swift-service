@@ -61,6 +61,28 @@ struct ConcurrencyTests {
         }
     }
 
+    @Test func keepsEveryRegistrationMadeByConcurrentThreads() {
+        // Every thread registers its own family of distinct types, so no registration replaces another one.
+        let seeds: [any ServiceFamily.Type] = [
+            Nested<Int>.self, Nested<String>.self, Nested<Bool>.self, Nested<Double>.self,
+            Nested<UInt8>.self, Nested<Int16>.self, Nested<Float>.self, Nested<Character>.self,
+        ]
+        let typesPerThread = 20
+
+        for _ in 0..<20 {
+            let env = ServiceEnv(name: "concurrent-distinct-registration-test")
+            DispatchQueue.concurrentPerform(iterations: seeds.count) { index in
+                seeds[index].registerFamily(count: typesPerThread, in: env)
+            }
+
+            for seed in seeds {
+                #expect(throws: Never.self) {
+                    try seed.resolveFamily(count: typesPerThread, in: env)
+                }
+            }
+        }
+    }
+
     @Test func maintainsIsolationAcrossConcurrentTasks() async throws {
         let env1 = ServiceEnv(name: "concurrent-env1")
         let env2 = ServiceEnv(name: "concurrent-env2")
@@ -338,6 +360,32 @@ extension ConcurrencyTests.SingletonCreationTests {
             case .scope: env.resetScope(.singleton)
             case .all: env.resetAll()
             }
+        }
+    }
+}
+
+// MARK: - Distinct Service Types
+
+/// A type that names a family of distinct service types: `Nested<Self>`, `Nested<Nested<Self>>`, and so on.
+private protocol ServiceFamily: Sendable {}
+
+/// A service type that is distinct for every `T`.
+private struct Nested<T>: ServiceFamily {}
+
+extension ServiceFamily {
+    /// Registers the first `count` service types of the family.
+    fileprivate static func registerFamily(count: Int, in env: ServiceEnv) {
+        env.register(Nested<Self>.self) { Nested<Self>() }
+        if count > 1 {
+            Nested<Self>.registerFamily(count: count - 1, in: env)
+        }
+    }
+
+    /// Resolves the first `count` service types of the family.
+    fileprivate static func resolveFamily(count: Int, in env: ServiceEnv) throws(ServiceError) {
+        try env.resolve(Nested<Self>.self)
+        if count > 1 {
+            try Nested<Self>.resolveFamily(count: count - 1, in: env)
         }
     }
 }
