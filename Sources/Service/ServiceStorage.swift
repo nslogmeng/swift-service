@@ -59,10 +59,10 @@ final class ServiceStorage: @unchecked Sendable {
 
     /// The cache slot for one `CacheKey`.
     ///
-    /// The slot holds `nil` until a factory succeeds, then holds the write-once `Box` of the instance.
+    /// The slot holds `nil` until a factory succeeds, then holds the `CacheBox` of the instance.
     /// The slot's lock is held while the factory runs, which serializes creation for that key only.
     /// The lock is not recursive: a thread must never lock a slot whose factory it is running.
-    private typealias CacheSlot = Locked<Box<Any>?>
+    private typealias CacheSlot = Locked<AnyCacheBox?>
 
     /// Thread-safe cache storage for all service instances (both Sendable and MainActor).
     /// Uses composite `CacheKey` (type + scope) so singleton and custom-scoped instances
@@ -117,25 +117,25 @@ final class ServiceStorage: @unchecked Sendable {
             // wait here and then read the cached box. If the factory throws or returns nil, the slot
             // stays empty and the next resolution runs the factory again.
             // The box is cast outside the lock because `Service` is not required to be Sendable.
-            let box = try slot.withLock { (cached: inout sending Box<Any>?) throws -> sending Box<Any>? in
+            let box = try slot.withLock { (cached: inout sending AnyCacheBox?) throws -> sending AnyCacheBox? in
                 if let cached {
                     return cached
                 }
                 guard let newService = try factory() else {
                     return nil
                 }
-                let newBox = Box<Any>(newService)
+                let newBox = CacheBox<Service>(newService)
                 cached = newBox
                 return newBox
             }
-            return box?.value as? Service
+            return (box as? CacheBox<Service>)?.value
 
         case .transient:
             return try factory()
 
         case .graph:
             if let graphCache = ServiceContext.graphCacheBox {
-                return try graphCache.resolve(key: key) { try factory() }
+                return try graphCache.resolve(key: key, factory: factory)
             }
             // Fallback: no graph context (e.g., direct storage access), behave like transient
             return try factory()
