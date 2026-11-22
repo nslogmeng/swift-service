@@ -76,6 +76,8 @@ ServiceEnv.current.register(DatabaseService.self) {
 - 不需要复杂初始化的简单服务
 - 减少 Assembly 中的注册样板代码
 
+`ServiceKey` 用于 Sendable 服务：它继承 `Sendable`，并且 `default` 是 nonisolated 的。MainActor 服务请用工厂函数注册，参阅 <doc:MainActorServices>。
+
 有关 ServiceKey 设计的更多详细信息，请参阅 <doc:UnderstandingService>。
 
 ## 注入服务
