@@ -232,7 +232,7 @@ Service 使用跨平台锁机制实现线程安全访问（Linux/Android 上使�
 @Locked private var mainProviders: [CacheKey: MainProviderEntry]
 ```
 
-`@Locked` 属性包装器确保原子读写操作。`CacheKey` 是服务类型（`ObjectIdentifier`）和其作用域的复合键，确保在不同作用域下注册的服务拥有隔离的缓存。
+`@Locked` 属性包装器用锁保护每个值。读取属性时在锁内返回值。所有修改都在 `withLock` 内完成，因此读取、修改和写回处于同一个临界区。`CacheKey` 是服务类型（`ObjectIdentifier`）和其作用域的复合键，确保在不同作用域下注册的服务拥有隔离的缓存。
 
 ### 按键的一次性创建
 

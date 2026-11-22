@@ -232,7 +232,7 @@ Service uses platform-specific locking for thread-safe access (`Synchronization.
 @Locked private var mainProviders: [CacheKey: MainProviderEntry]
 ```
 
-The `@Locked` property wrapper ensures atomic read/write operations. The `CacheKey` is a composite of the service type (`ObjectIdentifier`) and its scope, ensuring that services registered under different scopes have isolated caches.
+The `@Locked` property wrapper guards each value with a lock. Reading the property returns the value under the lock. Every change runs inside `withLock`, so reading, changing, and writing back are one critical section. The `CacheKey` is a composite of the service type (`ObjectIdentifier`) and its scope, ensuring that services registered under different scopes have isolated caches.
 
 ### Once-per-Key Creation
 
