@@ -135,6 +135,8 @@ targets: [
 ]
 ```
 
+Service supports the latest Swift release and the two minor releases before it: currently Swift 6.2, 6.3, and 6.4. After a new Swift release ships, a minor version of Service drops the oldest one.
+
 ## Service Scopes
 
 Control how service instances are created and cached:

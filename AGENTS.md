@@ -36,9 +36,11 @@ python3 -m http.server 8000 --directory .build/docs
 
 ## Swift Versions
 
-- Minimum: Swift 6.2, set by `swift-tools-version` in `Package.swift`. Code that needs a newer compiler must be guarded with `#if compiler(>=...)`.
-- `main` must build and pass tests on every Swift release from the minimum to the latest. `build.yml` and `test.yml` run that matrix on Linux and macOS. `test.yml` runs the tests in the debug and the release configuration.
+- Policy: the package supports the latest Swift release and the two minor releases before it. Currently Swift 6.2, 6.3, and 6.4. Both READMEs state this policy.
+- Minimum: Swift 6.2, set by `swift-tools-version` in `Package.swift` and `Benchmarks/Package.swift`. Code that needs a newer compiler must be guarded with `#if compiler(>=...)`.
+- `main` must build and pass tests on every supported Swift release. `build.yml` and `test.yml` run that matrix on Linux and macOS. `test.yml` runs the tests in the debug and the release configuration.
 - When a new Swift release ships, add it to both matrices. Each macOS entry pins a runner image and an Xcode version; the macOS READMEs in `actions/runner-images` list the Xcode versions each image carries.
+- Then drop the oldest release in the next minor version of the package, not in a patch version: raise both `swift-tools-version` lines, remove its matrix entries, and update the versions named in this section, in both READMEs, and in the Benchmarks READMEs.
 
 ## Architecture
 
