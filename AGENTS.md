@@ -87,7 +87,7 @@ The framework uses two isolation models. Every `@unchecked Sendable` internal ty
   - Wasm: no-op (single-threaded)
 - `@Service` uses `Locked<S?>` — check-and-set is fully atomic within `withLock`
 - `ServiceStorage` — all state is in `registry`, one `@Locked` struct for the Sendable and the MainActor registrations
-- `GraphCacheBox` — cache dictionary is `@Locked`
+- `GraphCacheBox` — cache dictionary is `@Locked`. `withResolutionTracking` binds one only when `Registry.hasGraphProviders` is set, so environments without graph-scoped services create none. The flag is set in the critical section that stores a graph-scoped entry and read in the critical section that looks an entry up
 
 **Per-registration once in `ServiceStorage`** (singleton and custom scopes):
 - `registry` is one `@Locked` struct with two dictionaries, `providers` and `mainProviders`. Both map `ObjectIdentifier(Service.self)` to an entry. Use the static type for the key, never the `type` argument: it can be the metatype of a subclass

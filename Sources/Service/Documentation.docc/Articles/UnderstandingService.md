@@ -82,8 +82,8 @@ resolve(MyService.self)
          ▼
 ┌─────────────────────────┐
 │  4. Track in chain +    │
-│     create graph cache  │──── (if top-level resolve)
-│     if needed           │
+│     create graph cache  │──── (if the environment has graph-scoped
+│     if needed           │      services and the chain has no cache yet)
 └─────────────────────────┘
          │
          ▼
@@ -238,6 +238,7 @@ Service uses platform-specific locking for thread-safe access (`Synchronization.
 private struct Registry: Sendable {
     var providers: [ObjectIdentifier: ProviderEntry] = [:]
     var mainProviders: [ObjectIdentifier: MainProviderEntry] = [:]
+    var hasGraphProviders = false
 }
 
 @Locked(default: Registry())
@@ -285,8 +286,10 @@ A resolution that returns a cached instance skips tracking. When a resolution ha
 1. Check if the service type is already in the stack, compared by type identity (circular dependency detection)
 2. If yes, throw `ServiceError.circularDependency`
 3. If no, add to stack and proceed
-4. If this is a top-level resolve, create a new `GraphCacheBox` for graph-scoped services
+4. If the environment has a graph-scoped registration and the chain has no `GraphCacheBox` yet, create one
 5. Nested resolves within the same chain share the same `GraphCacheBox`
+
+A chain in an environment without graph-scoped registrations creates no `GraphCacheBox`. In other environments, step 4 happens at the first resolution of the chain that runs a factory.
 
 This approach is:
 - **Task-scoped**: Each async task has its own resolution stack

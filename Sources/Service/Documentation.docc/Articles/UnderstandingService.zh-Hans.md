@@ -82,8 +82,8 @@ resolve(MyService.self)
          ▼
 ┌─────────────────────────┐
 │  4. 跟踪到链中 +       │
-│     创建 graph 缓存     │──── (如果是顶层 resolve)
-│     (如果需要)          │
+│     创建 graph 缓存     │──── (如果环境中有 graph 作用域的服务，
+│     (如果需要)          │      且解析链还没有缓存)
 └─────────────────────────┘
          │
          ▼
@@ -238,6 +238,7 @@ Service 使用跨平台锁机制实现线程安全访问（Linux/Android 上使�
 private struct Registry: Sendable {
     var providers: [ObjectIdentifier: ProviderEntry] = [:]
     var mainProviders: [ObjectIdentifier: MainProviderEntry] = [:]
+    var hasGraphProviders = false
 }
 
 @Locked(default: Registry())
@@ -285,8 +286,10 @@ enum ServiceContext {
 1. 检查服务类型是否已在栈中，按类型身份比较（循环依赖检测）
 2. 如果是，抛出 `ServiceError.circularDependency`
 3. 如果否，添加到栈中并继续
-4. 如果是顶层 resolve，创建新的 `GraphCacheBox` 用于 graph 作用域的服务
+4. 如果环境中有 graph 作用域的注册，且解析链还没有 `GraphCacheBox`，创建一个
 5. 同一链中的嵌套 resolve 共享同一个 `GraphCacheBox`
+
+没有 graph 作用域注册的环境，其解析链不创建 `GraphCacheBox`。其他环境中，第 4 步发生在解析链里第一个需要执行工厂函数的解析上。
 
 这种方法的特点：
 - **任务作用域**：每个异步任务有自己的解析栈
