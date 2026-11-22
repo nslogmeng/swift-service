@@ -31,7 +31,7 @@ To compare two versions of the library, run the benchmarks on each and compare t
 
 ## Benchmarks
 
-Registration and the first resolution that fills the cache happen before measurement starts. All benchmarks share one `ServiceEnv(name: "bench")`.
+Registration and the first resolution that fills the cache happen before measurement starts. All benchmarks share one `ServiceEnv(name: "bench")`, except `resolve graph`. That benchmark uses its own environment, so the shared one has no graph-scoped registration.
 
 | Benchmark | Measures |
 |-----------|----------|

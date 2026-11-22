@@ -37,8 +37,9 @@ private func runSendableBenchmarks(with runner: BenchmarkRunner, in env: Service
         for _ in 0..<operationsPerSample { _ = try env.resolve(TransientService.self) }
     }
 
+    let graphEnv = makeGraphEnvironment()
     try runner.measure("resolve graph") {
-        for _ in 0..<operationsPerSample { _ = try env.resolve(GraphService.self) }
+        for _ in 0..<operationsPerSample { _ = try graphEnv.resolve(GraphService.self) }
     }
 
     try runner.measure("resolve custom scope") {

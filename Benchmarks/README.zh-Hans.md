@@ -31,7 +31,7 @@ swift run -c release --package-path Benchmarks ServiceBenchmarks "resolve single
 
 ## Benchmark 列表
 
-注册和填充缓存的首次解析在计时开始前完成。所有 benchmark 共用一个 `ServiceEnv(name: "bench")`。
+注册和填充缓存的首次解析在计时开始前完成。除 `resolve graph` 外，所有 benchmark 共用一个 `ServiceEnv(name: "bench")`。`resolve graph` 使用独立的环境，因此共用环境中没有 graph 作用域的注册。
 
 | Benchmark | 测量内容 |
 |-----------|----------|

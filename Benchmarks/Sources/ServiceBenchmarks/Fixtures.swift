@@ -73,14 +73,13 @@ struct MainProviderHolder {
     @MainProvider var config: MainConfig
 }
 
-/// Creates a dedicated environment with every fixture registered.
+/// Creates a dedicated environment with every fixture registered, except the graph-scoped one.
 @MainActor
 func makeEnvironment() -> ServiceEnv {
     let env = ServiceEnv(name: "bench")
     env.register(Config.self) { Config(id: 1) }
     env.register((any Greeter).self) { DefaultGreeter() }
     env.register(TransientService.self, scope: .transient) { TransientService(id: 1) }
-    env.register(GraphService.self, scope: .graph) { GraphService(id: 1) }
     env.register(CustomService.self, scope: .custom("bench")) { CustomService(id: 1) }
     env.register(Leaf.self) { Leaf(id: 1) }
     env.register(Middle.self) { Middle(leaf: try env.resolve(Leaf.self)) }
@@ -88,6 +87,14 @@ func makeEnvironment() -> ServiceEnv {
         Top(middle: try env.resolve(Middle.self), leaf: try env.resolve(Leaf.self))
     }
     env.registerMain(MainConfig.self) { MainConfig(id: 1) }
+    return env
+}
+
+/// Creates the environment of the graph benchmark. The other benchmarks use an environment that has no
+/// graph-scoped registration.
+func makeGraphEnvironment() -> ServiceEnv {
+    let env = ServiceEnv(name: "bench-graph")
+    env.register(GraphService.self, scope: .graph) { GraphService(id: 1) }
     return env
 }
 
