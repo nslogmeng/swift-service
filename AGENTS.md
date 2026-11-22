@@ -50,6 +50,7 @@ python3 -m http.server 8000 --directory .build/docs
 **Utility Types** (`Utils/`)
 - `Locked<Value: Sendable>` (`Lock.swift`) — Thread-safe wrapper using platform-specific locking via `LockStorage` (`LockStorage.swift`)
 - `Box<Value>` (`Box.swift`) — Reference-type wrapper for interior mutability, `@unchecked Sendable`. Thread safety is **not** provided by Box itself; callers must guarantee safety via external synchronization
+- `CacheBox<Value>` (`CacheBox.swift`) — Immutable box for one cached service instance. Caches store it as its type-erased base class `AnyCacheBox`
 
 **Service Environment** (`ServiceEnv.swift`)
 - Manages service registrations per environment (`online`, `test`, `dev`)
@@ -86,7 +87,7 @@ The framework uses two isolation models. Every `@unchecked Sendable` internal ty
 - `GraphCacheBox` — cache dictionary is `@Locked`
 
 **Per-key once in `ServiceStorage`** (singleton and custom scopes):
-- `caches` is `[CacheKey: Locked<Box<Any>?>]`. Each key has one slot with its own lock. A slot holds `nil` until a factory succeeds, then the instance's `Box`
+- `caches` is `[CacheKey: Locked<AnyCacheBox?>]`. Each key has one slot with its own lock. A slot holds `nil` until a factory succeeds, then the instance's `CacheBox`
 - Resolution gets or inserts the slot under the dictionary lock, releases that lock, then runs `slot.withLock { return the cached box, or run the factory and store its box }`. The factory runs at most once per cached instance; concurrent first resolvers of the same key block until it finishes. Semantics match `swift_once`
 - Lock order: never acquire a slot lock or run a factory while holding the dictionary lock. Holding a slot lock while taking the dictionary lock is allowed (nested resolution of another key, reset inside a factory)
 - Slot locks are not recursive: re-locking on the same thread crashes the process (`OSAllocatedUnfairLock` aborts, `Mutex` traps on Linux). `ServiceEnv.resolve` / `resolveMain` must call storage inside `ServiceContext.withResolutionTracking`, which throws `circularDependency` for re-entrance within one task before storage is reached. The resolution stack is task-local, so a different task that runs on the same thread before the factory returns (e.g. from a nested run loop inside the factory) is not rejected and hits the slot lock
@@ -98,16 +99,16 @@ The framework uses two isolation models. Every `@unchecked Sendable` internal ty
 - `@MainService` / `@MainProvider` — struct-level `@MainActor`, compiler-enforced serial access
 - `@MainService` uses `Box<S?>` for interior mutability without mutating getter; safe because all access is on MainActor
 
-**`Box<Value>` conventions:**
-- In `@MainService`: mutable storage, protected by `@MainActor`
-- In `ServiceStorage` cache slots and the `GraphCacheBox` dictionary: stored in `@Locked` state as **write-once** — `Box` is initialized with its final value and `box.value` must **never** be mutated after it is stored. A cache slot is assigned at most once (`nil` → `Box`). This invariant is by convention, not enforced by the type system
+**Boxes:**
+- `Box<Value>` — mutable storage. Used only by `@MainService`, protected by `@MainActor`
+- `CacheBox<Value>` — immutable (`let value`). `ServiceStorage` cache slots and the `GraphCacheBox` dictionary store it as `AnyCacheBox`. A cache stores an instance of service type `S` only as `CacheBox<S>` and reads it back with a class cast to `CacheBox<S>`. A cache slot is assigned at most once (`nil` → box)
 
 **Rules for modifying or adding code:**
 - New concurrent mutable state → use `Locked<Value>` (Value must be `Sendable`)
 - Change `@Locked` state only inside `withLock`. `wrappedValue` is read-only: a get followed by a set is two critical sections and loses concurrent updates
 - Interior mutability in `@MainActor` context → use `Box<Value>`
 - `@unchecked Sendable` → internal types only; always document which isolation mechanism guarantees safety
-- Never mutate `Box.value` on instances retrieved from `@Locked` dictionaries or cache slots
+- Cached service instances → store in `CacheBox<S>`, with `S` the service type of the cache key. Do not cache instances in `Box`
 - Never mark public types as `@unchecked Sendable` — this framework's design philosophy explicitly avoids exposing unchecked Sendable in public API
 
 ### Test Targets

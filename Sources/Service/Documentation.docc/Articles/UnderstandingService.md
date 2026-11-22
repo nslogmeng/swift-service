@@ -227,7 +227,7 @@ env.resetScope(.custom("user-session"))  // Clear only this scope
 Service uses platform-specific locking for thread-safe access (`Synchronization.Mutex` on Linux/Android, `OSAllocatedUnfairLock` on Apple, no-op on Wasm):
 
 ```swift
-@Locked private var caches: [CacheKey: Locked<Box<Any>?>]
+@Locked private var caches: [CacheKey: Locked<AnyCacheBox?>]
 @Locked private var providers: [CacheKey: ProviderEntry]
 @Locked private var mainProviders: [CacheKey: MainProviderEntry]
 ```

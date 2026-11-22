@@ -227,7 +227,7 @@ env.resetScope(.custom("user-session"))  // 仅清除此作用域
 Service 使用跨平台锁机制实现线程安全访问（Linux/Android 上使用 `Synchronization.Mutex`，Apple 上使用 `OSAllocatedUnfairLock`，Wasm 上为无锁）：
 
 ```swift
-@Locked private var caches: [CacheKey: Locked<Box<Any>?>]
+@Locked private var caches: [CacheKey: Locked<AnyCacheBox?>]
 @Locked private var providers: [CacheKey: ProviderEntry]
 @Locked private var mainProviders: [CacheKey: MainProviderEntry]
 ```
