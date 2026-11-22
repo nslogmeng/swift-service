@@ -83,17 +83,21 @@ The framework uses two isolation models. Every `@unchecked Sendable` internal ty
   - Linux / Android: `Synchronization.Mutex`
   - Wasm: no-op (single-threaded)
 - `@Service` uses `Locked<S?>` — check-and-set is fully atomic within `withLock`
-- `ServiceStorage` — all state (`caches`, `providers`, `mainProviders`) is `@Locked`
+- `ServiceStorage` — all state is in `registry`, one `@Locked` struct for the Sendable and the MainActor registrations
 - `GraphCacheBox` — cache dictionary is `@Locked`
 
-**Per-key once in `ServiceStorage`** (singleton and custom scopes):
-- `caches` is `[CacheKey: Locked<AnyCacheBox?>]`. Each key has one slot with its own lock. A slot holds `nil` until a factory succeeds, then the instance's `CacheBox`
-- Resolution gets or inserts the slot under the dictionary lock, releases that lock, then runs `slot.withLock { return the cached box, or run the factory and store its box }`. The factory runs at most once per cached instance; concurrent first resolvers of the same key block until it finishes. Semantics match `swift_once`
-- Lock order: never acquire a slot lock or run a factory while holding the dictionary lock. Holding a slot lock while taking the dictionary lock is allowed (nested resolution of another key, reset inside a factory)
-- Slot locks are not recursive: re-locking on the same thread crashes the process (`OSAllocatedUnfairLock` aborts, `Mutex` traps on Linux). `ServiceEnv.resolve` / `resolveMain` must call storage inside `ServiceContext.withResolutionTracking`, which throws `circularDependency` for re-entrance within one task before storage is reached. The resolution stack is task-local, so a different task that runs on the same thread before the factory returns (e.g. from a nested run loop inside the factory) is not rejected and hits the slot lock
+**Per-registration once in `ServiceStorage`** (singleton and custom scopes):
+- `registry` is one `@Locked` struct with two dictionaries, `providers` and `mainProviders`. Both map `ObjectIdentifier(Service.self)` to an entry. Use the static type for the key, never the `type` argument: it can be the metatype of a subclass
+- An entry holds the scope, the factory, and for singleton and custom scopes a cache slot (`Locked<AnyCacheBox?>`) with its own lock. A slot holds `nil` until a factory succeeds, then the instance's `CacheBox`
+- Resolution copies the entry under the registry lock and releases that lock. Fast path: `cachedBox` reads the slot and returns a cached box without resolution tracking. Otherwise, inside `ServiceContext.withResolutionTracking`, `resolveWithScope` runs `slot.withLock { return the cached box, or run the factory and store its box }`. The factory runs at most once per cached instance; concurrent first resolvers of the same service block until it finishes. Semantics match `swift_once`
+- Lock order: never acquire a slot lock or run a factory while holding the registry lock. Holding a slot lock while taking the registry lock is allowed (nested resolution of another service, reset inside a factory)
+- Never release an entry, a slot, or a `CacheBox` while holding the registry lock or a graph cache lock. A `deinit` of a cached instance, or of an object that a factory captured, can call back into the storage. A critical section returns what it replaces or removes, and the caller passes it to `withExtendedLifetime` after the lock. Discarding the result with `_ =` is not enough: an optimized build can release it inside the critical section
+- Slot locks are not recursive: re-locking on the same thread crashes the process (`OSAllocatedUnfairLock` aborts, `Mutex` traps on Linux). Two rules keep one task from re-locking a slot: the fast path reads a slot only when `ServiceContext.isResolving` is `false` for the type, and `resolveWithScope` is called only inside `ServiceContext.withResolutionTracking`, which throws `circularDependency` for re-entrance within one task. The resolution stack is task-local, so a different task that runs on the same thread before the factory returns (e.g. from a nested run loop inside the factory) is not rejected and hits the slot lock
 - A factory that throws or returns `nil` leaves the slot empty, so the next resolution runs it again
-- `resetCaches()` / `resetScope(_:)` / `resetAll()` take only the dictionary lock and never wait for a running factory. Resolutions that already hold a removed slot (the one running the factory and those waiting on it) return the instance created in that slot; later resolutions insert a new slot
+- `resetCaches()` / `resetScope(_:)` give the affected entries new slots, and `resetAll()` removes the entries. They take only the registry lock and never wait for a running factory. Resolutions that already hold an old slot (the one running the factory and those waiting on it) return the instance created in that slot; later resolutions use the new slot
+- Registering a type again replaces its entry. The new entry keeps the slot if the scope is unchanged, so a cached instance stays until a reset; with another scope it starts with an empty slot
 - Use only `withLock` on slots. It is the one operation shared by all three `LockStorage` implementations
+- `ServiceStorage.resolve` / `resolveMain` and `withResolutionTracking` return a non-optional instance. Do not pass `Optional<Service>` through them as a generic argument or result: unspecialized generic code looks up that metadata at run time on every call
 
 **MainActor isolation** (for services created and used on the main actor; no `Sendable` requirement):
 - `@MainService` / `@MainProvider` — struct-level `@MainActor`, compiler-enforced serial access
@@ -108,7 +112,7 @@ The framework uses two isolation models. Every `@unchecked Sendable` internal ty
 - Change `@Locked` state only inside `withLock`. `wrappedValue` is read-only: a get followed by a set is two critical sections and loses concurrent updates
 - Interior mutability in `@MainActor` context → use `Box<Value>`
 - `@unchecked Sendable` → internal types only; always document which isolation mechanism guarantees safety
-- Cached service instances → store in `CacheBox<S>`, with `S` the service type of the cache key. Do not cache instances in `Box`
+- Cached service instances → store in `CacheBox<S>`, with `S` the service type that the cache is keyed by. Do not cache instances in `Box`
 - Never mark public types as `@unchecked Sendable` — this framework's design philosophy explicitly avoids exposing unchecked Sendable in public API
 
 ### Test Targets
