@@ -79,6 +79,22 @@ struct CircularDependencyTests {
         }
     }
 
+    @Test func detectsCycleWhenResolvingThroughSubclassMetatype() {
+        let env = ServiceEnv(name: "circular-test-subclass-metatype")
+        env.register(BaseClassService.self) {
+            try env.resolve(BaseClassService.self)
+        }
+
+        // The metatype value names the subclass, and the resolution runs the factory of the base class.
+        let metatype: BaseClassService.Type = SubclassService.self
+        let error = #expect(throws: ServiceError.self) { try env.resolve(metatype) }
+        guard case .circularDependency(let serviceType, _) = error else {
+            Issue.record("Expected circularDependency, got \(String(describing: error))")
+            return
+        }
+        #expect(serviceType == "BaseClassService")
+    }
+
     // MARK: - MainActor Dependencies
 
     @Test func resolvesMainActorDependencyChain() async throws {
