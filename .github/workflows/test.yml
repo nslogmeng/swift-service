@@ -27,6 +27,11 @@ jobs:
       - name: Test
         run: swift test
 
+      # An optimized build can release a value earlier than a debug build. Tests of where the storage
+      # releases instances have a signal only in this configuration.
+      - name: Test (release)
+        run: swift test -c release -Xswiftc -enable-testing
+
   macos:
     name: Swift ${{ matrix.swift }} on macOS
     runs-on: ${{ matrix.runner }}
@@ -54,3 +59,8 @@ jobs:
 
       - name: Test
         run: swift test
+
+      # An optimized build can release a value earlier than a debug build. Tests of where the storage
+      # releases instances have a signal only in this configuration.
+      - name: Test (release)
+        run: swift test -c release -Xswiftc -enable-testing

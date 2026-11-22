@@ -15,6 +15,9 @@ swift build
 # Run all tests
 swift test
 
+# Run all tests in an optimized build (CI runs both configurations)
+swift test -c release -Xswiftc -enable-testing
+
 # Run benchmarks (separate package, see Benchmarks/README.md)
 swift run -c release --package-path Benchmarks ServiceBenchmarks
 
@@ -34,7 +37,7 @@ python3 -m http.server 8000 --directory .build/docs
 ## Swift Versions
 
 - Minimum: Swift 6.2, set by `swift-tools-version` in `Package.swift`. Code that needs a newer compiler must be guarded with `#if compiler(>=...)`.
-- `main` must build and pass tests on every Swift release from the minimum to the latest. `build.yml` and `test.yml` run that matrix on Linux and macOS.
+- `main` must build and pass tests on every Swift release from the minimum to the latest. `build.yml` and `test.yml` run that matrix on Linux and macOS. `test.yml` runs the tests in the debug and the release configuration.
 - When a new Swift release ships, add it to both matrices. Each macOS entry pins a runner image and an Xcode version; the macOS READMEs in `actions/runner-images` list the Xcode versions each image carries.
 
 ## Architecture
