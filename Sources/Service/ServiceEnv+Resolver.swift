@@ -42,12 +42,7 @@ extension ServiceEnv {
     /// ```
     @discardableResult
     public func resolve<Service: Sendable>(_ type: Service.Type) throws(ServiceError) -> Service {
-        try ServiceContext.withResolutionTracking(type) {
-            guard let service = try storage.resolve(type) else {
-                throw ServiceError.notRegistered(serviceType: String(describing: Service.self))
-            }
-            return service
-        }
+        try storage.resolve(type)
     }
 }
 
@@ -86,11 +81,6 @@ extension ServiceEnv {
     @MainActor
     @discardableResult
     public func resolveMain<Service>(_ type: Service.Type) throws(ServiceError) -> Service {
-        try ServiceContext.withResolutionTracking(type) {
-            guard let service = try storage.resolveMain(type) else {
-                throw ServiceError.notRegistered(serviceType: String(describing: Service.self))
-            }
-            return service
-        }
+        try storage.resolveMain(type)
     }
 }

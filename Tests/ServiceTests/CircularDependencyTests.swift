@@ -95,6 +95,32 @@ struct CircularDependencyTests {
         #expect(serviceType == "BaseClassService")
     }
 
+    @Test func resolvesCachedDependencyAtDepthLimit() throws {
+        let env = ServiceEnv(name: "circular-test-cached-at-depth-limit")
+        env.register(Int.self) { 42 }
+        env.register(String.self, scope: .transient) {
+            "Value: \(try env.resolve(Int.self))"
+        }
+        try env.resolve(Int.self)
+
+        // With a limit of 1, the factory of `String` uses the whole depth.
+        // The cached `Int` needs no factory, so resolving it adds no depth.
+        let value = try ServiceEnv.$maxResolutionDepth.withValue(1) {
+            try env.resolve(String.self)
+        }
+        #expect(value == "Value: 42")
+
+        // After a reset, the factory of `Int` has to run inside the factory of `String`.
+        env.resetCaches()
+        ServiceEnv.$maxResolutionDepth.withValue(1) {
+            let error = #expect(throws: ServiceError.self) { try env.resolve(String.self) }
+            guard case .maxDepthExceeded = error else {
+                Issue.record("Expected maxDepthExceeded, got \(String(describing: error))")
+                return
+            }
+        }
+    }
+
     // MARK: - MainActor Dependencies
 
     @Test func resolvesMainActorDependencyChain() async throws {
