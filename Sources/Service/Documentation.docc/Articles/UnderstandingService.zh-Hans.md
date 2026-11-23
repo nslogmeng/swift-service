@@ -46,7 +46,7 @@ Service 提供四个属性包装器，形成 2x2 矩阵：
 - **`@Service` / `@MainService`**：首次访问时懒加载解析，并在内部缓存结果。后续访问始终返回同一实例，不受注册作用域的影响。
 - **`@Provider` / `@MainProvider`**：每次访问时解析。缓存行为完全由服务注册的作用域决定（例如，transient 作用域每次都会生成新实例）。
 
-四个属性包装器都支持可选类型 — 当服务未注册时返回 `nil` 而非崩溃：
+四个属性包装器都支持可选类型。解析失败时可选属性为 `nil`，例如服务未注册：
 
 ```swift
 @Service var analytics: AnalyticsService?    // 懒加载，缓存，nil 安全
@@ -80,9 +80,7 @@ resolve(MyService.self)
          │ 正常
          ▼
 ┌─────────────────────────┐
-│  4. 跟踪到链中 +       │
-│     创建 graph 缓存     │──── (如果是顶层 resolve)
-│     (如果需要)          │
+│  4. 加入解析链          │──── (顶层 resolve 开始一条新链)
 └─────────────────────────┘
          │
          ▼
@@ -161,20 +159,7 @@ public protocol ServiceAssembly {
 
 ### 为什么属性包装器使用 fatalError？
 
-属性包装器对缺失的非可选服务使用 `fatalError`：
-
-```swift
-@propertyWrapper
-public struct Service<S: Sendable>: Sendable {
-    private let storage: Locked<S?>
-    private let env: ServiceEnv
-
-    public var wrappedValue: S {
-        // 首次访问时懒加载解析
-        // 如果服务未注册则使用 fatalError
-    }
-}
-```
+非可选服务类型的属性包装器在解析失败时用 `fatalError` 终止进程。
 
 **理由：**
 - 缺失的服务表示**配置错误**，而非运行时条件
@@ -209,7 +194,6 @@ let service2 = try ServiceEnv.current.resolve(DatabaseService.self)
 - 可预测的行为（处处相同的实例）
 - 内存高效（每个服务单一实例）
 - 符合常见的 DI 模式
-- 与先前版本向后兼容
 
 **当你需要其他生命周期时**，使用显式作用域：
 
@@ -287,7 +271,7 @@ Singleton 或 custom 作用域的注册有一个自带锁的缓存槽位。解�
 `ServiceKey` 提供了一种便捷的方式来注册带有默认实现的服务：
 
 ```swift
-public protocol ServiceKey {
+public protocol ServiceKey: Sendable {
     static var `default`: Self { get }
 }
 
@@ -321,7 +305,7 @@ ServiceEnv.current.register(MyService.self)  // 使用默认实现
 
 - 每个注册的服务存储一个工厂闭包；singleton 和 custom 作用域另有一个缓存槽位
 - 每个解析的服务存储一个缓存实例
-- 解析链跟踪使用栈分配的数组
+- 解析链只在一次需要执行工厂函数的解析进行期间存在
 - 环境切换的内存开销很小
 
 ## 扩展点

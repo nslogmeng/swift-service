@@ -46,7 +46,7 @@ Service provides four property wrappers in a 2x2 matrix:
 - **`@Service` / `@MainService`**: Resolves lazily on first access and caches the result internally. Subsequent accesses always return the same instance, regardless of the registered scope.
 - **`@Provider` / `@MainProvider`**: Resolves on every access. Caching behavior is entirely determined by the service's registered scope (e.g., transient scope produces a new instance each time).
 
-All four support optional types — returns `nil` instead of crashing when the service is not registered:
+All four support optional types. An optional property is `nil` if the resolution fails, for example because the service is not registered:
 
 ```swift
 @Service var analytics: AnalyticsService?    // Lazy, cached, nil-safe
@@ -80,9 +80,7 @@ resolve(MyService.self)
          │ OK
          ▼
 ┌─────────────────────────┐
-│  4. Track in chain +    │
-│     create graph cache  │──── (if top-level resolve)
-│     if needed           │
+│  4. Add to the chain    │──── (a top-level resolve starts a chain)
 └─────────────────────────┘
          │
          ▼
@@ -161,20 +159,7 @@ public protocol ServiceAssembly {
 
 ### Why fatalError in Property Wrappers?
 
-Property wrappers use `fatalError` for missing non-optional services:
-
-```swift
-@propertyWrapper
-public struct Service<S: Sendable>: Sendable {
-    private let storage: Locked<S?>
-    private let env: ServiceEnv
-
-    public var wrappedValue: S {
-        // Lazy resolution on first access
-        // Uses fatalError if service not registered
-    }
-}
-```
+A property wrapper of a non-optional service type stops the process with `fatalError` if the resolution fails.
 
 **Rationale:**
 - Missing services indicate **configuration errors**, not runtime conditions
@@ -209,7 +194,6 @@ let service2 = try ServiceEnv.current.resolve(DatabaseService.self)
 - Predictable behavior (same instance everywhere)
 - Memory efficient (single instance per service)
 - Matches common DI patterns
-- Backward compatible with prior versions
 
 **When you need other lifecycles**, use explicit scopes:
 
@@ -287,7 +271,7 @@ The chain belongs to the thread, not to the task:
 `ServiceKey` provides a convenient way to register services with default implementations:
 
 ```swift
-public protocol ServiceKey {
+public protocol ServiceKey: Sendable {
     static var `default`: Self { get }
 }
 
@@ -321,7 +305,7 @@ ServiceEnv.current.register(MyService.self)  // Uses default
 
 - Each registered service stores one factory closure and, for singleton and custom scopes, one cache slot
 - Each resolved service stores one cached instance
-- Resolution chain tracking uses stack-allocated array
+- A resolution chain exists only while a resolution that runs a factory is in progress
 - Environment switching has minimal memory overhead
 
 ## Extension Points
