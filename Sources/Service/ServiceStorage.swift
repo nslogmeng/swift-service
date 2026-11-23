@@ -213,12 +213,10 @@ final class ServiceStorage: Sendable {
             return cached
         }
         if let found {
-            if let box = found as? CacheBox<Service> {
-                return box.value
+            guard let box = found as? CacheBox<Service> else {
+                throw ServiceContext.circularDependency(Service.self, in: ServiceContext.resolutionStack)
             }
-            let name = String(describing: Service.self)
-            let chain = ServiceContext.resolutionStack.map { String(describing: $0) } + [name]
-            throw ServiceError.circularDependency(serviceType: name, chain: chain)
+            return box.value
         }
 
         // If the factory throws or returns nil, the slot is empty again and the next resolution runs
