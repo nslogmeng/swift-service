@@ -52,9 +52,15 @@ enum ServiceContext {
     @TaskLocal
     static var graphCacheBox: GraphCacheBox?
 
-    /// Whether the current task is resolving `typeID`, that is, whether the type is in its resolution stack.
-    static func isResolving(_ typeID: ObjectIdentifier) -> Bool {
-        resolutionStack.contains { ObjectIdentifier($0) == typeID }
+    /// Whether `stack` contains the type. The default is the stack of the current task.
+    static func isResolving(_ typeID: ObjectIdentifier, in stack: [any Any.Type] = resolutionStack) -> Bool {
+        stack.contains { ObjectIdentifier($0) == typeID }
+    }
+
+    /// The error for a resolution of `type` while `stack` is being resolved.
+    static func circularDependency(_ type: any Any.Type, in stack: [any Any.Type]) -> ServiceError {
+        let name = String(describing: type)
+        return .circularDependency(serviceType: name, chain: stack.map { String(describing: $0) } + [name])
     }
 
     /// Executes a service resolution with circular dependency tracking.
@@ -77,15 +83,13 @@ enum ServiceContext {
         resolve: () throws -> Service
     ) throws(ServiceError) -> Service {
         let type = Service.self
-        let typeID = ObjectIdentifier(type)
 
         // Each access to a task-local is a lookup in the task's storage, so each one is read once.
         let stack = resolutionStack
 
         // Check for circular dependency
-        if stack.contains(where: { ObjectIdentifier($0) == typeID }) {
-            let chain = (stack + [type]).map { String(describing: $0) }
-            throw ServiceError.circularDependency(serviceType: String(describing: type), chain: chain)
+        if isResolving(ObjectIdentifier(type), in: stack) {
+            throw circularDependency(type, in: stack)
         }
 
         // Check for excessive depth
