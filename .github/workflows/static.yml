@@ -16,13 +16,14 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     # The documentation is built with the latest Swift release.
     container: swift:6.4-noble
+    # GA_MEASUREMENT_ID is a secret of this environment. The job reads it and creates no deployment.
     environment:
       name: DocC Site
-      url: ${{ steps.deployment.outputs.page_url }}
+      deployment: false
 
     steps:
       - name: Checkout
@@ -40,6 +41,18 @@ jobs:
         with:
           path: .build/docs
 
+  # actions/deploy-pages looks the artifact up once, without a retry. In the job that uploads the
+  # artifact, the lookup can run before the artifact is listed, and a re-run uploads a second artifact
+  # with the same name, which the lookup also rejects. As a separate job, the deployment starts later
+  # and can be re-run alone.
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: DocC Site
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
