@@ -20,8 +20,8 @@
 ///
 /// - A property of a service type stops the process with `fatalError` if the resolution fails.
 ///   To handle the error, call ``ServiceEnv/resolve(_:)``.
-/// - A property of an optional service type is `nil` if the resolution fails, for example because
-///   the service is not registered.
+/// - A property of an optional service type is `nil` if the service is not registered. Every other
+///   resolution error stops the process, as for a property of a service type.
 @propertyWrapper
 public struct Provider<S: Sendable>: Sendable {
     /// Resolves the service from the environment that was current at initialization time.
@@ -53,17 +53,17 @@ public struct Provider<S: Sendable>: Sendable {
 
     // MARK: - Optional Service Support
 
-    /// Creates a wrapper for an optional property. The property is `nil` if the resolution fails.
+    /// Creates a wrapper for an optional property. The property is `nil` if the service is not registered.
     public init<Wrapped: Sendable>() where S == Wrapped? {
         self.init(Wrapped.self)
     }
 
-    /// Creates a wrapper for an optional property. The property is `nil` if the resolution fails.
+    /// Creates a wrapper for an optional property. The property is `nil` if the service is not registered.
     ///
     /// - Parameter type: The service type to resolve.
     public init<Wrapped: Sendable>(_ type: Wrapped.Type) where S == Wrapped? {
         let env = ServiceEnv.current
-        self.resolver = { try? env.resolve(type) }
+        self.resolver = { try env.storage.resolveIfRegistered(type) }
     }
 }
 
@@ -85,8 +85,8 @@ public struct Provider<S: Sendable>: Sendable {
 ///
 /// - A property of a service type stops the process with `fatalError` if the resolution fails.
 ///   To handle the error, call ``ServiceEnv/resolveMain(_:)``.
-/// - A property of an optional service type is `nil` if the resolution fails, for example because
-///   the service is not registered.
+/// - A property of an optional service type is `nil` if the service is not registered. Every other
+///   resolution error stops the process, as for a property of a service type.
 @MainActor
 @propertyWrapper
 public struct MainProvider<S> {
@@ -119,16 +119,16 @@ public struct MainProvider<S> {
 
     // MARK: - Optional MainProvider Support
 
-    /// Creates a wrapper for an optional property. The property is `nil` if the resolution fails.
+    /// Creates a wrapper for an optional property. The property is `nil` if the service is not registered.
     public init<Wrapped>() where S == Wrapped? {
         self.init(Wrapped.self)
     }
 
-    /// Creates a wrapper for an optional property. The property is `nil` if the resolution fails.
+    /// Creates a wrapper for an optional property. The property is `nil` if the service is not registered.
     ///
     /// - Parameter type: The service type to resolve.
     public init<Wrapped>(_ type: Wrapped.Type) where S == Wrapped? {
         let env = ServiceEnv.current
-        self.resolver = { try? env.resolveMain(type) }
+        self.resolver = { try env.storage.resolveMainIfRegistered(type) }
     }
 }
