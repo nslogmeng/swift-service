@@ -349,3 +349,14 @@ struct DatabaseController {
         return database.connect()
     }
 }
+
+// MARK: - Error Matching
+
+extension ServiceError {
+    var isCircularDependency: Bool {
+        if case .circularDependency = self {
+            return true
+        }
+        return false
+    }
+}
