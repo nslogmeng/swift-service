@@ -48,9 +48,20 @@ final class ServiceStorage: @unchecked Sendable {
     /// The cache slot of one singleton or custom-scoped registration.
     ///
     /// The slot holds `nil` until a factory succeeds, then holds the `CacheBox` of the instance.
-    /// The slot's lock is held while the factory runs, which serializes creation for that registration only.
-    /// The lock is not recursive: a thread must never lock a slot whose factory it is running.
+    ///
+    /// - Sendable registration: the slot's lock is held while the factory runs, which serializes creation
+    ///   for that registration only. The lock is not recursive: a thread must never lock a slot whose
+    ///   factory it is running.
+    /// - MainActor registration: the main actor serializes creation, and the lock is held only to read
+    ///   or write the slot. While the factory runs, the slot holds `PendingBox.shared`.
     private typealias CacheSlot = Locked<AnyCacheBox?>
+
+    /// Marks the slot of a MainActor registration whose factory is running.
+    ///
+    /// Safety: the class has no state.
+    private final class PendingBox: AnyCacheBox, @unchecked Sendable {
+        static let shared = PendingBox()
+    }
 
     /// Returns the cache slot for a new registration with `scope`.
     ///
@@ -116,8 +127,8 @@ final class ServiceStorage: @unchecked Sendable {
     // MARK: - Scope Resolution
 
     /// Resolves a service instance based on its registered scope.
-    /// This unified method handles all scope types to eliminate code duplication
-    /// between `resolve` and `resolveMain`.
+    /// `resolve` calls this method for all scopes. `resolveMain` calls it, through
+    /// `resolveMainWithScope`, for the scopes without a slot.
     ///
     /// - Parameters:
     ///   - typeId: The identifier of the service type.
@@ -166,18 +177,79 @@ final class ServiceStorage: @unchecked Sendable {
         return try factory()
     }
 
+    /// Resolves a MainActor service instance based on its registered scope.
+    ///
+    /// For singleton and custom scopes, no lock is held while the factory runs. The main actor serializes
+    /// the callers of this method, so the factory still runs at most once per cached instance.
+    /// While the factory runs, the slot holds `PendingBox.shared`.
+    ///
+    /// A resolution can find that marker only if the main actor runs it before the factory returns,
+    /// in another task than the one that runs the factory. A nested run loop inside the factory does
+    /// that. The resolution cannot get the instance and cannot wait for it on its own thread.
+    ///
+    /// - Parameters:
+    ///   - typeId: The identifier of the service type.
+    ///   - scope: The lifecycle scope for the service.
+    ///   - slot: The cache slot of the registration. `nil` for transient and graph scopes.
+    ///   - factory: A closure that creates a new service instance.
+    /// - Returns: The resolved service instance, or nil if the factory returns nil.
+    /// - Throws: `ServiceError.circularDependency` if the factory of the slot is running.
+    ///   Rethrows any error from the factory closure.
+    @MainActor
+    private func resolveMainWithScope<Service>(
+        typeId: ObjectIdentifier,
+        scope: ServiceScope,
+        slot: CacheSlot?,
+        factory: () throws -> Service?
+    ) throws -> Service? {
+        guard let slot else {
+            return try resolveWithScope(typeId: typeId, scope: scope, slot: nil, factory: factory)
+        }
+
+        // Read the slot, and mark it as pending if it is empty.
+        let found = slot.withLock { (cached: inout sending AnyCacheBox?) -> sending AnyCacheBox? in
+            if cached == nil {
+                cached = PendingBox.shared
+                return nil
+            }
+            return cached
+        }
+        if let found {
+            if let box = found as? CacheBox<Service> {
+                return box.value
+            }
+            let name = String(describing: Service.self)
+            let chain = ServiceContext.resolutionStack.map { String(describing: $0) } + [name]
+            throw ServiceError.circularDependency(serviceType: name, chain: chain)
+        }
+
+        // If the factory throws or returns nil, the slot is empty again and the next resolution runs
+        // the factory again.
+        let service: Service?
+        do {
+            service = try factory()
+        } catch {
+            slot.withLock { $0 = nil }
+            throw error
+        }
+        let box = service.map { CacheBox<Service>($0) }
+        slot.withLock { $0 = box }
+        return service
+    }
+
     /// Returns the box that a slot holds, without resolution tracking.
     ///
     /// Returning a cached instance runs no factory, so there is no cycle to detect and no depth to add.
-    /// If another thread is running the factory of the slot, this method waits for it.
+    /// If another thread is running the factory of a Sendable registration, this method waits for it.
     ///
     /// - Parameters:
     ///   - slot: The cache slot of the registration, or `nil` if it has none.
     ///   - typeId: The identifier of the service type.
-    /// - Returns: The cached box. `nil` if there is no slot, if the slot is empty, or if the current task
-    ///   is resolving `typeId`. In the last case the task can be running the factory of the slot and hold
-    ///   its lock, so the caller must continue with `ServiceContext.withResolutionTracking`, which reports
-    ///   the cycle.
+    /// - Returns: The box in the slot. For a MainActor registration whose factory is running, that is
+    ///   the pending marker, which is no `CacheBox` of the service type. `nil` if there is no slot, if
+    ///   the slot is empty, or if the current task is resolving `typeId`. In the last case the task can
+    ///   be running the factory of the slot and hold its lock, so the caller must continue with
+    ///   `ServiceContext.withResolutionTracking`, which reports the cycle.
     private func cachedBox(in slot: CacheSlot?, typeId: ObjectIdentifier) -> AnyCacheBox? {
         guard let slot, !ServiceContext.isResolving(typeId) else {
             return nil
@@ -283,7 +355,7 @@ final class ServiceStorage: @unchecked Sendable {
             return box.value
         }
         return try ServiceContext.withResolutionTracking(type) {
-            let service = try resolveWithScope(typeId: typeId, scope: entry.scope, slot: entry.slot) {
+            let service = try resolveMainWithScope(typeId: typeId, scope: entry.scope, slot: entry.slot) {
                 try entry.factory() as? Service
             }
             guard let service else {
