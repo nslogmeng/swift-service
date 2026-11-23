@@ -154,6 +154,43 @@ struct ServiceScopeTests {
             }
         }
 
+        @Test func keepsGraphInstancesOfDifferentEnvironmentsApart() throws {
+            let first = ServiceEnv(name: "scope-graph-first-env-test")
+            let second = ServiceEnv(name: "scope-graph-second-env-test")
+            first.register(String.self, scope: .graph) { "first" }
+            second.register(String.self, scope: .graph) { "second" }
+
+            // One chain that resolves the same graph-scoped type from both environments, twice each.
+            first.register([String].self, scope: .transient) {
+                [
+                    try first.resolve(String.self),
+                    try second.resolve(String.self),
+                    try first.resolve(String.self),
+                    try second.resolve(String.self),
+                ]
+            }
+
+            #expect(try first.resolve([String].self) == ["first", "second", "first", "second"])
+        }
+
+        @Test func sharesGraphInstancePerEnvironmentWithinOneChain() throws {
+            let outer = ServiceEnv(name: "scope-graph-outer-env-test")
+            let inner = ServiceEnv(name: "scope-graph-inner-env-test")
+            let counter = Counter()
+            inner.register(Int.self, scope: .graph) {
+                counter.increment()
+                return counter.value
+            }
+
+            // The chain starts in `outer` and resolves the graph-scoped service of `inner` twice.
+            outer.register([Int].self, scope: .transient) {
+                [try inner.resolve(Int.self), try inner.resolve(Int.self)]
+            }
+
+            #expect(try outer.resolve([Int].self) == [1, 1])
+            #expect(counter.value == 1)
+        }
+
         @Test func graphScopeNestedDependencies() throws {
             let env = ServiceEnv(name: "scope-graph-nested-test")
             try ServiceEnv.$current.withValue(env) {
