@@ -19,11 +19,11 @@
 /// One lock guards the registrations of both categories, enabling cross-category
 /// mutual exclusion checks during registration. A service type can only be registered as
 /// either Sendable or MainActor, not both.
-final class ServiceStorage: @unchecked Sendable {
+final class ServiceStorage: Sendable {
     // MARK: - Provider Entries
 
     /// A Sendable factory function with its scope and cache slot.
-    private struct ProviderEntry: @unchecked Sendable {
+    private struct ProviderEntry: Sendable {
         let scope: ServiceScope
         let factory: @Sendable () throws -> any Sendable
 
@@ -33,8 +33,7 @@ final class ServiceStorage: @unchecked Sendable {
     }
 
     /// A MainActor-isolated factory function with its scope and cache slot.
-    /// Safety: The wrapped factory is only called from `@MainActor` methods.
-    private struct MainProviderEntry: @unchecked Sendable {
+    private struct MainProviderEntry: Sendable {
         let scope: ServiceScope
         let factory: @MainActor () throws -> Any
 
@@ -108,17 +107,16 @@ final class ServiceStorage: @unchecked Sendable {
     /// the entries that it replaces or removes, and the caller passes them to `withExtendedLifetime`
     /// after the lock. Discarding the result is not enough: the optimizer can then release it
     /// inside the critical section.
-    @Locked(default: Registry())
-    private var registry: Registry
+    private let registry = Locked(Registry())
 
     /// Returns the entry of a Sendable service type. The lookup runs inside the registry lock.
     private func provider(for typeId: ObjectIdentifier) -> ProviderEntry? {
-        $registry.withLock { $0.providers[typeId] }
+        registry.withLock { $0.providers[typeId] }
     }
 
     /// Returns the entry of a MainActor service type. The lookup runs inside the registry lock.
     private func mainProvider(for typeId: ObjectIdentifier) -> MainProviderEntry? {
-        $registry.withLock { $0.mainProviders[typeId] }
+        registry.withLock { $0.mainProviders[typeId] }
     }
 
     /// Creates a new service storage instance.
@@ -310,7 +308,7 @@ final class ServiceStorage: @unchecked Sendable {
         factory: @escaping @Sendable () throws -> any Sendable
     ) {
         let typeId = ObjectIdentifier(Service.self)
-        let (replaced, isMainService) = $registry.withLock { registry -> (ProviderEntry?, Bool) in
+        let (replaced, isMainService) = registry.withLock { registry -> (ProviderEntry?, Bool) in
             let previous = registry.providers[typeId]
             let slot = Self.slot(for: scope, replacing: previous.map { ($0.scope, $0.slot) })
             registry.providers[typeId] = ProviderEntry(scope: scope, factory: factory, slot: slot)
@@ -383,7 +381,7 @@ final class ServiceStorage: @unchecked Sendable {
         factory: @escaping @MainActor () throws -> Service
     ) {
         let typeId = ObjectIdentifier(Service.self)
-        let (replaced, isSendableService) = $registry.withLock { registry -> (MainProviderEntry?, Bool) in
+        let (replaced, isSendableService) = registry.withLock { registry -> (MainProviderEntry?, Bool) in
             let previous = registry.mainProviders[typeId]
             let slot = Self.slot(for: scope, replacing: previous.map { ($0.scope, $0.slot) })
             registry.mainProviders[typeId] = MainProviderEntry(scope: scope, factory: factory, slot: slot)
@@ -420,7 +418,7 @@ final class ServiceStorage: @unchecked Sendable {
     /// (both Sendable and MainActor services).
     /// This completely resets the storage to its initial state.
     func resetAll() {
-        let old = $registry.withLock { registry -> Registry in
+        let old = registry.withLock { registry -> Registry in
             let old = registry
             registry = Registry()
             return old
@@ -439,7 +437,7 @@ final class ServiceStorage: @unchecked Sendable {
     /// Gives every registration that has a cache slot and whose scope satisfies `shouldReset` a new,
     /// empty slot. The old slots are not locked, and a resolution that already holds one finishes with it.
     private func replaceSlots(where shouldReset: (ServiceScope) -> Bool) {
-        let old = $registry.withLock { registry -> Registry in
+        let old = registry.withLock { registry -> Registry in
             let old = registry
             registry.providers = old.providers.mapValues { entry in
                 guard entry.slot != nil, shouldReset(entry.scope) else {

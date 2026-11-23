@@ -141,7 +141,7 @@ extension ConcurrencyTests {
             for _ in 0..<rounds {
                 let env = ServiceEnv(name: "once-concurrent")
                 let allResolversStarted = Latch(count: resolverCount)
-                let factoryRuns = Locked<Int>(default: 0)
+                let factoryRuns = Locked<Int>(0)
 
                 env.register(Probe.self, scope: scope) {
                     let run = factoryRuns.increment()
@@ -161,7 +161,7 @@ extension ConcurrencyTests {
                     instances.insert(ObjectIdentifier(try await resolver.value))
                 }
 
-                factoryRunsPerRound.append(factoryRuns.wrappedValue)
+                factoryRunsPerRound.append(factoryRuns.value)
                 instancesPerRound.append(instances.count)
             }
 
@@ -198,7 +198,7 @@ extension ConcurrencyTests {
 
         @Test func retriesFactoryAfterItThrows() throws {
             let env = ServiceEnv(name: "once-retry")
-            let factoryRuns = Locked<Int>(default: 0)
+            let factoryRuns = Locked<Int>(0)
 
             env.register(Probe.self) {
                 let run = factoryRuns.increment()
@@ -214,13 +214,13 @@ extension ConcurrencyTests {
             let cached = try env.resolve(Probe.self)
             #expect(retried.id == 2)
             #expect(cached === retried)
-            #expect(factoryRuns.wrappedValue == 2)
+            #expect(factoryRuns.value == 2)
         }
 
         @Test(arguments: ResetOperation.allCases)
         func resetDuringCreationKeepsInFlightInstanceOutOfCache(operation: ResetOperation) async throws {
             let env = ServiceEnv(name: "once-reset")
-            let factoryRuns = Locked<Int>(default: 0)
+            let factoryRuns = Locked<Int>(0)
             let firstFactoryEntered = Latch()
             let releaseFirstFactory = Latch()
             let register: @Sendable () -> Void = {
@@ -254,7 +254,7 @@ extension ConcurrencyTests {
             #expect(original.id == 1)
             #expect(fresh.id == 2)
             #expect(try env.resolve(Probe.self) === fresh)
-            #expect(factoryRuns.wrappedValue == 2)
+            #expect(factoryRuns.value == 2)
         }
 
         // MARK: Re-entrant resolution
@@ -368,7 +368,7 @@ extension ConcurrencyTests {
         @Test(arguments: SingletonCreationTests.ResetOperation.allCases)
         func releasesCachedInstanceOutsideLocksOnReset(operation: SingletonCreationTests.ResetOperation) throws {
             let env = ServiceEnv(name: "release-on-reset")
-            let deinitCount = Locked<Int>(default: 0)
+            let deinitCount = Locked<Int>(0)
             env.register(ReentrantOnDeinit.self) {
                 ReentrantOnDeinit(env: env, deinitCount: deinitCount)
             }
@@ -376,12 +376,12 @@ extension ConcurrencyTests {
 
             operation.apply(to: env)
 
-            #expect(deinitCount.wrappedValue == 1)
+            #expect(deinitCount.value == 1)
         }
 
         @Test func releasesCachedInstanceOutsideLocksOnRegistrationWithAnotherScope() throws {
             let env = ServiceEnv(name: "release-on-scope-change")
-            let deinitCount = Locked<Int>(default: 0)
+            let deinitCount = Locked<Int>(0)
             env.register(ReentrantOnDeinit.self) {
                 ReentrantOnDeinit(env: env, deinitCount: deinitCount)
             }
@@ -391,7 +391,7 @@ extension ConcurrencyTests {
                 ReentrantOnDeinit(env: env, deinitCount: deinitCount)
             }
 
-            #expect(deinitCount.wrappedValue == 1)
+            #expect(deinitCount.value == 1)
         }
     }
 }
