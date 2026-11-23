@@ -27,8 +27,7 @@ Service is built around five core concepts:
 │              ┌───────────▼───────────┐              │
 │              │    ServiceStorage     │              │
 │              │  registry (locked):   │              │
-│              │  • providers          │              │
-│              │  • mainProviders      │              │
+│              │    type → entry       │              │
 │              │    entry: scope,      │              │
 │              │    factory, slot      │              │
 │              └───────────────────────┘              │
@@ -232,23 +231,15 @@ env.resetScope(.custom("user-session"))  // Clear only this scope
 
 ### Thread Safety
 
-Service uses platform-specific locking for thread-safe access (`Synchronization.Mutex` on Linux/Android, `OSAllocatedUnfairLock` on Apple, no-op on Wasm):
+All shared state is in values of type `Locked`, a value behind a lock. The lock is `OSAllocatedUnfairLock` on Apple platforms and `Synchronization.Mutex` on Linux and Android. Wasm runs on one thread and has no lock.
 
 ```swift
-private struct Registry: Sendable {
-    var providers: [ObjectIdentifier: ProviderEntry] = [:]
-    var mainProviders: [ObjectIdentifier: MainProviderEntry] = [:]
-}
-
-@Locked(default: Registry())
-private var registry: Registry
+private let registry = Locked<[ObjectIdentifier: Entry]>()
 ```
 
-The `@Locked` property wrapper guards each value with a lock. Reading the property returns the value under the lock. Every change runs inside `withLock`, so reading, changing, and writing back are one critical section.
+A value in a `Locked` changes only inside `withLock`, so reading, changing, and writing back are one critical section.
 
-One lock guards the registrations of both service categories. A registration can therefore check the other category, and a reset can clear the caches of both, in one critical section.
-
-Both dictionaries are keyed by the identifier of the static service type. An entry holds the scope and the factory of one registration. For singleton and custom scopes, it also holds a cache slot of type `Locked<AnyCacheBox?>`.
+The registry holds one entry for each registered service type, keyed by the identifier of the static type. An entry holds the scope and the factory of the registration. The factory is either a Sendable factory or a MainActor factory, so a type has one registration of one category. For singleton and custom scopes, an entry also holds a cache slot of type `Locked<AnyCacheBox?>`.
 
 ### Once-per-Key Creation
 
@@ -268,7 +259,7 @@ Reset methods give the affected entries new, empty slots and do not take slot lo
 
 The storage releases an old slot, and the instance cached in it, after it has released the registry lock. The `deinit` of a service can therefore use its environment.
 
-Registering a type again replaces its entry. If the scope is the same, the new entry keeps the slot, so an instance that is already cached stays until a reset. If the scope is different, the new entry starts with an empty slot.
+Registering a type again replaces its entry. If the scope and the category are the same, the new entry keeps the slot, so an instance that is already cached stays until a reset. Otherwise, the new entry starts with an empty slot.
 
 For the guarantees and limitations that follow from this design, see <doc:ConcurrencyModel>.
 
