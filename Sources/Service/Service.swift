@@ -37,11 +37,8 @@ public struct Service<S: Sendable>: Sendable {
     /// Thread-safe storage for the resolved service instance.
     private let storage: Locked<S?>
 
-    /// The environment captured at initialization time.
-    private let env: ServiceEnv
-
-    /// The resolver closure that knows how to resolve the service.
-    private let resolver: @Sendable (ServiceEnv) throws -> S
+    /// Resolves the service from the environment that was current at initialization time.
+    private let resolver: @Sendable () throws -> S
 
     /// The resolved service instance.
     /// Resolution happens lazily on first access and is cached for subsequent accesses.
@@ -54,7 +51,7 @@ public struct Service<S: Sendable>: Sendable {
                 return service
             }
             do {
-                let service = try resolver(env)
+                let service = try resolver()
                 cached = service
                 return service
             } catch {
@@ -71,9 +68,7 @@ public struct Service<S: Sendable>: Sendable {
     ///         on first access. For error handling, use `ServiceEnv.current.resolve()` directly with try-catch.
     @_disfavoredOverload
     public init() {
-        self.storage = Locked()
-        self.env = ServiceEnv.current
-        self.resolver = { env in try env.resolve(S.self) }
+        self.init(S.self)
     }
 
     /// Initializes the service wrapper with an explicit service type.
@@ -84,9 +79,9 @@ public struct Service<S: Sendable>: Sendable {
     ///         on first access. For error handling, use `ServiceEnv.current.resolve()` directly with try-catch.
     @_disfavoredOverload
     public init(_ type: S.Type) {
+        let env = ServiceEnv.current
         self.storage = Locked()
-        self.env = ServiceEnv.current
-        self.resolver = { env in try env.resolve(type) }
+        self.resolver = { try env.resolve(type) }
     }
 
     // MARK: - Optional Service Support
@@ -105,18 +100,16 @@ public struct Service<S: Sendable>: Sendable {
     /// }
     /// ```
     public init<Wrapped: Sendable>() where S == Wrapped? {
-        self.storage = Locked()
-        self.env = ServiceEnv.current
-        self.resolver = { env in try? env.resolve(Wrapped.self) }
+        self.init(Wrapped.self)
     }
 
     /// Initializes an optional service wrapper with an explicit type.
     ///
     /// - Parameter type: The wrapped service type to resolve.
     public init<Wrapped: Sendable>(_ type: Wrapped.Type) where S == Wrapped? {
+        let env = ServiceEnv.current
         self.storage = Locked()
-        self.env = ServiceEnv.current
-        self.resolver = { env in try? env.resolve(type) }
+        self.resolver = { try? env.resolve(type) }
     }
 }
 
@@ -173,11 +166,8 @@ public struct MainService<S> {
     /// No thread-safety needed since all access is on MainActor.
     private let storage: Box<S?>
 
-    /// The environment captured at initialization time.
-    private let env: ServiceEnv
-
-    /// The resolver closure that knows how to resolve the service.
-    private let resolver: @MainActor (ServiceEnv) throws -> S
+    /// Resolves the service from the environment that was current at initialization time.
+    private let resolver: @MainActor () throws -> S
 
     /// The resolved service instance.
     /// Resolution happens lazily on first access and is cached for subsequent accesses.
@@ -189,7 +179,7 @@ public struct MainService<S> {
             return service
         }
         do {
-            let service = try resolver(env)
+            let service = try resolver()
             storage.value = service
             return service
         } catch {
@@ -205,9 +195,7 @@ public struct MainService<S> {
     ///         on first access. For error handling, use `ServiceEnv.current.resolveMain()` directly with try-catch.
     @_disfavoredOverload
     public init() {
-        self.storage = Box(nil)
-        self.env = ServiceEnv.current
-        self.resolver = { env in try env.resolveMain(S.self) }
+        self.init(S.self)
     }
 
     /// Initializes the service wrapper with an explicit service type.
@@ -218,9 +206,9 @@ public struct MainService<S> {
     ///         on first access. For error handling, use `ServiceEnv.current.resolveMain()` directly with try-catch.
     @_disfavoredOverload
     public init(_ type: S.Type) {
+        let env = ServiceEnv.current
         self.storage = Box(nil)
-        self.env = ServiceEnv.current
-        self.resolver = { env in try env.resolveMain(type) }
+        self.resolver = { try env.resolveMain(type) }
     }
 
     // MARK: - Optional MainService Support
@@ -240,17 +228,15 @@ public struct MainService<S> {
     /// }
     /// ```
     public init<Wrapped>() where S == Wrapped? {
-        self.storage = Box(nil)
-        self.env = ServiceEnv.current
-        self.resolver = { env in try? env.resolveMain(Wrapped.self) }
+        self.init(Wrapped.self)
     }
 
     /// Initializes an optional MainActor service wrapper with an explicit type.
     ///
     /// - Parameter type: The wrapped service type to resolve.
     public init<Wrapped>(_ type: Wrapped.Type) where S == Wrapped? {
+        let env = ServiceEnv.current
         self.storage = Box(nil)
-        self.env = ServiceEnv.current
-        self.resolver = { env in try? env.resolveMain(type) }
+        self.resolver = { try? env.resolveMain(type) }
     }
 }
