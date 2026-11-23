@@ -564,12 +564,3 @@ extension Locked<Int> {
         }
     }
 }
-
-extension ServiceError {
-    fileprivate var isCircularDependency: Bool {
-        if case .circularDependency = self {
-            return true
-        }
-        return false
-    }
-}
