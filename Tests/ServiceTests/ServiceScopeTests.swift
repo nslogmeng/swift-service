@@ -425,7 +425,7 @@ struct ServiceScopeTests {
         @Test func instanceRegistrationAlwaysSingleton() throws {
             let env = ServiceEnv(name: "scope-instance-test")
             try ServiceEnv.$current.withValue(env) {
-                ServiceEnv.current.register("direct-instance")
+                ServiceEnv.current.register(instance: "direct-instance")
 
                 let first = try ServiceEnv.current.resolve(String.self)
                 let second = try ServiceEnv.current.resolve(String.self)
@@ -439,7 +439,7 @@ struct ServiceScopeTests {
             try ServiceEnv.$current.withValue(env) {
                 let vm = ViewModelService()
                 vm.data = "direct"
-                ServiceEnv.current.registerMain(vm)
+                ServiceEnv.current.registerMain(instance: vm)
 
                 let first = try ServiceEnv.current.resolveMain(ViewModelService.self)
                 let second = try ServiceEnv.current.resolveMain(ViewModelService.self)
