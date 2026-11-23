@@ -133,6 +133,29 @@ final class ServiceStorage: Sendable {
         return try resolve(type, from: entry) { try factory() }
     }
 
+    /// Resolves a Sendable service, or returns `nil` if the type has no Sendable registration.
+    ///
+    /// The optional property wrappers use this method. An error of a registered service is thrown,
+    /// also `notRegistered` for a service that its factory needs.
+    func resolveIfRegistered<Service: Sendable>(_ type: Service.Type) throws(ServiceError) -> Service? {
+        guard let entry = entry(for: ObjectIdentifier(Service.self)), case .sendable(let factory) = entry.factory
+        else {
+            return nil
+        }
+        return try resolve(type, from: entry) { try factory() }
+    }
+
+    /// Resolves a MainActor service, or returns `nil` if the type has no MainActor registration.
+    /// See `resolveIfRegistered(_:)`.
+    @MainActor
+    func resolveMainIfRegistered<Service>(_ type: Service.Type) throws(ServiceError) -> Service? {
+        guard let entry = entry(for: ObjectIdentifier(Service.self)), case .main(let factory) = entry.factory
+        else {
+            return nil
+        }
+        return try resolve(type, from: entry) { try factory() }
+    }
+
     /// Returns the cached instance of a registration, or creates one as a step of the resolution chain.
     ///
     /// A cached instance is returned without resolution tracking: no factory runs, so there is no cycle
