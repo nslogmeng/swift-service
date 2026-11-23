@@ -59,22 +59,22 @@ swift run -c release --package-path Benchmarks ServiceBenchmarks "resolve single
 | 机器 | Apple M4 Max，16 核，128 GB |
 | 系统 | macOS 27.0.1 (26A434) |
 | Swift | 6.4.2 (swiftlang-6.4.2.1.9) |
-| 库 | 合入 #20 后的 `main` |
+| 库 | 合入 #27 后的 `main` |
 
 ```
 benchmark                                   wall p50 (ns)  wall min (ns)   instructions
-resolve singleton (concrete)                         58.0           52.3           1380
-resolve singleton (existential)                      55.8           51.1           1370
-resolve transient                                   249.8          238.3           5937
-resolve graph                                       365.6          345.1           8980
-resolve custom scope                                 54.3           53.6           1331
-resolve nested (transient + 2 hits)                 378.9          345.5           8820
-@Service cached                                      10.5           10.4            248
-@Service first access                               199.1          187.1           5370
-@Provider                                            56.3           54.0           1374
-resolve singleton (8 threads)                      2155.3         1874.8          26626
-resolveMain singleton                                53.8           52.0           1372
-@MainService cached                                  26.1           25.4            766
-@MainProvider                                        60.9           56.5           1424
-control: mutex + dictionary + downcast               15.2           15.0            483
+resolve singleton (concrete)                         49.3           40.2           1127
+resolve singleton (existential)                      48.1           42.2           1117
+resolve transient                                   229.8          199.6           4843
+resolve graph                                       337.9          293.5           7471
+resolve custom scope                                 46.2           39.6           1067
+resolve nested (transient + 2 hits)                 342.8          291.5           7224
+@Service cached                                       6.1            5.9            148
+@Service first access                               164.4          139.4           4097
+@Provider                                            48.9           41.8           1116
+resolve singleton (8 threads)                      2164.2          374.5          21593
+resolveMain singleton                                48.2           42.8           1130
+@MainService cached                                   4.3            3.8            132
+@MainProvider                                        51.2           44.9           1177
+control: mutex + dictionary + downcast               17.3           15.0            483
 ```
