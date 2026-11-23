@@ -154,8 +154,8 @@ struct BService {
 let a = AService()
 let b = BService()
 
-ServiceEnv.current.register(a)
-ServiceEnv.current.register(b)
+ServiceEnv.current.register(instance: a)
+ServiceEnv.current.register(instance: b)
 
 // 在注册后注入依赖
 a.bService = b

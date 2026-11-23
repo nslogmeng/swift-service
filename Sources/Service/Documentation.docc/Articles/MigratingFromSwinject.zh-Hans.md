@@ -102,7 +102,7 @@ container.register(DatabaseProtocol.self) { _ in database }
 
 // Service
 let database = DatabaseService()
-ServiceEnv.current.register(database)
+ServiceEnv.current.register(instance: database)
 ```
 
 ### MainActor 服务

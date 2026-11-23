@@ -68,6 +68,7 @@ python3 -m http.server 8000 --directory .build/docs
 
 **Registration & Resolution** (`ServiceEnv+Register.swift`, `ServiceEnv+Resolver.swift`)
 - `register<Service: Sendable>` / `registerMain<S>` for registration
+- The overloads that register an existing instance take the `instance:` label. Do not add an overload whose unlabeled parameter is generic over the argument (`_ instance: Service`): a metatype is a value, so `register(X.self)` without a factory would select that overload and register `X.Type`
 - `resolve<Service: Sendable>` / `resolveMain<S>` for resolution
 - Automatic circular dependency detection via TaskLocal resolution stack
 

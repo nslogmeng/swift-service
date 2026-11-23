@@ -46,8 +46,10 @@ ServiceEnv.current.register(SessionService.self, scope: .custom("user-session"))
 
 ```swift
 let database = DatabaseService(connectionString: "sqlite://app.db")
-ServiceEnv.current.register(database)
+ServiceEnv.current.register(instance: database)
 ```
+
+必须写 `instance` 标签。只传类型而不传工厂函数的调用无法通过编译，例如 `register(DatabaseService.self)`，除非该类型遵循 `ServiceKey`。
 
 ### ServiceKey 协议
 
