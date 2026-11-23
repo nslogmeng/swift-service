@@ -144,22 +144,6 @@ struct MainActorServiceTests {
                 }
             }
         }
-
-        @Test func supportsServiceKeyRegistration() async throws {
-            let testEnv = ServiceEnv(name: "mainactor-servicekey-test")
-            try await ServiceEnv.$current.withValue(testEnv) {
-                try await MainActor.run {
-                    ServiceEnv.current.registerMain(MainActorKeyService.self)
-
-                    let service = try ServiceEnv.current.resolveMain(MainActorKeyService.self)
-                    #expect(service.value == "default-value")
-
-                    let service2 = try ServiceEnv.current.resolveMain(MainActorKeyService.self)
-                    service.value = "modified"
-                    #expect(service2.value == "modified")
-                }
-            }
-        }
     }
 
     // MARK: - Property Wrapper

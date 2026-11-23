@@ -277,17 +277,6 @@ struct ServiceScopeTests {
                 #expect(first.id == second.id)
             }
         }
-
-        @Test @MainActor func mainActorServiceKeyWithScope() throws {
-            let env = ServiceEnv(name: "scope-main-key-test")
-            try ServiceEnv.$current.withValue(env) {
-                ServiceEnv.current.registerMain(MainActorKeyService.self, scope: .transient)
-
-                let first = try ServiceEnv.current.resolveMain(MainActorKeyService.self)
-                let second = try ServiceEnv.current.resolveMain(MainActorKeyService.self)
-                #expect(first !== second)
-            }
-        }
     }
 
     // MARK: - Custom Scope

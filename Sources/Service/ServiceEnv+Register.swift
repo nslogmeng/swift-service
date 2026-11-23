@@ -96,27 +96,6 @@ extension ServiceEnv {
         storage.registerMain(type, scope: scope, factory: factory)
     }
 
-    /// Registers a MainActor-isolated service using the ServiceKey's default value.
-    ///
-    /// The service type must conform to `ServiceKey` protocol which provides a default value.
-    /// This is a convenience method that creates a factory using the `ServiceKey.default` value.
-    ///
-    /// - Parameter type: A service type conforming to the ServiceKey protocol.
-    @MainActor
-    public func registerMain<Service: ServiceKey>(_ type: Service.Type) {
-        storage.registerMain(type, factory: { Service.default })
-    }
-
-    /// Registers a MainActor-isolated service using the ServiceKey's default value with a specified scope.
-    ///
-    /// - Parameters:
-    ///   - type: A service type conforming to the ServiceKey protocol.
-    ///   - scope: The lifecycle scope for the service.
-    @MainActor
-    public func registerMain<Service: ServiceKey>(_ type: Service.Type, scope: ServiceScope) {
-        storage.registerMain(type, scope: scope, factory: { Service.default })
-    }
-
     /// Registers a MainActor-isolated service instance directly.
     /// The instance will be cached and reused for subsequent resolutions.
     /// This method always uses `.singleton` scope since the instance already exists.
