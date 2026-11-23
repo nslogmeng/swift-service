@@ -312,6 +312,48 @@ extension ConcurrencyTests {
             let error = #expect(throws: ServiceError.self) { try env.resolveMain(MainProbe.self) }
             #expect(error?.isCircularDependency == true)
         }
+
+        // A resolution that the main actor runs in another task before the factory returns, for example
+        // in a nested run loop inside the factory. That task has its own resolution stack, so cycle
+        // detection does not see the running factory. An empty resolution stack stands for that task.
+
+        @Test(arguments: [ServiceScope.singleton, .custom("reentrant")])
+        @MainActor func throwsWhenAnotherTaskResolvesMainServiceWhileItsFactoryRuns(scope: ServiceScope) throws {
+            let env = ServiceEnv(name: "once-reentrant-main-other-task")
+            var factoryRuns = 0
+            var errorInOtherTask: ServiceError?
+            env.registerMain(MainProbe.self, scope: scope) {
+                factoryRuns += 1
+                ServiceContext.$resolutionStack.withValue([]) {
+                    errorInOtherTask = #expect(throws: ServiceError.self) { try env.resolveMain(MainProbe.self) }
+                }
+                return MainProbe()
+            }
+
+            let created = try env.resolveMain(MainProbe.self)
+
+            #expect(errorInOtherTask?.isCircularDependency == true)
+            #expect(try env.resolveMain(MainProbe.self) === created)
+            #expect(factoryRuns == 1)
+        }
+
+        @Test @MainActor func retriesMainFactoryAfterItThrows() throws {
+            let env = ServiceEnv(name: "once-retry-main")
+            var factoryRuns = 0
+            env.registerMain(MainProbe.self) {
+                factoryRuns += 1
+                if factoryRuns == 1 {
+                    throw FactoryError.firstRunFails
+                }
+                return MainProbe()
+            }
+
+            #expect(throws: ServiceError.self) { try env.resolveMain(MainProbe.self) }
+
+            let retried = try env.resolveMain(MainProbe.self)
+            #expect(try env.resolveMain(MainProbe.self) === retried)
+            #expect(factoryRuns == 2)
+        }
     }
 }
 
