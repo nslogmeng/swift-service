@@ -19,12 +19,19 @@ final class ServiceStorage: Sendable {
         }
     }
 
-    private struct Entry: Sendable {
+    /// One registration. It is a class, so a resolution copies one reference out of the registry lock.
+    private final class Entry: Sendable {
         let scope: ServiceScope
         let factory: Factory
 
         /// The cache of a singleton or custom-scoped registration. `nil` for transient and graph scopes.
         let slot: CacheSlot?
+
+        init(scope: ServiceScope, factory: Factory, slot: CacheSlot?) {
+            self.scope = scope
+            self.factory = factory
+            self.slot = slot
+        }
     }
 
     /// The cache of one registration. It holds `nil` until a factory succeeds, then the `CacheBox`
