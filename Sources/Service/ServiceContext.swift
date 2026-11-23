@@ -2,182 +2,236 @@
 //  Copyright © 2025 Service Contributors. All rights reserved.
 //
 
-/// A context object that manages service resolution and dependency tracking.
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#elseif canImport(Musl)
+import Musl
+#elseif canImport(Android)
+import Android
+#endif
+
+/// The resolution chains that the current thread is running.
 ///
-/// ServiceContext is responsible for:
-/// - **Circular dependency detection**: Tracks the current resolution chain and detects
-///   when a service attempts to resolve itself (directly or indirectly).
-/// - **Resolution depth limiting**: Prevents stack overflow from excessively deep
-///   dependency graphs by enforcing a maximum resolution depth.
+/// A resolution chain is one top-level `resolve` call and the resolutions that its factories start.
+/// Resolution is synchronous, so a chain runs on one thread from its first step to its last.
+/// The chain is bound to that thread for that time.
 ///
-/// The context uses `@TaskLocal` storage to ensure each async task has its own isolated
-/// resolution stack, making it safe for concurrent service resolution.
+/// The chain is thread-local, not task-local, for two reasons:
+/// - A task that a factory starts inherits task-local values and keeps them after the chain has ended.
+///   It is not a part of the chain.
+/// - A cache slot lock is held by a thread. The chains of a thread tell whether the thread holds it.
 ///
-/// ## How Circular Dependency Detection Works
-///
-/// When resolving service A that depends on B, which depends on C, which depends on A:
-/// ```
-/// resolve(A) -> resolve(B) -> resolve(C) -> resolve(A) // Detected!
-/// ```
-///
-/// The context maintains a stack of service types currently being resolved.
-/// Types are compared by identity, so distinct types that share a short name are not confused:
-/// 1. Push `A` onto stack -> stack: [A]
-/// 2. Push `B` onto stack -> stack: [A, B]
-/// 3. Push `C` onto stack -> stack: [A, B, C]
-/// 4. Attempt to push `A` -> `A` already in stack -> Circular dependency detected!
-///
-/// Type names are only generated when an error is constructed.
-///
-/// ## Error Handling
-///
-/// When a circular dependency is detected, a `ServiceError.circularDependency` is thrown:
-/// ```swift
-/// do {
-///     let service = try ServiceEnv.current.resolve(AService.self)
-/// } catch ServiceError.circularDependency(let type, let chain) {
-///     print("Circular dependency: \(chain.joined(separator: " -> "))")
-/// }
-/// ```
+/// A thread usually runs one chain. A nested run loop inside a factory can run another task on the
+/// same thread. A resolution in that task starts a chain of its own, which interrupts the first chain
+/// until it ends.
 enum ServiceContext {
-    /// The current resolution stack for this task.
-    /// Contains the types of services currently being resolved, compared by `ObjectIdentifier`.
-    @TaskLocal
-    static var resolutionStack: [any Any.Type] = []
-
-    /// The graph cache for the current resolution chain.
-    /// When a top-level `resolve()` call begins, a new `GraphCacheBox` is created and propagated
-    /// through `@TaskLocal` to all nested resolutions. Services registered with `.graph` scope
-    /// use this cache to share instances within the same resolution graph.
-    @TaskLocal
-    static var graphCacheBox: GraphCacheBox?
-
-    /// Whether `stack` contains the type. The default is the stack of the current task.
-    static func isResolving(_ typeID: ObjectIdentifier, in stack: [any Any.Type] = resolutionStack) -> Bool {
-        stack.contains { ObjectIdentifier($0) == typeID }
-    }
-
-    /// The error for a resolution of `type` while `stack` is being resolved.
-    static func circularDependency(_ type: any Any.Type, in stack: [any Any.Type]) -> ServiceError {
-        let name = String(describing: type)
-        return .circularDependency(serviceType: name, chain: stack.map { String(describing: $0) } + [name])
-    }
-
-    /// Executes a service resolution with circular dependency tracking.
+    /// Identifies a registration: its storage and the service type.
     ///
-    /// This method wraps the actual resolution logic and provides:
-    /// - Circular dependency detection by checking if the type is already in the stack
-    /// - Resolution depth limiting to prevent stack overflow
-    /// - Automatic stack cleanup via TaskLocal scoping
-    ///
-    /// - Parameters:
-    ///   - type: The service type being resolved. Only its static type `Service` is used. The value can be
-    ///     the metatype of a subclass, and registrations are selected by the static type.
-    ///   - resolve: The closure that performs the actual resolution. May throw any error.
-    /// - Returns: The resolved service instance.
-    /// - Throws: Always throws `ServiceError`. Framework errors (circularDependency, maxDepthExceeded)
-    ///           are thrown directly. ServiceError from the resolve closure is propagated.
-    ///           Other errors from the resolve closure are wrapped in `factoryFailed`.
-    static func withResolutionTracking<Service>(
-        _: Service.Type,
-        resolve: () throws -> Service
-    ) throws(ServiceError) -> Service {
-        let type = Service.self
+    /// A chain can resolve from more than one environment, so the type alone is not enough.
+    /// The key retains the storage, because the identity of a storage is its address, and a released
+    /// storage could pass its address on to a new one.
+    struct Key: Hashable {
+        let storage: ServiceStorage
+        let type: any Any.Type
 
-        // Each access to a task-local is a lookup in the task's storage, so each one is read once.
-        let stack = resolutionStack
-
-        // Check for circular dependency
-        if isResolving(ObjectIdentifier(type), in: stack) {
-            throw circularDependency(type, in: stack)
+        static func == (lhs: Key, rhs: Key) -> Bool {
+            lhs.storage === rhs.storage && ObjectIdentifier(lhs.type) == ObjectIdentifier(rhs.type)
         }
 
-        // Check for excessive depth
-        let maxDepth = ServiceEnv.maxResolutionDepth
-        if stack.count >= maxDepth {
-            throw ServiceError.maxDepthExceeded(depth: maxDepth, chain: stack.map { String(describing: $0) })
-        }
-
-        // Execute with the type added to the resolution stack
-        var newStack = stack
-        newStack.append(type)
-
-        // Create a new GraphCacheBox at the top-level resolve if one doesn't exist yet
-        let newCacheBox = graphCacheBox == nil ? GraphCacheBox() : nil
-
-        do {
-            return try $resolutionStack.withValue(newStack) {
-                if let newCacheBox {
-                    return try $graphCacheBox.withValue(newCacheBox) {
-                        try resolve()
-                    }
-                } else {
-                    return try resolve()
-                }
-            }
-        } catch let error as ServiceError {
-            // Propagate ServiceError directly (user-thrown or framework-generated)
-            throw error
-        } catch {
-            // Wrap other errors (from factory) in factoryFailed
-            throw ServiceError.factoryFailed(serviceType: String(describing: type), underlyingError: error)
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(ObjectIdentifier(storage))
+            hasher.combine(ObjectIdentifier(type))
         }
     }
-}
 
-// MARK: - Graph Cache
+    /// The state of one chain. Only the thread that runs the chain uses it, so it has no lock.
+    final class Chain {
+        /// The registrations that are being resolved, outermost first.
+        private var steps: [Key] = []
 
-extension ServiceContext {
-    /// A reference-type cache used for graph-scoped service resolution.
-    ///
-    /// `GraphCacheBox` is created at the start of a top-level `resolve()` call and
-    /// propagated through `@TaskLocal` to all nested resolutions. Services registered
-    /// with `.graph` scope store and retrieve instances from this cache.
-    ///
-    /// A resolution chain can resolve from more than one environment, so an entry is identified by
-    /// the storage of its registration and the service type.
-    ///
-    /// The cache is automatically released when the top-level `resolve()` call completes,
-    /// since the `@TaskLocal` scope ends and no more references exist.
-    final class GraphCacheBox: Sendable {
-        /// Identifies a graph-scoped registration: the storage that holds it, and the service type.
-        ///
-        /// The key retains the storage. The identity of a storage is its address, which another storage
-        /// could get if this one were released while its entry exists.
-        struct Key: Hashable, Sendable {
-            let storage: ServiceStorage
-            let typeId: ObjectIdentifier
+        /// The graph-scoped instances of the chain. They are released when the chain ends.
+        private var graphCache: [Key: AnyCacheBox] = [:]
 
-            static func == (lhs: Key, rhs: Key) -> Bool {
-                lhs.storage === rhs.storage && lhs.typeId == rhs.typeId
-            }
+        /// The chain that this chain interrupts on its thread. `nil` if the thread ran no chain when
+        /// this chain started.
+        private let interrupted: Chain?
 
-            func hash(into hasher: inout Hasher) {
-                hasher.combine(ObjectIdentifier(storage))
-                hasher.combine(typeId)
-            }
+        /// Identifies the task that runs the chain. `nil` outside a task.
+        fileprivate let task: Int?
+
+        fileprivate init(interrupting interrupted: Chain?, task: Int?) {
+            self.interrupted = interrupted
+            self.task = task
         }
 
-        private let cache = Locked<[Key: AnyCacheBox]>()
+        fileprivate var depth: Int {
+            steps.count
+        }
 
-        /// Retrieves the cached instance of a registration, or creates and caches one using the factory.
-        ///
-        /// - Parameters:
-        ///   - key: The storage and the service type of the registration.
-        ///   - factory: A closure that creates a new instance if none is cached.
-        /// - Returns: The cached or newly created instance.
-        /// - Throws: Rethrows any error from the factory closure.
-        func resolve<Service>(key: Key, factory: () throws -> Service) rethrows -> Service {
-            if let cached = cache.withLock({ $0[key] }) as? CacheBox<Service> {
+        /// The steps of the chains that this chain interrupts, followed by its own steps.
+        fileprivate var stepsOnThread: [Key] {
+            (interrupted?.stepsOnThread ?? []) + steps
+        }
+
+        /// Whether this chain is resolving the registration.
+        fileprivate func isResolving(_ key: Key) -> Bool {
+            steps.contains(key)
+        }
+
+        /// Whether this chain, or a chain that it interrupts, is resolving the registration.
+        fileprivate func isResolvingOnThread(_ key: Key) -> Bool {
+            isResolving(key) || (interrupted?.isResolvingOnThread(key) ?? false)
+        }
+
+        fileprivate func push(_ key: Key) {
+            steps.append(key)
+        }
+
+        fileprivate func pop() {
+            steps.removeLast()
+        }
+
+        /// Returns the graph-scoped instance for `key`, or creates and caches one.
+        func graphInstance<Service>(for key: Key, factory: () throws -> Service) rethrows -> Service {
+            if let cached = graphCache[key] as? CacheBox<Service> {
                 return cached.value
             }
             let instance = try factory()
-            let newBox = CacheBox<Service>(instance)
-            // A box that this one replaces is released after the lock: its instance can have a `deinit`
-            // that resolves from this cache.
-            let replaced = cache.withLock { $0.updateValue(newBox, forKey: key) }
-            withExtendedLifetime(replaced) {}
+            graphCache[key] = CacheBox(instance)
             return instance
         }
     }
+
+    /// Whether a chain of the current thread is resolving the type from `storage`.
+    ///
+    /// If the registration has a cache slot, the thread then holds the lock of that slot.
+    static func isResolving(_ type: any Any.Type, in storage: ServiceStorage) -> Bool {
+        guard let chain = currentChain else {
+            return false
+        }
+        return chain.isResolvingOnThread(Key(storage: storage, type: type))
+    }
+
+    /// Runs `resolve` as one step of a chain of the current thread.
+    ///
+    /// The step belongs to the chain that the thread is running, if the same task runs the step.
+    /// Otherwise the step starts a chain, and that chain ends when the step returns.
+    ///
+    /// - Parameters:
+    ///   - type: Only the static type `Service` is used. The value can be the metatype of a subclass.
+    ///   - storage: The storage that holds the registration.
+    ///   - locksSlot: Whether the step holds the lock of a cache slot while `resolve` runs.
+    ///   - resolve: Creates the instance. Its argument is the chain of the step.
+    /// - Throws: `circularDependency` if the chain is already resolving the registration. With
+    ///   `locksSlot`, also if a chain that it interrupts is: this thread then holds the lock already.
+    ///   `maxDepthExceeded` if the chain has reached `ServiceEnv.maxResolutionDepth`.
+    ///   A `ServiceError` from `resolve` unchanged, and any other error as `factoryFailed`.
+    static func withResolutionTracking<Service>(
+        _: Service.Type,
+        in storage: ServiceStorage,
+        locksSlot: Bool,
+        resolve: (Chain) throws -> Service
+    ) throws(ServiceError) -> Service {
+        let key = Key(storage: storage, type: Service.self)
+        let bound = currentChain
+        let task = currentTask
+        let chain: Chain
+        if let bound, bound.task == task {
+            chain = bound
+        } else {
+            chain = Chain(interrupting: bound, task: task)
+        }
+
+        if locksSlot ? chain.isResolvingOnThread(key) : chain.isResolving(key) {
+            let names = (chain.stepsOnThread + [key]).map { String(describing: $0.type) }
+            throw ServiceError.circularDependency(serviceType: String(describing: key.type), chain: names)
+        }
+
+        let maxDepth = ServiceEnv.maxResolutionDepth
+        if chain.depth >= maxDepth {
+            let names = chain.stepsOnThread.map { String(describing: $0.type) }
+            throw ServiceError.maxDepthExceeded(depth: maxDepth, chain: names)
+        }
+
+        chain.push(key)
+        if chain !== bound {
+            currentChain = chain
+        }
+        defer {
+            // A chain that ends here is unbound before it is released. Releasing it releases its
+            // graph-scoped instances, and a `deinit` of those can resolve.
+            if chain !== bound {
+                currentChain = bound
+            }
+            chain.pop()
+        }
+
+        do {
+            return try resolve(chain)
+        } catch let error as ServiceError {
+            throw error
+        } catch {
+            throw ServiceError.factoryFailed(serviceType: String(describing: key.type), underlyingError: error)
+        }
+    }
+
+    /// Identifies the current task. `nil` outside a task.
+    ///
+    /// The value is the hash of the task, because an `UnsafeCurrentTask` must not leave the closure.
+    private static var currentTask: Int? {
+        unsafe withUnsafeCurrentTask { unsafe $0?.hashValue }
+    }
 }
+
+// MARK: - Thread-Local Storage
+
+extension ServiceContext {
+    /// The innermost chain that the current thread is running. `nil` if the thread is not resolving.
+    ///
+    /// The thread-local storage does not retain the chain. `withResolutionTracking` keeps a chain alive
+    /// from its first step to its last, and unbinds it before it releases it.
+    private static var currentChain: Chain? {
+        get {
+            guard let pointer = unsafe threadLocalPointer else {
+                return nil
+            }
+            return unsafe Unmanaged<Chain>.fromOpaque(pointer).takeUnretainedValue()
+        }
+        set {
+            unsafe threadLocalPointer = newValue.map { unsafe Unmanaged.passUnretained($0).toOpaque() }
+        }
+    }
+}
+
+#if canImport(WASILibc)
+
+// WebAssembly runs on one thread, so a global variable is thread-local. `Locked` relies on the same
+// property. A WebAssembly target with threads is not supported.
+nonisolated(unsafe) private var threadLocalPointer: UnsafeMutableRawPointer?
+
+#elseif os(Windows)
+
+#error("Service has no thread-local storage for Windows. The implementation for other platforms uses pthread.")
+
+#else
+
+private let threadLocalKey: pthread_key_t = {
+    var key = pthread_key_t()
+    let status = unsafe pthread_key_create(&key, nil)
+    precondition(status == 0, "pthread_key_create failed with status \(status)")
+    return key
+}()
+
+private var threadLocalPointer: UnsafeMutableRawPointer? {
+    get {
+        unsafe pthread_getspecific(threadLocalKey)
+    }
+    set {
+        let status = unsafe pthread_setspecific(threadLocalKey, newValue)
+        precondition(status == 0, "pthread_setspecific failed with status \(status)")
+    }
+}
+
+#endif
