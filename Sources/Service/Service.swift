@@ -161,10 +161,11 @@ public struct Service<S: Sendable>: Sendable {
 @MainActor
 @propertyWrapper
 public struct MainService<S> {
-    /// Reference-type storage for the resolved service instance.
-    /// Uses `Box` to provide interior mutability without requiring a mutating getter.
-    /// No thread-safety needed since all access is on MainActor.
-    private let storage: Box<S?>
+    /// The resolved instance. `Box` lets the nonmutating getter store it, and `@MainActor` protects it.
+    ///
+    /// The instance is in a `CacheBox` because `Optional<S>` costs a metadata lookup on every read,
+    /// and an optional class reference does not.
+    private let storage: Box<CacheBox<S>?>
 
     /// Resolves the service from the environment that was current at initialization time.
     private let resolver: @MainActor () throws -> S
@@ -175,12 +176,12 @@ public struct MainService<S> {
     /// - Note: If the service is not registered or resolution fails, this will cause a runtime fatalError.
     ///         For error handling, use `ServiceEnv.current.resolveMain()` directly with try-catch.
     public var wrappedValue: S {
-        if let service = storage.value {
-            return service
+        if let cached = storage.value {
+            return cached.value
         }
         do {
             let service = try resolver()
-            storage.value = service
+            storage.value = CacheBox(service)
             return service
         } catch {
             fatalError("\(error)")
