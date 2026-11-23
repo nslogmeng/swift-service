@@ -99,7 +99,8 @@ stagingEnv.register(DatabaseProtocol.self) {
 - 预定义环境 `.online`、`.dev`、`.test` 是整个进程共享的实例。
 - `withValue(.test)` 只把共享实例绑定到当前 task。在其中调用 `register`、`resetCaches()` 或 `resetAll()` 会修改进程级状态。
 - 每个 `ServiceEnv(name:)` 实例拥有独立的服务注册表与缓存。
-- 相等性与哈希只比较 `name`。`ServiceEnv(name: "test") == .test` 为 `true`，但两者不共享注册与缓存。
+- 两个 `ServiceEnv` 值是同一个环境时才相等，也就是共享同一个注册表。副本与原值相等。`ServiceEnv(name: "test") == .test` 为 `false`：两者名称相同，注册表各自独立。
+- 要判断环境的名称，比较 `name`。
 - Swift Testing 默认并行运行测试。每个测试创建自己的 `ServiceEnv` 实例，不向预定义环境注册。
 
 ## 在测试中使用环境
@@ -154,12 +155,12 @@ Service 环境的一个关键优势是能够在切换环境的同时保持相同
 
 ### 在 Assembly 中条件性注册
 
-在 Assembly 内部，你可以根据环境条件性地注册服务，同时保持整体结构相同：
+在 Assembly 内部，你可以根据环境的名称条件性地注册服务，同时保持整体结构相同：
 
 ```swift
 struct AppAssembly: ServiceAssembly {
     func assemble(env: ServiceEnv) {
-        if env == .test {
+        if env.name == "test" {
             env.register(Localization.self) { MockLocalization() }
         } else {
             env.register(Localization.self) { Localization() }
