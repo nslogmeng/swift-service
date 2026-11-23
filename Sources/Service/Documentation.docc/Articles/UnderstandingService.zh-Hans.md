@@ -27,8 +27,7 @@ Service 围绕五个核心概念构建：
 │              ┌───────────▼───────────┐              │
 │              │    ServiceStorage     │              │
 │              │  registry (加锁):     │              │
-│              │  • providers          │              │
-│              │  • mainProviders      │              │
+│              │    类型 → 条目        │              │
 │              │    条目: 作用域、     │              │
 │              │    工厂函数、槽位     │              │
 │              └───────────────────────┘              │
@@ -232,23 +231,15 @@ env.resetScope(.custom("user-session"))  // 仅清除此作用域
 
 ### 线程安全
 
-Service 使用跨平台锁机制实现线程安全访问（Linux/Android 上使用 `Synchronization.Mutex`，Apple 上使用 `OSAllocatedUnfairLock`，Wasm 上为无锁）：
+所有共享状态都放在 `Locked` 类型的值里，即由锁保护的值。Apple 平台上的锁是 `OSAllocatedUnfairLock`，Linux 和 Android 上是 `Synchronization.Mutex`。Wasm 只有一个线程，不加锁。
 
 ```swift
-private struct Registry: Sendable {
-    var providers: [ObjectIdentifier: ProviderEntry] = [:]
-    var mainProviders: [ObjectIdentifier: MainProviderEntry] = [:]
-}
-
-@Locked(default: Registry())
-private var registry: Registry
+private let registry = Locked<[ObjectIdentifier: Entry]>()
 ```
 
-`@Locked` 属性包装器用锁保护每个值。读取属性时在锁内返回值。所有修改都在 `withLock` 内完成，因此读取、修改和写回处于同一个临界区。
+`Locked` 里的值只在 `withLock` 内修改，因此读取、修改和写回处于同一个临界区。
 
-一把锁保护两类服务的注册。因此，注册可以在同一个临界区内检查另一类服务，重置可以在同一个临界区内清空两类服务的缓存。
-
-两个字典都以服务静态类型的标识符为键。一个条目保存一次注册的作用域和工厂函数。对于 singleton 和 custom 作用域，条目还保存一个类型为 `Locked<AnyCacheBox?>` 的缓存槽位。
+注册表为每个已注册的服务类型保存一个条目，以静态类型的标识符为键。条目保存这次注册的作用域和工厂函数。工厂函数要么是 Sendable 的，要么是 MainActor 的，所以一个类型只有一次注册，并且只属于一类。对于 singleton 和 custom 作用域，条目还保存一个类型为 `Locked<AnyCacheBox?>` 的缓存槽位。
 
 ### 按键的一次性创建
 
@@ -268,7 +259,7 @@ MainActor 注册的第 3 步有所不同。MainActor 已经让这些解析串行
 
 存储在释放注册表锁之后，才释放旧槽位和其中缓存的实例。因此，服务的 `deinit` 可以使用它所在的环境。
 
-重新注册同一类型会替换它的条目。作用域相同时，新条目沿用原槽位，所以已缓存的实例保留到下一次重置。作用域不同时，新条目从空槽位开始。
+重新注册同一类型会替换它的条目。作用域和类别都相同时，新条目沿用原槽位，所以已缓存的实例保留到下一次重置。否则，新条目从空槽位开始。
 
 这一设计带来的保证和限制，请参阅 <doc:ConcurrencyModel>。
 
