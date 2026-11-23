@@ -33,11 +33,8 @@
 /// ```
 @propertyWrapper
 public struct Provider<S: Sendable>: Sendable {
-    /// The environment captured at initialization time.
-    private let env: ServiceEnv
-
-    /// The resolver closure that knows how to resolve the service.
-    private let resolver: @Sendable (ServiceEnv) throws -> S
+    /// Resolves the service from the environment that was current at initialization time.
+    private let resolver: @Sendable () throws -> S
 
     /// The resolved service instance.
     /// Resolution happens on every access; caching behavior depends on the service's scope.
@@ -46,7 +43,7 @@ public struct Provider<S: Sendable>: Sendable {
     ///         For error handling, use `ServiceEnv.current.resolve()` directly with try-catch.
     public var wrappedValue: S {
         do {
-            return try resolver(env)
+            return try resolver()
         } catch {
             fatalError("\(error)")
         }
@@ -57,8 +54,7 @@ public struct Provider<S: Sendable>: Sendable {
     /// The current environment is captured at this point.
     @_disfavoredOverload
     public init() {
-        self.env = ServiceEnv.current
-        self.resolver = { env in try env.resolve(S.self) }
+        self.init(S.self)
     }
 
     /// Initializes the provider wrapper with an explicit service type.
@@ -66,8 +62,8 @@ public struct Provider<S: Sendable>: Sendable {
     /// - Parameter type: The service type to resolve.
     @_disfavoredOverload
     public init(_ type: S.Type) {
-        self.env = ServiceEnv.current
-        self.resolver = { env in try env.resolve(type) }
+        let env = ServiceEnv.current
+        self.resolver = { try env.resolve(type) }
     }
 
     // MARK: - Optional Service Support
@@ -75,16 +71,15 @@ public struct Provider<S: Sendable>: Sendable {
     /// Initializes an optional provider wrapper.
     /// If the service is not registered, the property returns `nil` instead of causing a fatal error.
     public init<Wrapped: Sendable>() where S == Wrapped? {
-        self.env = ServiceEnv.current
-        self.resolver = { env in try? env.resolve(Wrapped.self) }
+        self.init(Wrapped.self)
     }
 
     /// Initializes an optional provider wrapper with an explicit type.
     ///
     /// - Parameter type: The wrapped service type to resolve.
     public init<Wrapped: Sendable>(_ type: Wrapped.Type) where S == Wrapped? {
-        self.env = ServiceEnv.current
-        self.resolver = { env in try? env.resolve(type) }
+        let env = ServiceEnv.current
+        self.resolver = { try? env.resolve(type) }
     }
 }
 
@@ -115,11 +110,8 @@ public struct Provider<S: Sendable>: Sendable {
 @MainActor
 @propertyWrapper
 public struct MainProvider<S> {
-    /// The environment captured at initialization time.
-    private let env: ServiceEnv
-
-    /// The resolver closure that knows how to resolve the service.
-    private let resolver: @MainActor (ServiceEnv) throws -> S
+    /// Resolves the service from the environment that was current at initialization time.
+    private let resolver: @MainActor () throws -> S
 
     /// The resolved service instance.
     /// Resolution happens on every access; caching behavior depends on the service's scope.
@@ -128,7 +120,7 @@ public struct MainProvider<S> {
     ///         For error handling, use `ServiceEnv.current.resolveMain()` directly with try-catch.
     public var wrappedValue: S {
         do {
-            return try resolver(env)
+            return try resolver()
         } catch {
             fatalError("\(error)")
         }
@@ -139,8 +131,7 @@ public struct MainProvider<S> {
     /// The current environment is captured at this point.
     @_disfavoredOverload
     public init() {
-        self.env = ServiceEnv.current
-        self.resolver = { env in try env.resolveMain(S.self) }
+        self.init(S.self)
     }
 
     /// Initializes the provider wrapper with an explicit service type.
@@ -148,8 +139,8 @@ public struct MainProvider<S> {
     /// - Parameter type: The service type to resolve.
     @_disfavoredOverload
     public init(_ type: S.Type) {
-        self.env = ServiceEnv.current
-        self.resolver = { env in try env.resolveMain(type) }
+        let env = ServiceEnv.current
+        self.resolver = { try env.resolveMain(type) }
     }
 
     // MARK: - Optional MainProvider Support
@@ -157,15 +148,14 @@ public struct MainProvider<S> {
     /// Initializes an optional provider wrapper.
     /// If the service is not registered, the property returns `nil` instead of causing a fatal error.
     public init<Wrapped>() where S == Wrapped? {
-        self.env = ServiceEnv.current
-        self.resolver = { env in try? env.resolveMain(Wrapped.self) }
+        self.init(Wrapped.self)
     }
 
     /// Initializes an optional provider wrapper with an explicit type.
     ///
     /// - Parameter type: The wrapped service type to resolve.
     public init<Wrapped>(_ type: Wrapped.Type) where S == Wrapped? {
-        self.env = ServiceEnv.current
-        self.resolver = { env in try? env.resolveMain(type) }
+        let env = ServiceEnv.current
+        self.resolver = { try? env.resolveMain(type) }
     }
 }
