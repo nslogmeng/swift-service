@@ -257,6 +257,33 @@ extension ConcurrencyTests {
             #expect(factoryRuns.value == 2)
         }
 
+        // On the main actor, a reset can run during a factory only from inside the factory.
+        @Test(arguments: ResetOperation.allCases)
+        @MainActor func resetInsideMainFactoryKeepsInFlightInstanceOutOfCache(operation: ResetOperation) throws {
+            let env = ServiceEnv(name: "once-reset-main")
+            var factoryRuns = 0
+            func register() {
+                env.registerMain(MainProbe.self) {
+                    factoryRuns += 1
+                    if factoryRuns == 1 {
+                        operation.apply(to: env)
+                        if operation == .all {
+                            register()
+                        }
+                    }
+                    return MainProbe()
+                }
+            }
+            register()
+
+            let original = try env.resolveMain(MainProbe.self)
+            let fresh = try env.resolveMain(MainProbe.self)
+
+            #expect(fresh !== original)
+            #expect(try env.resolveMain(MainProbe.self) === fresh)
+            #expect(factoryRuns == 2)
+        }
+
         // MARK: Re-entrant resolution
 
         // A factory that reaches its own key again must fail with `circularDependency` before the storage
