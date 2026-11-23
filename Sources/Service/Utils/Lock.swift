@@ -13,7 +13,9 @@ import os
 /// Safety: `_value` is accessed only inside `withLock`, while `_lock` is held.
 final class Locked<Value: Sendable>: @unchecked Sendable {
     private let _lock = OSAllocatedUnfairLock()
-    nonisolated(unsafe) private var _value: Value
+
+    // The lock gives `body` exclusive access, so the dynamic exclusivity check is switched off.
+    @exclusivity(unchecked) nonisolated(unsafe) private var _value: Value
 
     init(_ value: Value) { unsafe _value = value }
 
