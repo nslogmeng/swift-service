@@ -165,16 +165,13 @@ extension ServiceContext {
         /// - Parameters:
         ///   - key: The storage and the service type of the registration.
         ///   - factory: A closure that creates a new instance if none is cached.
-        /// - Returns: The cached or newly created instance, or `nil` if the factory returns `nil`.
-        ///   A `nil` result is not cached.
+        /// - Returns: The cached or newly created instance.
         /// - Throws: Rethrows any error from the factory closure.
-        func resolve<Service>(key: Key, factory: () throws -> Service?) rethrows -> Service? {
-            if let cached = cache.withLock({ $0[key] }) {
-                return (cached as? CacheBox<Service>)?.value
+        func resolve<Service>(key: Key, factory: () throws -> Service) rethrows -> Service {
+            if let cached = cache.withLock({ $0[key] }) as? CacheBox<Service> {
+                return cached.value
             }
-            guard let instance = try factory() else {
-                return nil
-            }
+            let instance = try factory()
             let newBox = CacheBox<Service>(instance)
             // A box that this one replaces is released after the lock: its instance can have a `deinit`
             // that resolves from this cache.

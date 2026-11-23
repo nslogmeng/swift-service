@@ -114,27 +114,26 @@ final class ServiceStorage: Sendable {
     /// A cached instance is returned without resolution tracking: no factory runs, so there is no cycle
     /// to detect and no depth to count.
     ///
-    /// The result is not optional. `Optional<Service>` as a generic argument of `withResolutionTracking`
-    /// costs a metadata lookup at run time on every call, because that code is not specialized.
+    /// No instance on this path is optional. `Optional<Service>` as a generic argument or result costs
+    /// a metadata lookup at run time on every call, because this code is not specialized.
     ///
     /// - Throws: `notRegistered` if the type has no Sendable registration.
     ///   Otherwise the errors of `ServiceContext.withResolutionTracking`.
     func resolve<Service: Sendable>(_ type: Service.Type) throws(ServiceError) -> Service {
         let typeId = ObjectIdentifier(Service.self)
         guard let entry = entry(for: typeId), case .sendable(let factory) = entry.factory else {
-            throw .notRegistered(serviceType: String(describing: Service.self))
+            throw Self.notRegistered(Service.self)
         }
         if let box = cachedBox(in: entry.slot, typeId: typeId) as? CacheBox<Service> {
             return box.value
         }
         return try ServiceContext.withResolutionTracking(type) {
-            let service = try resolveWithScope(typeId: typeId, scope: entry.scope, slot: entry.slot) {
-                try factory() as? Service
+            try resolveWithScope(typeId: typeId, scope: entry.scope, slot: entry.slot) {
+                guard let service = try factory() as? Service else {
+                    throw Self.notRegistered(Service.self)
+                }
+                return service
             }
-            guard let service else {
-                throw ServiceError.notRegistered(serviceType: String(describing: Service.self))
-            }
-            return service
         }
     }
 
@@ -146,20 +145,23 @@ final class ServiceStorage: Sendable {
     func resolveMain<Service>(_ type: Service.Type) throws(ServiceError) -> Service {
         let typeId = ObjectIdentifier(Service.self)
         guard let entry = entry(for: typeId), case .main(let factory) = entry.factory else {
-            throw .notRegistered(serviceType: String(describing: Service.self))
+            throw Self.notRegistered(Service.self)
         }
         if let box = cachedBox(in: entry.slot, typeId: typeId) as? CacheBox<Service> {
             return box.value
         }
         return try ServiceContext.withResolutionTracking(type) {
-            let service = try resolveMainWithScope(typeId: typeId, scope: entry.scope, slot: entry.slot) {
-                try factory() as? Service
+            try resolveMainWithScope(typeId: typeId, scope: entry.scope, slot: entry.slot) {
+                guard let service = try factory() as? Service else {
+                    throw Self.notRegistered(Service.self)
+                }
+                return service
             }
-            guard let service else {
-                throw ServiceError.notRegistered(serviceType: String(describing: Service.self))
-            }
-            return service
         }
+    }
+
+    private static func notRegistered(_ type: any Any.Type) -> ServiceError {
+        .notRegistered(serviceType: String(describing: type))
     }
 
     /// Returns the box that a slot holds, without resolution tracking.
@@ -185,26 +187,25 @@ final class ServiceStorage: Sendable {
         typeId: ObjectIdentifier,
         scope: ServiceScope,
         slot: CacheSlot?,
-        factory: () throws -> Service?
-    ) throws -> Service? {
+        factory: () throws -> Service
+    ) throws -> Service {
         guard let slot else {
             return try resolveUncached(typeId: typeId, scope: scope, factory: factory)
         }
 
-        // If the factory throws or returns nil, the slot stays empty and the next resolution runs
-        // the factory again.
-        let box = try slot.withLock { (cached: inout sending AnyCacheBox?) throws -> sending AnyCacheBox? in
+        // If the factory throws, the slot stays empty and the next resolution runs the factory again.
+        let box = try slot.withLock { (cached: inout sending AnyCacheBox?) throws -> sending AnyCacheBox in
             if let cached {
                 return cached
             }
-            guard let service = try factory() else {
-                return nil
-            }
-            let box = CacheBox<Service>(service)
+            let box = CacheBox<Service>(try factory())
             cached = box
             return box
         }
-        return (box as? CacheBox<Service>)?.value
+        guard let box = box as? CacheBox<Service> else {
+            throw Self.notRegistered(Service.self)
+        }
+        return box.value
     }
 
     /// Returns or creates the instance of a MainActor registration.
@@ -218,8 +219,8 @@ final class ServiceStorage: Sendable {
         typeId: ObjectIdentifier,
         scope: ServiceScope,
         slot: CacheSlot?,
-        factory: () throws -> Service?
-    ) throws -> Service? {
+        factory: () throws -> Service
+    ) throws -> Service {
         guard let slot else {
             return try resolveUncached(typeId: typeId, scope: scope, factory: factory)
         }
@@ -238,18 +239,16 @@ final class ServiceStorage: Sendable {
             return box.value
         }
 
-        // If the factory throws or returns nil, the slot is empty again and the next resolution runs
-        // the factory again.
-        let service: Service?
+        // If the factory throws, the slot is empty again and the next resolution runs the factory again.
+        let box: CacheBox<Service>
         do {
-            service = try factory()
+            box = CacheBox(try factory())
         } catch {
             slot.withLock { $0 = nil }
             throw error
         }
-        let box = service.map { CacheBox<Service>($0) }
         slot.withLock { $0 = box }
-        return service
+        return box.value
     }
 
     /// Creates the instance of a transient or graph-scoped registration.
@@ -257,8 +256,8 @@ final class ServiceStorage: Sendable {
     private func resolveUncached<Service>(
         typeId: ObjectIdentifier,
         scope: ServiceScope,
-        factory: () throws -> Service?
-    ) throws -> Service? {
+        factory: () throws -> Service
+    ) throws -> Service {
         if case .graph = scope, let graphCache = ServiceContext.graphCacheBox {
             return try graphCache.resolve(key: .init(storage: self, typeId: typeId), factory: factory)
         }
