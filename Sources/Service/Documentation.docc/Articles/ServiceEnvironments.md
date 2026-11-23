@@ -99,7 +99,8 @@ stagingEnv.register(DatabaseProtocol.self) {
 - The predefined environments `.online`, `.dev`, and `.test` are instances shared by the whole process.
 - `withValue(.test)` only binds the shared instance to the current task. Calling `register`, `resetCaches()`, or `resetAll()` inside it changes process-wide state.
 - Each `ServiceEnv(name:)` instance has its own service registry and caches.
-- Equality and hashing compare only `name`. `ServiceEnv(name: "test") == .test` is `true`, but the two instances share no registrations or caches.
+- Two `ServiceEnv` values are equal if they are the same environment, which means that they share one registry. A copy equals the original. `ServiceEnv(name: "test") == .test` is `false`: the two have the same name and separate registries.
+- To check how an environment is named, compare `name`.
 - Swift Testing runs tests in parallel. Each test creates its own `ServiceEnv` instance instead of registering into a predefined environment.
 
 ## Testing with Environments
@@ -154,12 +155,12 @@ This approach ensures that:
 
 ### Conditional Registration in Assemblies
 
-Inside an Assembly, you can conditionally register services based on the environment while keeping the overall structure identical:
+Inside an Assembly, you can conditionally register services based on the name of the environment while keeping the overall structure identical:
 
 ```swift
 struct AppAssembly: ServiceAssembly {
     func assemble(env: ServiceEnv) {
-        if env == .test {
+        if env.name == "test" {
             env.register(Localization.self) { MockLocalization() }
         } else {
             env.register(Localization.self) { Localization() }

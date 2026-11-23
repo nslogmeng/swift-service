@@ -60,6 +60,7 @@ python3 -m http.server 8000 --directory .build/docs
 **Service Environment** (`ServiceEnv.swift`)
 - Manages service registrations per environment (`online`, `test`, `dev`)
 - Uses `@TaskLocal` for task-based environment isolation
+- `==` and `hash(into:)` use the identity of `storage`: two values are equal only if they share a registry. `name` is not unique and does not identify an environment
 - `resetCaches()` clears cached instances, `resetAll()` clears everything
 
 **Service Storage** (`ServiceStorage.swift`)
