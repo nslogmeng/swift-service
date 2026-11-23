@@ -182,7 +182,9 @@ The semantics match `swift_once` and the lazy initialization of global variables
 The same limitations apply:
 
 - **A factory must not block on another thread that resolves the same service.** The other thread waits for the factory to finish, so neither thread can continue. For example, the factory of a service that the main thread also resolves must not call `DispatchQueue.main.sync`.
-- **A factory must not run another task on its own thread that resolves the same service.** Cycle detection follows one task. It does not cover a different task that runs on the same thread before the factory returns, for example a main-actor task that a nested run loop inside the factory executes. That resolution re-enters creation on the same thread, and the process crashes.
+- **A factory must not run another task on its own thread that resolves the same service.** Cycle detection follows one task. It does not cover a different task that runs on the same thread before the factory returns, for example a main-actor task that a nested run loop inside the factory executes. The result depends on how the service is registered:
+    - With `registerMain`: that resolution throws ``ServiceError/circularDependency(serviceType:chain:)``. The factory runs once, and the resolution that runs it returns the instance.
+    - With `register`: that resolution re-enters creation on the same thread, and the process crashes.
 - **A dependency cycle that two threads enter at different services can deadlock.** Resolving a cycle from one thread always throws ``ServiceError/circularDependency(serviceType:chain:)``. If two threads resolve the same cycle for the first time at the same moment, each starting from a different service, each thread can hold one service while it waits for the other. See <doc:CircularDependencies>.
 
 ### Graph Scope
