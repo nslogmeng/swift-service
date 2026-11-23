@@ -39,7 +39,7 @@ struct DefaultMainActorIsolationTests {
         let env = ServiceEnv(name: "dmi-main-wrappers")
         ServiceEnv.$current.withValue(env) {
             let counter = CounterModel()
-            env.registerMain(counter)
+            env.registerMain(instance: counter)
             env.registerMain((any Store).self) { MemoryStore() }
             env.registerMain(TransientModel.self, scope: .transient) { TransientModel() }
 

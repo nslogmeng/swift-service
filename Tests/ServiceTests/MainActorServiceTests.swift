@@ -137,7 +137,7 @@ struct MainActorServiceTests {
                     let instance = ViewModelService()
                     instance.data = "pre-configured"
 
-                    ServiceEnv.current.registerMain(instance)
+                    ServiceEnv.current.registerMain(instance: instance)
 
                     let resolved = try ServiceEnv.current.resolveMain(ViewModelService.self)
                     #expect(resolved.data == "pre-configured")

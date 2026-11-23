@@ -53,8 +53,12 @@ extension ServiceEnv {
     /// The instance will be cached and reused for subsequent resolutions.
     /// This method always uses `.singleton` scope since the instance already exists.
     ///
+    /// The `instance` label separates this method from the methods that take a service type. A call that
+    /// passes a type without a factory, such as `register(Database.self)`, does not compile unless the type
+    /// conforms to ``ServiceKey``.
+    ///
     /// - Parameter instance: The service instance to register.
-    public func register<Service: Sendable>(_ instance: Service) {
+    public func register<Service: Sendable>(instance: Service) {
         storage.register(Service.self, factory: { instance })
     }
 }
@@ -103,9 +107,12 @@ extension ServiceEnv {
     /// Use this when you already have an instance of a MainActor-isolated service
     /// that you want to register directly.
     ///
+    /// The `instance` label separates this method from `registerMain(_:scope:factory:)`. A call that passes
+    /// a type without a factory, such as `registerMain(ViewModel.self)`, does not compile.
+    ///
     /// - Parameter instance: The service instance to register.
     @MainActor
-    public func registerMain<Service>(_ instance: Service) {
+    public func registerMain<Service>(instance: Service) {
         storage.registerMain(Service.self, factory: { instance })
     }
 }

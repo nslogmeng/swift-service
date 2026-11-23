@@ -54,7 +54,7 @@ struct MainActorRegistrationTests {
                 state.count = 5
                 state.message = "configured"
 
-                ServiceEnv.current.registerMain(state)
+                ServiceEnv.current.registerMain(instance: state)
 
                 let resolved = try ServiceEnv.current.resolveMain(MainState.self)
                 #expect(resolved.count == 5)
