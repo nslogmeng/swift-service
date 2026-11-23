@@ -135,7 +135,7 @@ extension ServiceContext {
     ///
     /// The cache is automatically released when the top-level `resolve()` call completes,
     /// since the `@TaskLocal` scope ends and no more references exist.
-    final class GraphCacheBox: @unchecked Sendable {
+    final class GraphCacheBox: Sendable {
         /// Identifies a graph-scoped registration: the storage that holds it, and the service type.
         ///
         /// The key retains the storage. The identity of a storage is its address, which another storage
@@ -154,10 +154,7 @@ extension ServiceContext {
             }
         }
 
-        @Locked
-        private var cache: [Key: AnyCacheBox]
-
-        init() {}
+        private let cache = Locked<[Key: AnyCacheBox]>()
 
         /// Retrieves the cached instance of a registration, or creates and caches one using the factory.
         ///
@@ -168,7 +165,7 @@ extension ServiceContext {
         ///   A `nil` result is not cached.
         /// - Throws: Rethrows any error from the factory closure.
         func resolve<Service>(key: Key, factory: () throws -> Service?) rethrows -> Service? {
-            if let cached = $cache.withLock({ $0[key] }) {
+            if let cached = cache.withLock({ $0[key] }) {
                 return (cached as? CacheBox<Service>)?.value
             }
             guard let instance = try factory() else {
@@ -177,7 +174,7 @@ extension ServiceContext {
             let newBox = CacheBox<Service>(instance)
             // A box that this one replaces is released after the lock: its instance can have a `deinit`
             // that resolves from this cache.
-            let replaced = $cache.withLock { $0.updateValue(newBox, forKey: key) }
+            let replaced = cache.withLock { $0.updateValue(newBox, forKey: key) }
             withExtendedLifetime(replaced) {}
             return instance
         }
