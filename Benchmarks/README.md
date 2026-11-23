@@ -40,7 +40,7 @@ Registration and the first resolution that fills the cache happen before measure
 | `resolve transient` | `resolve` of a `.transient` service with a trivial factory |
 | `resolve graph` | Top-level `resolve` of a `.graph` service |
 | `resolve custom scope` | `resolve` of a cached `.custom("bench")` service |
-| `resolve nested (transient + 2 hits)` | `resolve` of a `.transient` service whose factory calls `resolve` for two cached singletons: three `resolve` calls, resolution stack depth 2 |
+| `resolve nested (transient + 2 hits)` | `resolve` of a `.transient` service whose factory calls `resolve` for two cached singletons: three `resolve` calls, one of which runs a factory |
 | `@Service cached` | Property read on a `@Service` that already holds its value |
 | `@Service first access` | Constructing a holder with a `@Service` property and reading it once; the service is already cached in the environment |
 | `@Provider` | Property read on a `@Provider` for a `.singleton` service |

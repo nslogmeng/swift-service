@@ -9,7 +9,7 @@ A step-by-step guide to migrating your dependency injection from Swinject to Ser
 Service is designed from the ground up for modern Swift:
 
 - **Swift 6 Concurrency Safety** — Sendable and MainActor constraints are part of the API, with compile-time enforcement instead of runtime crashes
-- **Zero Dependencies** — No external packages; built entirely on Swift standard library primitives
+- **Zero Dependencies** — No external packages; built on what Swift and the platform provide
 - **Native Property Wrappers** — `@Service`, `@MainService`, `@Provider`, `@MainProvider` for declarative injection without boilerplate
 - **TaskLocal Environment Isolation** — Tests run in parallel without polluting each other; no need to manage container lifetimes manually
 

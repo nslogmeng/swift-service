@@ -181,15 +181,13 @@ await withTaskGroup(of: DatabaseService.self) { group in
 
 它也有相同的限制：
 
-- **工厂函数不能阻塞等待另一个会解析同一服务的线程。** 那个线程在等待工厂函数完成，两个线程都无法继续。例如，如果主线程也会解析某个服务，这个服务的工厂函数就不能调用 `DispatchQueue.main.sync`。
-- **工厂函数不能在自己的线程上运行另一个会解析同一服务的任务。** 循环检测跟随单个任务。它不覆盖在工厂函数返回前运行在同一线程上的其他任务，例如工厂函数内的嵌套 run loop 执行的 MainActor 任务。结果取决于服务的注册方式：
-    - 用 `registerMain` 注册：这样的解析抛出 ``ServiceError/circularDependency(serviceType:chain:)``。工厂函数只执行一次，执行它的那次解析正常返回实例。
-    - 用 `register` 注册：这样的解析会在同一线程上重入创建过程，进程会崩溃。
+- **工厂函数不能阻塞等待另一个会解析同一服务的线程。** 那个线程在等待工厂函数完成，两个线程都无法继续。例如，如果主线程也会解析某个服务，这个服务的工厂函数就不能调用 `DispatchQueue.main.sync`。工厂函数也不能等待它自己启动的任务，如果那个任务会解析同一服务。
+- **在正在执行工厂函数的线程上发起的解析，拿不到这个工厂函数正在创建的服务。** 工厂函数内的嵌套 run loop 可以在同一线程上运行另一个任务。如果该任务解析这个线程正在创建的 singleton 或 custom 作用域服务，解析抛出 ``ServiceError/circularDependency(serviceType:chain:)``，因为它无法等待同一线程上位于它下方的工厂函数。工厂函数只执行一次，执行它的那次解析正常返回实例。Transient 和 graph 作用域的服务没有需要等待的共享实例，所以该任务得到它自己的实例。
 - **两个线程从不同的服务进入同一个依赖循环时，可能死锁。** 在单个线程上解析依赖循环，始终抛出 ``ServiceError/circularDependency(serviceType:chain:)``。如果两个线程同时首次解析同一个依赖循环，并且各自从循环中不同的服务开始，每个线程可能各持有一个服务并等待对方。参见 <doc:CircularDependencies>。
 
 ### Graph 作用域
 
-Graph 作用域使用 `@TaskLocal` 存储在单个解析链内共享实例。每次顶层 `resolve()` 调用创建一个新的 graph 上下文：
+Graph 作用域在单个解析链内共享实例。每次顶层 `resolve()` 调用开始一条新的解析链，它有自己的 graph 缓存：
 
 ```swift
 env.register(UnitOfWork.self, scope: .graph) { UnitOfWork() }
@@ -203,7 +201,7 @@ env.register(UnitOfWork.self, scope: .graph) { UnitOfWork() }
 //   └── resolve(UnitOfWork)  ← 创建实例 Y（新 graph）
 ```
 
-由于 graph 缓存是 task-local 的，不同任务上的并发顶层解析自然获得独立的 graph 缓存，无需额外的同步开销。
+一条解析链在一个线程上执行，graph 缓存属于这条链。并发的顶层解析各自获得独立的 graph 缓存，无需同步。工厂函数里启动的任务不属于这条链，它得到自己的 graph 作用域实例。
 
 ### @Provider 与 Transient 作用域
 

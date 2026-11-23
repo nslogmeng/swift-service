@@ -181,15 +181,13 @@ The semantics match `swift_once` and the lazy initialization of global variables
 
 The same limitations apply:
 
-- **A factory must not block on another thread that resolves the same service.** The other thread waits for the factory to finish, so neither thread can continue. For example, the factory of a service that the main thread also resolves must not call `DispatchQueue.main.sync`.
-- **A factory must not run another task on its own thread that resolves the same service.** Cycle detection follows one task. It does not cover a different task that runs on the same thread before the factory returns, for example a main-actor task that a nested run loop inside the factory executes. The result depends on how the service is registered:
-    - With `registerMain`: that resolution throws ``ServiceError/circularDependency(serviceType:chain:)``. The factory runs once, and the resolution that runs it returns the instance.
-    - With `register`: that resolution re-enters creation on the same thread, and the process crashes.
+- **A factory must not block on another thread that resolves the same service.** The other thread waits for the factory to finish, so neither thread can continue. For example, the factory of a service that the main thread also resolves must not call `DispatchQueue.main.sync`, and a factory must not wait for a task that it started if that task resolves the same service.
+- **A resolution on the thread of a running factory cannot get the service that the factory creates.** A nested run loop inside a factory can run another task on the same thread. If that task resolves a singleton or custom-scoped service that the thread is creating, the resolution throws ``ServiceError/circularDependency(serviceType:chain:)``, because it cannot wait for a factory that runs below it on the same thread. The factory runs once, and the resolution that runs it returns the instance. Transient and graph-scoped services have no shared instance to wait for, so that task gets instances of its own.
 - **A dependency cycle that two threads enter at different services can deadlock.** Resolving a cycle from one thread always throws ``ServiceError/circularDependency(serviceType:chain:)``. If two threads resolve the same cycle for the first time at the same moment, each starting from a different service, each thread can hold one service while it waits for the other. See <doc:CircularDependencies>.
 
 ### Graph Scope
 
-Graph scope uses `@TaskLocal` storage to share instances within a single resolution chain. Each top-level `resolve()` call creates a new graph context:
+Graph scope shares instances within a single resolution chain. Each top-level `resolve()` call starts a new chain with its own graph cache:
 
 ```swift
 env.register(UnitOfWork.self, scope: .graph) { UnitOfWork() }
@@ -203,7 +201,7 @@ env.register(UnitOfWork.self, scope: .graph) { UnitOfWork() }
 //   └── resolve(UnitOfWork)  ← creates instance Y (new graph)
 ```
 
-Since graph caching is task-local, concurrent top-level resolves on different tasks naturally get independent graph caches with no synchronization overhead.
+A chain runs on one thread, and its graph cache belongs to that chain. Concurrent top-level resolves get independent graph caches without synchronization. A task that a factory starts is not part of the chain and gets graph-scoped instances of its own.
 
 ### @Provider with Transient Scope
 

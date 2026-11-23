@@ -62,7 +62,7 @@ python3 -m http.server 8000 --directory .build/docs
 
 **Service Storage** (`ServiceStorage.swift`) — the registrations of one environment and the instances that they cache
 
-**Service Context** (`ServiceContext.swift`) — the resolution stack and the graph cache of the current resolution chain. Both are task-local
+**Service Context** (`ServiceContext.swift`) — the resolution chain that the current thread is running: its steps and its graph cache
 
 **Assembly** (`ServiceAssembly.swift`) — `ServiceAssembly` protocol for modular registration. `@MainActor`
 
@@ -79,7 +79,7 @@ Sendable services and shared state are behind locks. MainActor services are crea
 
 **Sendable conformances**
 - Never mark a public type `@unchecked Sendable`
-- Use `@unchecked Sendable` on an internal type only if the compiler cannot check it, and state in its comment what makes it safe. Today: `Locked`, `Box`, `AnyCacheBox`, `CacheBox`, `PendingBox`
+- Use `@unchecked Sendable` on an internal type only if the compiler cannot check it, and state in its comment what makes it safe. Today: `Locked`, `Box`, `AnyCacheBox`, `CacheBox`
 - Put new shared mutable state into a `Locked` that is stored in a `let`. Change it only inside `withLock`. `value` has no setter, because a get followed by a set is two critical sections and loses concurrent changes
 
 **Registry** (`ServiceStorage.registry`)
@@ -92,18 +92,20 @@ Sendable services and shared state are behind locks. MainActor services are crea
 **Cache slot** (`Locked<AnyCacheBox?>`, one for each singleton or custom-scoped entry)
 - It holds `nil` until a factory succeeds, then the `CacheBox<S>` of the instance, with `S` the service type of the key. Read the instance back with a class cast to `CacheBox<S>`
 - A factory that throws leaves the slot empty, and the next resolution runs the factory again
-- Sendable entry: `resolveWithScope` holds the slot lock while the factory runs. Concurrent first resolutions wait, and the factory runs once
-- The slot lock is not recursive. Locking it again on the same thread stops the process. Two rules prevent that within one task: the fast path skips the slot if `ServiceContext.isResolving` is true, and `resolveWithScope` runs only inside `withResolutionTracking`, which throws `circularDependency`. Another task on the same thread, run by a nested run loop inside the factory, is not covered
-- MainActor entry: `resolveMainWithScope` holds the slot lock only to read or write the slot, because the main actor serializes creation. The slot holds `PendingBox.shared` while the factory runs. A resolution that finds the marker throws `circularDependency`
+- `resolveWithScope` holds the slot lock while the factory runs. Concurrent first resolutions wait, and the factory runs once
+- The slot lock is not recursive. Locking it again on the same thread stops the process. Two rules prevent that: the fast path skips the slot if `ServiceContext.isResolving` is true, and `resolveWithScope` runs only inside `withResolutionTracking`, which throws `circularDependency`. Both ask all chains of the current thread, so they also cover another task that a nested run loop inside the factory runs on that thread
 
 **Resolution** (`ServiceStorage.resolve` / `resolveMain`)
 - Fast path: a cached instance is returned without `withResolutionTracking`, so without a cycle check and a depth count
 - No instance on the resolution path is optional. `Optional<Service>` as a generic argument or result costs a metadata lookup at run time on every call, because this code is not specialized for the types of the caller
 
-**Graph cache** (`ServiceContext.GraphCacheBox`)
-- The first tracked resolution of a chain creates it and binds it task-locally
-- A key is the storage and the service type, because a chain can resolve from more than one environment. The key retains the storage
-- No lock is held while a factory runs. A replaced box is released after the lock
+**Resolution chain** (`ServiceContext.Chain`)
+- A chain is one top-level resolution and the resolutions that its factories start. Resolution is synchronous, so a chain runs on one thread. The first tracked resolution binds the chain to the thread, and the chain is unbound when that resolution returns
+- The chain is in thread-local storage (`pthread_getspecific`), not in a task-local. A task that a factory starts inherits task-local values and keeps them after the chain has ended, and a slot lock belongs to a thread. Do not move the chain into a `@TaskLocal`
+- Only its thread uses a chain, so it has no lock and is not `Sendable`. The thread-local storage does not retain it: `withResolutionTracking` keeps it alive and unbinds it before releasing it
+- A step is a storage and a service type. A graph cache key is the same pair, and it retains the storage. A chain can resolve from more than one environment
+- A thread can run more than one chain. A nested run loop inside a factory can run another task on the thread, and a tracked resolution in a task other than that of the bound chain starts a new chain, which interrupts the bound one. The steps, the depth, and the graph cache belong to one chain. The slot locks belong to the thread: `ServiceContext.isResolving` and the `locksSlot` check of `withResolutionTracking` look at the interrupted chains as well
+- The thread-local storage has one implementation for the platforms with `pthread` and one for Wasm, which runs on one thread. Windows has none and does not compile
 
 ### Test Targets
 
