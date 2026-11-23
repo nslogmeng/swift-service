@@ -45,9 +45,87 @@ import Testing
                 }
             }
         }
+
+        // MARK: Optional properties
+
+        // An optional property is `nil` only if its own service type is not registered. In these tests
+        // the type is registered, and its factory needs a service that is not. The error of that
+        // resolution is `notRegistered` as well, for the other type.
+
+        @Test func optionalServiceStopsWhenDependencyIsNotRegistered() async {
+            await #expect(processExitsWith: .failure) {
+                let env = ServiceEnv(name: "fatal-optional-service")
+                env.register(NeedsMissingDependency.self) {
+                    NeedsMissingDependency(dependency: try env.resolve(MissingDependency.self))
+                }
+
+                struct Holder: Sendable {
+                    @Service var value: NeedsMissingDependency?
+                }
+                let holder = ServiceEnv.$current.withValue(env) { Holder() }
+                _ = holder.value
+            }
+        }
+
+        @Test func optionalProviderStopsWhenDependencyIsNotRegistered() async {
+            await #expect(processExitsWith: .failure) {
+                let env = ServiceEnv(name: "fatal-optional-provider")
+                env.register(NeedsMissingDependency.self) {
+                    NeedsMissingDependency(dependency: try env.resolve(MissingDependency.self))
+                }
+
+                struct Holder: Sendable {
+                    @Provider var value: NeedsMissingDependency?
+                }
+                let holder = ServiceEnv.$current.withValue(env) { Holder() }
+                _ = holder.value
+            }
+        }
+
+        @Test func optionalMainServiceStopsWhenDependencyIsNotRegistered() async {
+            await #expect(processExitsWith: .failure) { @MainActor in
+                let env = ServiceEnv(name: "fatal-optional-main-service")
+                env.registerMain(MainNeedsMissingDependency.self) {
+                    MainNeedsMissingDependency(dependency: try env.resolveMain(MissingDependency.self))
+                }
+
+                @MainActor struct Holder {
+                    @MainService var value: MainNeedsMissingDependency?
+                }
+                let holder = ServiceEnv.$current.withValue(env) { Holder() }
+                _ = holder.value
+            }
+        }
+
+        @Test func optionalMainProviderStopsWhenDependencyIsNotRegistered() async {
+            await #expect(processExitsWith: .failure) { @MainActor in
+                let env = ServiceEnv(name: "fatal-optional-main-provider")
+                env.registerMain(MainNeedsMissingDependency.self) {
+                    MainNeedsMissingDependency(dependency: try env.resolveMain(MissingDependency.self))
+                }
+
+                @MainActor struct Holder {
+                    @MainProvider var value: MainNeedsMissingDependency?
+                }
+                let holder = ServiceEnv.$current.withValue(env) { Holder() }
+                _ = holder.value
+            }
+        }
     }
 
     extension FatalErrorTests {
+        struct MissingDependency: Sendable {}
+
+        struct NeedsMissingDependency: Sendable {
+            let dependency: MissingDependency
+        }
+
+        @MainActor
+        final class MainNeedsMissingDependency {
+            let dependency: MissingDependency
+            init(dependency: MissingDependency) { self.dependency = dependency }
+        }
+
         struct CircularDependencyA: Sendable {
             init(b: CircularDependencyB) {}
         }
