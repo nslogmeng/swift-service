@@ -2,73 +2,48 @@
 //  Copyright © 2026 Service Contributors. All rights reserved.
 //
 
-/// Defines the lifecycle scope for a registered service, controlling how instances are
-/// created and cached during resolution.
-///
-/// Service scopes determine the caching behavior when resolving services:
-///
-/// - ``singleton``: A single instance is created and reused for all resolutions (default).
-/// - ``transient``: A new instance is created every time the service is resolved.
-/// - ``graph``: A single instance is shared within the same resolution graph, but different
-///   resolution graphs get independent instances.
-/// - ``custom(_:)``: A named scope with its own independent cache, allowing targeted invalidation.
-///
-/// ## Usage
+/// When the factory of a registration runs, and how long its instance is kept.
 ///
 /// ```swift
-/// // Singleton (default) - same instance reused
 /// env.register(DatabaseService.self) { DatabaseService() }
-///
-/// // Transient - new instance each time
 /// env.register(RequestHandler.self, scope: .transient) { RequestHandler() }
-///
-/// // Graph - shared within one resolve chain
 /// env.register(UnitOfWork.self, scope: .graph) { UnitOfWork() }
-///
-/// // Custom - named scope with independent cache
 /// env.register(SessionService.self, scope: .custom("user-session")) { SessionService() }
 /// ```
-///
-/// ## Graph Scope
-///
-/// Graph scope is useful when multiple services in a dependency chain should share the same
-/// instance during a single resolution, but each top-level `resolve()` call should get a fresh
-/// instance. For example, a `UnitOfWork` pattern where repositories in the same resolve chain
-/// should share the same unit of work.
-///
-/// ```
-/// resolve(ServiceA)
-///   ├── resolve(UnitOfWork)  ← creates instance X
-///   └── resolve(ServiceB)
-///         └── resolve(UnitOfWork)  ← reuses instance X
-///
-/// resolve(ServiceA)  // new top-level call
-///   └── resolve(UnitOfWork)  ← creates instance Y (new graph)
-/// ```
 public enum ServiceScope: Hashable, Sendable {
-    /// A single instance is created and cached globally. All resolutions return the same instance.
-    /// This is the default scope and matches the behavior of prior versions.
+    /// One instance for the environment. This is the default.
+    ///
+    /// The first resolution creates the instance. It is kept until ``ServiceEnv/resetCaches()``,
+    /// `resetScope(.singleton)`, or ``ServiceEnv/resetAll()``.
     case singleton
 
-    /// A new instance is created every time the service is resolved. No caching is performed.
+    /// A new instance for every resolution.
     case transient
 
-    /// A single instance is shared within the same resolution graph. Each top-level `resolve()`
-    /// call starts a new graph, and services resolved within that graph share instances.
+    /// One instance for a resolution graph: one top-level `resolve` call and the resolutions that
+    /// its factories start.
+    ///
+    /// ```
+    /// resolve(ServiceA)
+    ///   ├── resolve(UnitOfWork)        creates instance X
+    ///   └── resolve(ServiceB)
+    ///         └── resolve(UnitOfWork)  returns instance X
+    ///
+    /// resolve(ServiceA)                a new graph
+    ///   └── resolve(UnitOfWork)        creates instance Y
+    /// ```
+    ///
     /// A graph that resolves from more than one environment has one instance for each environment.
     case graph
 
-    /// A named scope that caches instances independently from other scopes.
-    /// Instances within the same scope name share a cache, allowing targeted cache invalidation
-    /// via ``ServiceEnv/resetScope(_:)``.
+    /// One instance for the environment, in a named scope that can be reset on its own.
     ///
     /// ```swift
-    /// // Register a service with a custom scope
     /// env.register(SessionService.self, scope: .custom("user-session")) {
     ///     SessionService()
     /// }
     ///
-    /// // Clear only the user-session scope
+    /// // Removes the cached instances of this scope only.
     /// env.resetScope(.custom("user-session"))
     /// ```
     case custom(String)

@@ -5,41 +5,22 @@
 // MARK: - Sendable Service Resolution
 
 extension ServiceEnv {
-    /// Resolves a Sendable service instance by its type.
+    /// Resolves a Sendable service.
     ///
-    /// This method automatically detects circular dependencies and will throw
-    /// a `ServiceError` if a cycle is detected (e.g., A -> B -> C -> A).
-    ///
-    /// Use this method for services that conform to `Sendable` and were registered
-    /// using the `register` methods.
-    ///
-    /// - Parameter type: The service type to resolve.
-    /// - Returns: The resolved service instance.
-    /// - Throws: `ServiceError.notRegistered` if the service is not registered,
-    ///           `ServiceError.circularDependency` if a circular dependency is detected,
-    ///           `ServiceError.maxDepthExceeded` if the resolution depth limit is exceeded,
-    ///           or `ServiceError.factoryFailed` if the factory function throws an error.
-    ///           If the factory throws a `ServiceError`, it is propagated directly.
-    ///
-    /// ## Example
+    /// A singleton or custom-scoped service is created by its first resolution and then cached.
+    /// Concurrent first resolutions run the factory once.
     ///
     /// ```swift
-    /// do {
-    ///     let database = try ServiceEnv.current.resolve(DatabaseProtocol.self)
-    /// } catch {
-    ///     // Typed throws: error is always ServiceError
-    ///     switch error {
-    ///     case .notRegistered(let type):
-    ///         print("Service not registered: \(type)")
-    ///     case .circularDependency(_, let chain):
-    ///         print("Circular dependency: \(chain.joined(separator: " -> "))")
-    ///     case .maxDepthExceeded(let depth, _):
-    ///         print("Max depth \(depth) exceeded")
-    ///     case .factoryFailed(let type, let underlyingError):
-    ///         print("Failed to create \(type): \(underlyingError)")
-    ///     }
-    /// }
+    /// let database = try ServiceEnv.current.resolve(DatabaseProtocol.self)
     /// ```
+    ///
+    /// - Parameter type: The service type, as it was registered with `register`.
+    /// - Returns: The service instance.
+    /// - Throws: ``ServiceError/notRegistered(serviceType:)`` if the type has no Sendable registration.
+    ///   ``ServiceError/circularDependency(serviceType:chain:)`` if the factory needs the service that
+    ///   it creates. ``ServiceError/maxDepthExceeded(depth:chain:)`` at the depth limit.
+    ///   ``ServiceError/factoryFailed(serviceType:underlyingError:)`` if the factory throws another
+    ///   error. A `ServiceError` from the factory is thrown unchanged.
     @discardableResult
     public func resolve<Service: Sendable>(_ type: Service.Type) throws(ServiceError) -> Service {
         try storage.resolve(type)
@@ -49,35 +30,21 @@ extension ServiceEnv {
 // MARK: - MainActor Service Resolution
 
 extension ServiceEnv {
-    /// Resolves a MainActor-isolated service instance by its type.
+    /// Resolves a MainActor service.
     ///
-    /// This method automatically detects circular dependencies and will throw
-    /// a `ServiceError` if a cycle is detected (e.g., A -> B -> C -> A).
+    /// A singleton or custom-scoped service is created by its first resolution and then cached.
     ///
-    /// Use this method for services that are bound to the main actor and were registered
-    /// using the `registerMain` methods. These services don't need to conform to `Sendable`
-    /// since they're always accessed from the main thread.
-    ///
-    /// Usage example:
     /// ```swift
-    /// @MainActor
-    /// func setupUI() {
-    ///     do {
-    ///         let viewModel = try ServiceEnv.current.resolveMain(ViewModelService.self)
-    ///         viewModel.loadData()
-    ///     } catch {
-    ///         print("Failed to resolve view model: \(error)")
-    ///     }
-    /// }
+    /// let viewModel = try ServiceEnv.current.resolveMain(ViewModelService.self)
     /// ```
     ///
-    /// - Parameter type: The service type to resolve.
-    /// - Returns: The resolved service instance.
-    /// - Throws: `ServiceError.notRegistered` if the service is not registered,
-    ///           `ServiceError.circularDependency` if a circular dependency is detected,
-    ///           `ServiceError.maxDepthExceeded` if the resolution depth limit is exceeded,
-    ///           or `ServiceError.factoryFailed` if the factory function throws an error.
-    ///           If the factory throws a `ServiceError`, it is propagated directly.
+    /// - Parameter type: The service type, as it was registered with `registerMain`.
+    /// - Returns: The service instance.
+    /// - Throws: ``ServiceError/notRegistered(serviceType:)`` if the type has no MainActor registration.
+    ///   ``ServiceError/circularDependency(serviceType:chain:)`` if the factory needs the service that
+    ///   it creates. ``ServiceError/maxDepthExceeded(depth:chain:)`` at the depth limit.
+    ///   ``ServiceError/factoryFailed(serviceType:underlyingError:)`` if the factory throws another
+    ///   error. A `ServiceError` from the factory is thrown unchanged.
     @MainActor
     @discardableResult
     public func resolveMain<Service>(_ type: Service.Type) throws(ServiceError) -> Service {

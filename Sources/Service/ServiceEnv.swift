@@ -2,51 +2,39 @@
 //  Copyright © 2025 Service Contributors. All rights reserved.
 //
 
-/// Represents a service environment that manages service registration, resolution, and lifecycle.
-/// Each environment maintains its own isolated service registry and storage, allowing for
-/// different configurations in different contexts (e.g., production, testing, development).
+/// A service environment: a set of registrations and the instances that they cache.
 ///
-/// The environment uses TaskLocal storage to ensure thread-safe access to the current environment
-/// across async contexts.
+/// Each `ServiceEnv(name:)` call creates an environment with its own registrations and caches.
+/// A copy of a value refers to the same environment.
 ///
-/// Usage example:
 /// ```swift
-/// // Switch environment in tests
-/// await ServiceEnv.$current.withValue(.dev) {
-///     // All services resolved in this block use dev environment
-///     let service = MyService()
-///     // ...
-/// }
-///
-/// // Register services
 /// ServiceEnv.current.register(DatabaseProtocol.self) {
 ///     DatabaseService()
 /// }
+///
+/// // Code inside the closure, and the tasks that it starts, use `env`.
+/// let env = ServiceEnv(name: "test")
+/// ServiceEnv.$current.withValue(env) {
+///     env.register(DatabaseProtocol.self) { MockDatabase() }
+/// }
 /// ```
 public struct ServiceEnv: Sendable {
-    /// The current service environment for the current task context.
-    /// Defaults to the online environment.
+    /// The environment of the current task. The default is ``online``.
+    ///
+    /// The value is task-local. Bind another environment with `ServiceEnv.$current.withValue(_:operation:)`.
     @TaskLocal
     public static var current: ServiceEnv = .online
 
-    /// Maximum allowed resolution depth to prevent stack overflow from deep dependencies.
+    /// The largest number of nested resolutions that run a factory. The default is 100.
     ///
-    /// When resolving services with nested dependencies, the framework tracks the resolution
-    /// depth. If the depth exceeds this limit, a ``ServiceError/maxDepthExceeded(depth:chain:)``
-    /// error is thrown.
+    /// A resolution beyond the limit throws ``ServiceError/maxDepthExceeded(depth:chain:)``.
+    /// A resolution that returns a cached instance does not count.
     ///
-    /// The default value of 100 should be sufficient for most applications. You can customize
-    /// this value using `withValue` for specific scenarios:
+    /// The value is task-local:
     ///
     /// ```swift
-    /// // Use a smaller depth for testing to catch issues early
     /// ServiceEnv.$maxResolutionDepth.withValue(10) {
     ///     let service = try ServiceEnv.current.resolve(MyService.self)
-    /// }
-    ///
-    /// // Use a larger depth for complex dependency graphs
-    /// await ServiceEnv.$maxResolutionDepth.withValue(200) {
-    ///     let service = try ServiceEnv.current.resolve(ComplexService.self)
     /// }
     /// ```
     @TaskLocal
@@ -58,12 +46,10 @@ public struct ServiceEnv: Sendable {
     /// with its own registry and caches, also when another environment has the same name.
     public let name: String
 
-    /// Internal storage for caching resolved service instances.
+    /// The registrations and caches of this environment.
     let storage = ServiceStorage()
 
-    /// Creates a new service environment with the specified name.
-    ///
-    /// The new environment has its own registry and caches.
+    /// Creates an environment with its own registrations and caches.
     ///
     /// - Parameter name: The name of the environment. It does not have to be unique.
     public init(name: String) {
@@ -71,15 +57,15 @@ public struct ServiceEnv: Sendable {
     }
 }
 
-/// Predefined service environments for common use cases.
+/// Predefined environments. Each is one instance that the whole process shares.
 extension ServiceEnv {
-    /// Production environment for live application usage.
+    /// The environment for production. It is the default of ``current``.
     public static let online: ServiceEnv = ServiceEnv(name: "online")
 
-    /// Internal testing environment for test builds.
+    /// An environment for test builds.
     public static let test: ServiceEnv = ServiceEnv(name: "test")
 
-    /// Development environment for local development and debugging.
+    /// An environment for local development.
     public static let dev: ServiceEnv = ServiceEnv(name: "dev")
 }
 
@@ -100,71 +86,28 @@ extension ServiceEnv: Hashable {
 }
 
 extension ServiceEnv {
-    /// Clears all cached service instances (both Sendable and MainActor services).
-    /// Registered service providers remain intact, so services will be recreated
-    /// on the next resolution using their registered factory functions.
+    /// Removes all cached instances and keeps the registrations.
     ///
-    /// This is useful when you want to force services to be recreated without
-    /// re-registering them, such as in testing scenarios where you need fresh instances.
-    ///
-    /// Usage example:
-    /// ```swift
-    /// // Register a service
-    /// ServiceEnv.current.register(String.self) {
-    ///     UUID().uuidString
-    /// }
-    ///
-    /// let service1 = ServiceEnv.current.resolve(String.self)
-    ///
-    /// // Clear cache - next resolution will create a new instance
-    /// ServiceEnv.current.resetCaches()
-    /// let service2 = ServiceEnv.current.resolve(String.self)
-    /// // service1 != service2 (new instance created)
-    /// ```
+    /// The next resolution of a service runs its factory again.
     public func resetCaches() {
         storage.resetCaches()
     }
 
-    /// Clears all cached service instances and removes all registered service providers
-    /// (both Sendable and MainActor services).
-    /// This completely resets the service environment to its initial state.
+    /// Removes all registrations and all cached instances.
     ///
-    /// After calling this method, all services must be re-registered before they can be resolved.
-    ///
-    /// Usage example:
-    /// ```swift
-    /// // Register services
-    /// ServiceEnv.current.register(DatabaseProtocol.self) {
-    ///     DatabaseService()
-    /// }
-    ///
-    /// // Reset everything
-    /// ServiceEnv.current.resetAll()
-    ///
-    /// // Services must be re-registered
-    /// ServiceEnv.current.register(DatabaseProtocol.self) {
-    ///     DatabaseService()
-    /// }
-    /// ```
+    /// A service has to be registered again before it can be resolved.
     public func resetAll() {
         storage.resetAll()
     }
 
-    /// Clears all cached service instances for a specific scope.
-    /// Only affects the target scope; other scopes remain intact.
-    ///
-    /// This is useful for selectively invalidating services without affecting
-    /// the rest of the service container:
+    /// Removes the cached instances of one scope and keeps the registrations.
     ///
     /// ```swift
-    /// // Clear all singleton caches
-    /// env.resetScope(.singleton)
-    ///
-    /// // Clear a custom scope (e.g., on logout)
+    /// // On logout
     /// env.resetScope(.custom("user-session"))
     /// ```
     ///
-    /// - Parameter scope: The scope to clear.
+    /// - Parameter scope: The scope to clear. `.transient` and `.graph` have no cache to clear.
     public func resetScope(_ scope: ServiceScope) {
         storage.resetScope(scope)
     }
