@@ -130,24 +130,45 @@ extension ServiceContext {
     /// propagated through `@TaskLocal` to all nested resolutions. Services registered
     /// with `.graph` scope store and retrieve instances from this cache.
     ///
+    /// A resolution chain can resolve from more than one environment, so an entry is identified by
+    /// the storage of its registration and the service type.
+    ///
     /// The cache is automatically released when the top-level `resolve()` call completes,
     /// since the `@TaskLocal` scope ends and no more references exist.
     final class GraphCacheBox: @unchecked Sendable {
+        /// Identifies a graph-scoped registration: the storage that holds it, and the service type.
+        ///
+        /// The key retains the storage. The identity of a storage is its address, which another storage
+        /// could get if this one were released while its entry exists.
+        struct Key: Hashable, Sendable {
+            let storage: ServiceStorage
+            let typeId: ObjectIdentifier
+
+            static func == (lhs: Key, rhs: Key) -> Bool {
+                lhs.storage === rhs.storage && lhs.typeId == rhs.typeId
+            }
+
+            func hash(into hasher: inout Hasher) {
+                hasher.combine(ObjectIdentifier(storage))
+                hasher.combine(typeId)
+            }
+        }
+
         @Locked
-        private var cache: [ObjectIdentifier: AnyCacheBox]
+        private var cache: [Key: AnyCacheBox]
 
         init() {}
 
-        /// Retrieves the cached instance of a service type, or creates and caches one using the factory.
+        /// Retrieves the cached instance of a registration, or creates and caches one using the factory.
         ///
         /// - Parameters:
-        ///   - typeId: The identifier of the service type.
+        ///   - key: The storage and the service type of the registration.
         ///   - factory: A closure that creates a new instance if none is cached.
         /// - Returns: The cached or newly created instance, or `nil` if the factory returns `nil`.
         ///   A `nil` result is not cached.
         /// - Throws: Rethrows any error from the factory closure.
-        func resolve<Service>(typeId: ObjectIdentifier, factory: () throws -> Service?) rethrows -> Service? {
-            if let cached = $cache.withLock({ $0[typeId] }) {
+        func resolve<Service>(key: Key, factory: () throws -> Service?) rethrows -> Service? {
+            if let cached = $cache.withLock({ $0[key] }) {
                 return (cached as? CacheBox<Service>)?.value
             }
             guard let instance = try factory() else {
@@ -156,7 +177,7 @@ extension ServiceContext {
             let newBox = CacheBox<Service>(instance)
             // A box that this one replaces is released after the lock: its instance can have a `deinit`
             // that resolves from this cache.
-            let replaced = $cache.withLock { $0.updateValue(newBox, forKey: typeId) }
+            let replaced = $cache.withLock { $0.updateValue(newBox, forKey: key) }
             withExtendedLifetime(replaced) {}
             return instance
         }

@@ -158,7 +158,7 @@ final class ServiceStorage: @unchecked Sendable {
         }
 
         if case .graph = scope, let graphCache = ServiceContext.graphCacheBox {
-            return try graphCache.resolve(typeId: typeId, factory: factory)
+            return try graphCache.resolve(key: .init(storage: self, typeId: typeId), factory: factory)
         }
 
         // Transient scope. A graph-scoped service without a graph context (e.g., direct storage access)
