@@ -214,18 +214,6 @@ final class MainServiceC {
     }
 }
 
-/// MainActor service that conforms to ServiceKey protocol for testing.
-@MainActor
-@preconcurrency
-final class MainActorKeyService: ServiceKey {
-    var value: String = "default-value"
-
-    nonisolated static var `default`: MainActorKeyService {
-        // This is safe because we're creating a new instance
-        MainActorKeyService()
-    }
-}
-
 // MARK: - Class Hierarchy Test Services
 
 /// A base class without state. `@unchecked`, because a class that is not final cannot be checked.
