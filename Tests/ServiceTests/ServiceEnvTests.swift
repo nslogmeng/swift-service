@@ -201,87 +201,68 @@ struct ServiceEnvTests {
 
     @Suite("Hashable")
     struct HashableTests {
-        @Test func conformsToHashable() async throws {
-            let env1 = ServiceEnv(name: "test")
-            let env2 = ServiceEnv(name: "test")
-            let env3 = ServiceEnv(name: "dev")
+        @Test func comparesEnvironmentsByIdentity() async throws {
+            let env = ServiceEnv(name: "test")
+            let copy = env
+            let sameName = ServiceEnv(name: "test")
 
-            #expect(env1 == env2)
-            #expect(env1 != env3)
-
-            var hasher1 = Hasher()
-            var hasher2 = Hasher()
-            env1.hash(into: &hasher1)
-            env2.hash(into: &hasher2)
-            #expect(hasher1.finalize() == hasher2.finalize())
-
-            var hasher3 = Hasher()
-            env3.hash(into: &hasher3)
-            #expect(hasher1.finalize() != hasher3.finalize())
+            #expect(env == copy)
+            #expect(env.hashValue == copy.hashValue)
+            #expect(env != sameName)
         }
 
-        @Test func predefinedEnvironmentsAreHashable() async throws {
-            #expect(ServiceEnv.online == ServiceEnv(name: "online"))
-            #expect(ServiceEnv.dev == ServiceEnv(name: "dev"))
-            #expect(ServiceEnv.test == ServiceEnv(name: "test"))
+        @Test func predefinedEnvironmentsDifferFromNewInstancesWithTheirNames() async throws {
+            #expect(ServiceEnv.online == ServiceEnv.online)
+            #expect(ServiceEnv.online != ServiceEnv(name: "online"))
+            #expect(ServiceEnv.dev != ServiceEnv(name: "dev"))
+            #expect(ServiceEnv.test != ServiceEnv(name: "test"))
 
             #expect(ServiceEnv.online != ServiceEnv.dev)
             #expect(ServiceEnv.online != ServiceEnv.test)
             #expect(ServiceEnv.dev != ServiceEnv.test)
         }
 
-        @Test func sameNameInstanceHasIndependentRegistry() async throws {
+        @Test func equalEnvironmentsShareRegistrations() async throws {
             let env = ServiceEnv(name: "test")
-            #expect(env == ServiceEnv.test)
+            let copy = env
+            #expect(env == copy)
+            #expect(env != ServiceEnv.test)
 
-            try ServiceEnv.$current.withValue(env) {
-                env.register(IsolatedMarker.self) { IsolatedMarker() }
-                _ = try env.resolve(IsolatedMarker.self)
-            }
+            env.register(IsolatedMarker.self) { IsolatedMarker() }
+            _ = try copy.resolve(IsolatedMarker.self)
 
             #expect(throws: ServiceError.self) {
                 try ServiceEnv.test.resolve(IsolatedMarker.self)
             }
         }
 
-        @Test func canBeUsedInSet() async throws {
-            var environments: Set<ServiceEnv> = []
+        @Test func keepsEnvironmentsWithTheSameNameApartInSet() async throws {
+            let custom = ServiceEnv(name: "custom")
+            var environments: Set<ServiceEnv> = [.online, .dev, .test, custom]
+            #expect(environments.count == 4)
 
+            environments.insert(custom)
             environments.insert(ServiceEnv.online)
-            environments.insert(ServiceEnv.dev)
-            environments.insert(ServiceEnv.test)
-            environments.insert(ServiceEnv(name: "custom"))
-
-            #expect(environments.count == 4)
-
-            environments.insert(ServiceEnv(name: "online"))
             #expect(environments.count == 4)
 
             environments.insert(ServiceEnv(name: "custom"))
-            #expect(environments.count == 4)
+            #expect(environments.count == 5)
         }
 
-        @Test func canBeUsedAsDictionaryKey() async throws {
+        @Test func findsDictionaryValueOnlyForTheSameEnvironment() async throws {
+            let staging = ServiceEnv(name: "staging")
             var configs: [ServiceEnv: String] = [:]
-
             configs[ServiceEnv.online] = "production"
-            configs[ServiceEnv.dev] = "development"
-            configs[ServiceEnv.test] = "testing"
-            configs[ServiceEnv(name: "staging")] = "staging"
+            configs[staging] = "staging"
 
-            #expect(configs.count == 4)
             #expect(configs[ServiceEnv.online] == "production")
-            #expect(configs[ServiceEnv.dev] == "development")
-            #expect(configs[ServiceEnv.test] == "testing")
-            #expect(configs[ServiceEnv(name: "staging")] == "staging")
-
-            #expect(configs[ServiceEnv(name: "online")] == "production")
-            #expect(configs[ServiceEnv(name: "dev")] == "development")
+            #expect(configs[staging] == "staging")
+            #expect(configs[ServiceEnv(name: "staging")] == nil)
         }
 
-        @Test func allowsEnvironmentComparisonInAssembly() async throws {
-            // New instances compare equal to the predefined environments and share no registrations
-            // with them, so tests that use the predefined environments cannot interfere.
+        @Test func allowsBranchingOnEnvironmentNameInAssembly() async throws {
+            // New instances share no registrations with the predefined environments, so tests that use
+            // the predefined environments cannot interfere. The assembly branches on the name.
             try await ServiceEnv.$current.withValue(ServiceEnv(name: "test")) { @MainActor in
                 await MainActor.run {
                     ServiceEnv.current.assemble(EnvironmentAwareAssembly())
@@ -308,7 +289,7 @@ extension ServiceEnvTests {
 
     struct EnvironmentAwareAssembly: ServiceAssembly {
         func assemble(env: ServiceEnv) {
-            if env == .test {
+            if env.name == "test" {
                 env.register(String.self) { "mock-value" }
             } else {
                 env.register(String.self) { "real-value" }

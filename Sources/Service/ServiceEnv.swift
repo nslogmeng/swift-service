@@ -52,7 +52,10 @@ public struct ServiceEnv: Sendable {
     @TaskLocal
     public static var maxResolutionDepth: Int = 100
 
-    /// A unique identifier for this environment.
+    /// The name of this environment.
+    ///
+    /// A name does not identify an environment. Every `ServiceEnv(name:)` call creates an environment
+    /// with its own registry and caches, also when another environment has the same name.
     public let name: String
 
     /// Internal storage for caching resolved service instances.
@@ -60,7 +63,9 @@ public struct ServiceEnv: Sendable {
 
     /// Creates a new service environment with the specified name.
     ///
-    /// - Parameter name: A unique identifier for this environment.
+    /// The new environment has its own registry and caches.
+    ///
+    /// - Parameter name: The name of the environment. It does not have to be unique.
     public init(name: String) {
         self.name = name
     }
@@ -79,14 +84,18 @@ extension ServiceEnv {
 }
 
 extension ServiceEnv: Hashable {
-    /// Compares two environments for equality based on their names.
+    /// Returns whether two values are the same environment.
+    ///
+    /// Two values are equal if they share one registry and one set of caches. A copy of a value equals
+    /// the original. Two environments that were created with the same name are not equal; compare
+    /// ``name`` to check how an environment is named.
     public static func == (lhs: ServiceEnv, rhs: ServiceEnv) -> Bool {
-        lhs.name == rhs.name
+        lhs.storage === rhs.storage
     }
 
-    /// Hashes the environment based on its name.
+    /// Hashes the identity of the environment.
     public func hash(into hasher: inout Hasher) {
-        hasher.combine(name)
+        hasher.combine(ObjectIdentifier(storage))
     }
 }
 
