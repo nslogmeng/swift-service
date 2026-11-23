@@ -94,7 +94,7 @@ do {
 
 ### Property Wrapper Behavior
 
-All four property wrappers (`@Service`, `@MainService`, `@Provider`, `@MainProvider`) use `fatalError` for non-optional types when the service is not registered:
+All four property wrappers (`@Service`, `@MainService`, `@Provider`, `@MainProvider`) use `fatalError` for non-optional types when the resolution fails:
 
 ```swift
 struct MyController {
@@ -105,7 +105,7 @@ struct MyController {
 
 **Why fatalError?** A missing required service indicates a configuration error that should be caught during development, not handled at runtime. Services are resolved lazily on first access (or every access for `@Provider`), not at initialization time.
 
-**For optional dependencies**, all four property wrappers support the optional type syntax to avoid fatalError:
+**For optional dependencies**, all four property wrappers support the optional type syntax. The property is `nil` if the service is not registered:
 
 ```swift
 struct MyController {
@@ -113,6 +113,8 @@ struct MyController {
     @Provider var tracker: TrackingService?       // Returns nil if not registered (each access)
 }
 ```
+
+Only a service that is not registered is `nil`. If the service is registered and cannot be created, the optional property uses `fatalError` as well. That is the case when its factory throws, when a service that its factory needs is not registered, and when there is a dependency cycle. To handle such an error, call `resolve` with `try?` or `do`-`catch`.
 
 ### Factory Functions
 
