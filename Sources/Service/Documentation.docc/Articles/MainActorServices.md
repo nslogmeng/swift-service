@@ -79,7 +79,7 @@ You can also register an existing instance:
 ```swift
 await MainActor.run {
     let viewModel = UserViewModel()
-    ServiceEnv.current.registerMain(viewModel)
+    ServiceEnv.current.registerMain(instance: viewModel)
 }
 ```
 

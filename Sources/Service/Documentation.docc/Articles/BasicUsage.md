@@ -46,8 +46,10 @@ For services that are already instantiated, you can register them directly:
 
 ```swift
 let database = DatabaseService(connectionString: "sqlite://app.db")
-ServiceEnv.current.register(database)
+ServiceEnv.current.register(instance: database)
 ```
+
+The `instance` label is required. A type passed without a factory, such as `register(DatabaseService.self)`, does not compile unless the type conforms to `ServiceKey`.
 
 ### ServiceKey Protocol
 
