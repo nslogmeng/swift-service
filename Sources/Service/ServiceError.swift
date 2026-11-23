@@ -41,9 +41,8 @@ public enum ServiceError: Error, CustomStringConvertible, Sendable {
     /// This error occurs when service A depends on B, B depends on C, and C depends on A,
     /// creating a cycle that cannot be resolved.
     ///
-    /// It also occurs when a MainActor service is resolved while its factory is running, in another
-    /// task that the main actor runs before the factory returns. A nested run loop inside the factory
-    /// does that. The chain then ends with the service type twice.
+    /// It also occurs when another task resolves a singleton or custom-scoped service on the thread
+    /// that is running the factory of that service. A nested run loop inside the factory does that.
     ///
     /// - Parameters:
     ///   - serviceType: The service type where the cycle was detected.
