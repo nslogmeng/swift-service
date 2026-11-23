@@ -103,7 +103,7 @@ resolve(MyService.self)
 |-------|---------|-----------|-------|
 | `.singleton` | Global cache, one instance per type | Cache slot of the registration | `resetCaches()` or `resetScope(.singleton)` |
 | `.transient` | No caching, new instance every time | N/A | N/A |
-| `.graph` | Shared within one resolve chain | `GraphCacheBox` of the chain, by type | Automatic (released when top-level resolve completes) |
+| `.graph` | Shared within one resolve chain | `GraphCacheBox` of the chain, by environment and type | Automatic (released when top-level resolve completes) |
 | `.custom("name")` | Named cache, independent of other scopes | Cache slot of the registration | `resetScope(.custom("name"))` |
 
 ## Design Decisions

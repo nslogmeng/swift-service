@@ -55,6 +55,7 @@ public enum ServiceScope: Hashable, Sendable {
 
     /// A single instance is shared within the same resolution graph. Each top-level `resolve()`
     /// call starts a new graph, and services resolved within that graph share instances.
+    /// A graph that resolves from more than one environment has one instance for each environment.
     case graph
 
     /// A named scope that caches instances independently from other scopes.

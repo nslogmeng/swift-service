@@ -103,7 +103,7 @@ resolve(MyService.self)
 |--------|---------|---------|---------|
 | `.singleton` | 全局缓存，每个类型一个实例 | 该注册的缓存槽位 | `resetCaches()` 或 `resetScope(.singleton)` |
 | `.transient` | 不缓存，每次创建新实例 | 不适用 | 不适用 |
-| `.graph` | 在同一解析链内共享 | 解析链的 `GraphCacheBox`，按类型存取 | 自动释放（顶层 resolve 完成时） |
+| `.graph` | 在同一解析链内共享 | 解析链的 `GraphCacheBox`，按环境和类型存取 | 自动释放（顶层 resolve 完成时） |
 | `.custom("name")` | 命名缓存，独立于其他作用域 | 该注册的缓存槽位 | `resetScope(.custom("name"))` |
 
 ## 设计决策
