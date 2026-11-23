@@ -102,7 +102,7 @@ resolve(MyService.self)
 |-------|---------|-----------|-------|
 | `.singleton` | Global cache, one instance per type | Cache slot of the registration | `resetCaches()` or `resetScope(.singleton)` |
 | `.transient` | No caching, new instance every time | N/A | N/A |
-| `.graph` | Shared within one resolve chain | `GraphCacheBox` of the chain, by environment and type | Automatic (released when top-level resolve completes) |
+| `.graph` | Shared within one resolve chain | Graph cache of the resolution chain, by environment and type | Automatic (released when top-level resolve completes) |
 | `.custom("name")` | Named cache, independent of other scopes | Cache slot of the registration | `resetScope(.custom("name"))` |
 
 ## Design Decisions
@@ -249,11 +249,9 @@ The cache slot of a singleton or custom-scoped registration has its own lock. A 
 2. Take the slot lock and read the slot. If the slot holds an instance, return it.
 3. Otherwise, start resolution tracking and take the slot lock again. If the slot holds an instance now, return it. If not, run the factory and store the result in the slot.
 
-Step 2 runs no factory. It skips cycle detection and does not count toward `maxResolutionDepth`. If the current task is already resolving the same type, the task can hold the slot lock. The resolution then skips step 2, and step 3 reports the cycle.
+Step 2 runs no factory. It skips cycle detection and does not count toward `maxResolutionDepth`. If the current thread is already resolving the same registration, it holds the slot lock. The resolution then skips step 2, and step 3 reports the cycle.
 
 The slot lock is held while the factory runs. As a result, the factory runs at most once per cached instance, and concurrent first resolvers of the same service wait for it. The registry lock is never held while a factory runs, so a slow factory blocks only the resolvers of its own service.
-
-A MainActor registration differs in step 3. The main actor already serializes these resolutions, so the slot lock is held only to read or write the slot, not while the factory runs. While the factory runs, the slot holds a pending marker. A resolution that finds the marker is one that the main actor runs before the factory returns, for example in a nested run loop inside the factory. It throws `circularDependency`.
 
 Reset methods give the affected entries new, empty slots and do not take slot locks. A resolution that already holds an old slot finishes with that slot. Later resolutions use the new slot.
 
@@ -263,29 +261,26 @@ Registering a type again replaces its entry. If the scope and the category are t
 
 For the guarantees and limitations that follow from this design, see <doc:ConcurrencyModel>.
 
-### Circular Dependency Detection and Graph Caching
+### Resolution Chain
 
-`ServiceContext` tracks the resolution chain and manages graph-scoped caching using `TaskLocal`:
+A resolution chain is one top-level `resolve` call and the resolutions that its factories start. Resolution is synchronous, so a chain runs on one thread from its first step to its last. `ServiceContext` binds the chain to that thread. A chain holds:
 
-```swift
-enum ServiceContext {
-    @TaskLocal static var resolutionStack: [any Any.Type] = []
-    @TaskLocal static var graphCacheBox: GraphCacheBox?
-}
-```
+- **Steps**: the registrations that are being resolved. A step is identified by its environment and its service type.
+- **Graph cache**: the graph-scoped instances of the chain.
 
-A resolution that returns a cached instance skips tracking. When a resolution has to run a factory:
-1. Check if the service type is already in the stack, compared by type identity (circular dependency detection)
-2. If yes, throw `ServiceError.circularDependency`
-3. If no, add to stack and proceed
-4. If this is a top-level resolve, create a new `GraphCacheBox` for graph-scoped services
-5. Nested resolves within the same chain share the same `GraphCacheBox`
+A resolution that returns a cached instance is not a step of the chain. A resolution that has to run a factory takes these steps:
 
-This approach is:
-- **Task-scoped**: Each async task has its own resolution stack
-- **Automatic cleanup**: Stack and graph cache are restored after resolution completes
-- **Zero overhead**: No tracking when not resolving
-- **Graph-aware**: Services with `.graph` scope share instances within the same resolution chain
+1. Throw `ServiceError.circularDependency` if the chain already contains the registration, or if the thread already holds the lock of its cache slot.
+2. Throw `ServiceError.maxDepthExceeded` if the chain has reached `ServiceEnv.maxResolutionDepth`.
+3. Add the registration to the chain, run the factory, and remove the registration again.
+
+The chain ends when its first step returns. Its graph-scoped instances are released then.
+
+The chain belongs to the thread, not to the task:
+
+- A task that a factory starts is not part of the chain. It can resolve the service whose factory started it, and its resolutions are chains of their own.
+- A resolution that another task runs on the thread of a running factory starts a chain of its own, with its own steps and its own graph cache. A nested run loop inside a factory does that. The first chain is interrupted until the second one ends. If the task resolves a singleton or custom-scoped service that an interrupted chain is creating, the resolution throws `circularDependency`: the thread already holds the lock of that cache slot, and the resolution cannot wait for a factory that runs below it on the same thread.
+- A factory in one environment can resolve the same type from another environment. The two are different registrations.
 
 ### ServiceKey Protocol
 
@@ -314,10 +309,10 @@ ServiceEnv.current.register(MyService.self)  // Uses default
 | Operation | Complexity | Notes |
 |-----------|------------|-------|
 | Registration | O(1) | Dictionary insertion |
-| First resolution (singleton/custom) | O(1) + factory | Plus cycle detection; the factory of a Sendable service runs under the registration's slot lock |
+| First resolution (singleton/custom) | O(1) + factory | Plus cycle detection; the factory runs under the registration's slot lock |
 | Cached resolution (singleton/custom) | O(1) | One registry lookup by type, then slot read (two uncontended locks); no resolution tracking |
 | Transient resolution | O(1) + factory | No caching overhead |
-| Graph resolution | O(1) + factory | Lookup in task-local graph cache |
+| Graph resolution | O(1) + factory | Lookup in the graph cache of the resolution chain |
 | Environment switch | O(1) | TaskLocal binding |
 | Reset all caches | O(n) | Gives every cached registration a new slot |
 | Reset specific scope | O(n) | Filters by scope |

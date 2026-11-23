@@ -9,7 +9,7 @@
 Service 从设计之初就面向现代 Swift：
 
 - **Swift 6 并发安全** — Sendable 和 MainActor 约束是 API 的一部分，由编译器在编译时强制执行，而非运行时崩溃
-- **零依赖** — 无外部包依赖；完全基于 Swift 标准库构建
+- **零依赖** — 无外部包依赖；只用 Swift 和平台自带的能力构建
 - **原生属性包装器** — `@Service`、`@MainService`、`@Provider`、`@MainProvider` 提供声明式注入，无需样板代码
 - **TaskLocal 环境隔离** — 测试可以并行运行而不互相污染；无需手动管理容器生命周期
 

@@ -40,7 +40,7 @@ swift run -c release --package-path Benchmarks ServiceBenchmarks "resolve single
 | `resolve transient` | `resolve` 工厂函数极简的 `.transient` 服务 |
 | `resolve graph` | 顶层 `resolve` 一个 `.graph` 服务 |
 | `resolve custom scope` | `resolve` 已缓存的 `.custom("bench")` 服务 |
-| `resolve nested (transient + 2 hits)` | `resolve` 一个 `.transient` 服务，其工厂函数再 `resolve` 两个已缓存的 singleton：共三次 `resolve` 调用，解析栈深度为 2 |
+| `resolve nested (transient + 2 hits)` | `resolve` 一个 `.transient` 服务，其工厂函数再 `resolve` 两个已缓存的 singleton：共三次 `resolve` 调用，其中一次执行工厂函数 |
 | `@Service cached` | 读取已持有值的 `@Service` 属性 |
 | `@Service first access` | 构造带 `@Service` 属性的 holder 并读取一次；服务已缓存在环境中 |
 | `@Provider` | 读取 `.singleton` 服务的 `@Provider` 属性 |

@@ -35,7 +35,7 @@ This means you get a compile-time error — not a runtime crash — if you try t
 
 A DI framework sits at the bottom of your dependency graph. Every module in your app depends on it, directly or indirectly. If the DI library itself pulls in external packages, those packages become transitive dependencies of your entire project — with all the version conflicts, build time costs, and upgrade friction that entails.
 
-Service depends only on the Swift standard library. Its thread safety comes from platform-specific locking (`Synchronization.Mutex` on Linux, `OSAllocatedUnfairLock` on Apple). Its environment isolation comes from `@TaskLocal`. All are built into Swift itself.
+Service depends on no other package. Its thread safety comes from platform-specific locking (`Synchronization.Mutex` on Linux, `OSAllocatedUnfairLock` on Apple) and from the thread-local storage of the platform's C library. Its environment isolation comes from `@TaskLocal`. All are part of Swift and of the platform.
 
 ### Familiar Mental Model
 
