@@ -262,6 +262,8 @@ Step 2 runs no factory. It skips cycle detection and does not count toward `maxR
 
 The slot lock is held while the factory runs. As a result, the factory runs at most once per cached instance, and concurrent first resolvers of the same service wait for it. The registry lock is never held while a factory runs, so a slow factory blocks only the resolvers of its own service.
 
+A MainActor registration differs in step 3. The main actor already serializes these resolutions, so the slot lock is held only to read or write the slot, not while the factory runs. While the factory runs, the slot holds a pending marker. A resolution that finds the marker is one that the main actor runs before the factory returns, for example in a nested run loop inside the factory. It throws `circularDependency`.
+
 Reset methods give the affected entries new, empty slots and do not take slot locks. A resolution that already holds an old slot finishes with that slot. Later resolutions use the new slot.
 
 The storage releases an old slot, and the instance cached in it, after it has released the registry lock. The `deinit` of a service can therefore use its environment.
@@ -321,7 +323,7 @@ ServiceEnv.current.register(MyService.self)  // Uses default
 | Operation | Complexity | Notes |
 |-----------|------------|-------|
 | Registration | O(1) | Dictionary insertion |
-| First resolution (singleton/custom) | O(1) + factory | Plus cycle detection; the factory runs under the registration's slot lock |
+| First resolution (singleton/custom) | O(1) + factory | Plus cycle detection; the factory of a Sendable service runs under the registration's slot lock |
 | Cached resolution (singleton/custom) | O(1) | One registry lookup by type, then slot read (two uncontended locks); no resolution tracking |
 | Transient resolution | O(1) + factory | No caching overhead |
 | Graph resolution | O(1) + factory | Lookup in task-local graph cache |
