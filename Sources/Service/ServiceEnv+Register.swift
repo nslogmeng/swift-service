@@ -5,14 +5,9 @@
 // MARK: - Sendable Service Registration
 
 extension ServiceEnv {
-    /// Registers a Sendable service using a factory function.
+    /// Registers a Sendable service with a factory.
     ///
-    /// Use this method for services that conform to `Sendable` and can be safely
-    /// shared across concurrent contexts.
-    ///
-    /// The factory function can throw errors, which will be propagated when
-    /// `resolve()` is called. This allows natural error handling when creating
-    /// services with dependencies:
+    /// The factory can resolve other services. An error that it throws is thrown by `resolve(_:)`.
     ///
     /// ```swift
     /// ServiceEnv.current.register(UserRepository.self, scope: .transient) {
@@ -21,10 +16,12 @@ extension ServiceEnv {
     /// }
     /// ```
     ///
+    /// Registering a type again replaces its registration.
+    ///
     /// - Parameters:
     ///   - type: The service type to register.
-    ///   - scope: The lifecycle scope for the service. Defaults to `.singleton`.
-    ///   - factory: A factory function that creates the service instance. Can throw errors.
+    ///   - scope: When the factory runs and how long its instance is kept. The default is `.singleton`.
+    ///   - factory: Creates the service instance.
     public func register<Service: Sendable>(
         _ type: Service.Type,
         scope: ServiceScope = .singleton,
@@ -33,31 +30,29 @@ extension ServiceEnv {
         storage.register(type, scope: scope, factory: factory)
     }
 
-    /// Registers a Sendable service using the ServiceKey's default value.
+    /// Registers a ``ServiceKey`` type as a singleton. Its factory returns `Service.default`.
     ///
-    /// - Parameter type: A service type conforming to the ServiceKey protocol.
+    /// - Parameter type: The service type to register.
     public func register<Service: ServiceKey>(_ type: Service.Type) {
         storage.register(type, factory: { Service.default })
     }
 
-    /// Registers a Sendable service using the ServiceKey's default value with a specified scope.
+    /// Registers a ``ServiceKey`` type with a scope. Its factory returns `Service.default`.
     ///
     /// - Parameters:
-    ///   - type: A service type conforming to the ServiceKey protocol.
-    ///   - scope: The lifecycle scope for the service.
+    ///   - type: The service type to register.
+    ///   - scope: When the factory runs and how long its instance is kept.
     public func register<Service: ServiceKey>(_ type: Service.Type, scope: ServiceScope) {
         storage.register(type, scope: scope, factory: { Service.default })
     }
 
-    /// Registers a Sendable service instance directly.
-    /// The instance will be cached and reused for subsequent resolutions.
-    /// This method always uses `.singleton` scope since the instance already exists.
+    /// Registers an existing instance as a singleton.
     ///
     /// The `instance` label separates this method from the methods that take a service type. A call that
     /// passes a type without a factory, such as `register(Database.self)`, does not compile unless the type
     /// conforms to ``ServiceKey``.
     ///
-    /// - Parameter instance: The service instance to register.
+    /// - Parameter instance: The instance that every resolution of `Service` returns.
     public func register<Service: Sendable>(instance: Service) {
         storage.register(Service.self, factory: { instance })
     }
@@ -66,14 +61,11 @@ extension ServiceEnv {
 // MARK: - MainActor Service Registration
 
 extension ServiceEnv {
-    /// Registers a MainActor-isolated service using a factory function.
+    /// Registers a MainActor service with a factory.
     ///
-    /// Use this method for services that are bound to the main actor, such as UI view models
-    /// and controllers. These services don't need to conform to `Sendable` since they're
-    /// always accessed from the main thread.
-    ///
-    /// The factory function can throw errors, which will be propagated when
-    /// `resolveMain()` is called:
+    /// The instance is created, cached, and resolved on the main actor. The factory can therefore call
+    /// a main-actor-isolated initializer, and the service type does not have to be `Sendable`.
+    /// An error that the factory throws is thrown by `resolveMain(_:)`.
     ///
     /// ```swift
     /// ServiceEnv.current.registerMain(ViewModel.self, scope: .transient) {
@@ -82,15 +74,12 @@ extension ServiceEnv {
     /// }
     /// ```
     ///
-    /// **Background**: The factory passed to `register` is nonisolated, so it cannot call a
-    /// main-actor-isolated initializer, and `register` requires a `Sendable` service type.
-    /// This method takes a `@MainActor` factory and does not require `Sendable` conformance.
-    /// The instance is created, cached, and resolved on the main actor.
+    /// Registering a type again replaces its registration.
     ///
     /// - Parameters:
     ///   - type: The service type to register.
-    ///   - scope: The lifecycle scope for the service. Defaults to `.singleton`.
-    ///   - factory: A MainActor-isolated factory function that creates the service instance. Can throw errors.
+    ///   - scope: When the factory runs and how long its instance is kept. The default is `.singleton`.
+    ///   - factory: Creates the service instance on the main actor.
     @MainActor
     public func registerMain<Service>(
         _ type: Service.Type,
@@ -100,17 +89,12 @@ extension ServiceEnv {
         storage.registerMain(type, scope: scope, factory: factory)
     }
 
-    /// Registers a MainActor-isolated service instance directly.
-    /// The instance will be cached and reused for subsequent resolutions.
-    /// This method always uses `.singleton` scope since the instance already exists.
-    ///
-    /// Use this when you already have an instance of a MainActor-isolated service
-    /// that you want to register directly.
+    /// Registers an existing instance of a MainActor service as a singleton.
     ///
     /// The `instance` label separates this method from `registerMain(_:scope:factory:)`. A call that passes
     /// a type without a factory, such as `registerMain(ViewModel.self)`, does not compile.
     ///
-    /// - Parameter instance: The service instance to register.
+    /// - Parameter instance: The instance that every resolution of `Service` returns.
     @MainActor
     public func registerMain<Service>(instance: Service) {
         storage.registerMain(Service.self, factory: { instance })

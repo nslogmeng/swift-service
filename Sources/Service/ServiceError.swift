@@ -2,72 +2,54 @@
 //  Copyright © 2025 Service Contributors. All rights reserved.
 //
 
-/// Unified error types for the Service framework.
+/// The errors that `resolve(_:)` and `resolveMain(_:)` throw.
 ///
-/// `ServiceError` represents all possible errors that can occur during service resolution.
-/// These errors are thrown by the `resolve()` and `resolveMain()` methods when service
-/// resolution fails.
-///
-/// ## Error Types
-///
-/// - ``notRegistered(serviceType:)``: The requested service has not been registered.
-/// - ``circularDependency(serviceType:chain:)``: A circular dependency was detected.
-/// - ``maxDepthExceeded(depth:chain:)``: The resolution depth limit was exceeded.
-///
-/// ## Usage
+/// Both methods have typed throws, so a `catch` block gets a `ServiceError`:
 ///
 /// ```swift
 /// do {
 ///     let service = try ServiceEnv.current.resolve(MyService.self)
-/// } catch ServiceError.notRegistered(let type) {
-///     print("Service not registered: \(type)")
-/// } catch ServiceError.circularDependency(let type, let chain) {
-///     print("Circular dependency detected: \(chain.joined(separator: " -> "))")
-/// } catch ServiceError.maxDepthExceeded(let depth, let chain) {
-///     print("Max depth \(depth) exceeded")
+/// } catch .notRegistered(let type) {
+///     print("Not registered: \(type)")
+/// } catch {
+///     print(error)
 /// }
 /// ```
 public enum ServiceError: Error, CustomStringConvertible, Sendable {
-    /// The requested service has not been registered in the current environment.
+    /// The environment has no registration for the service type.
     ///
-    /// This error occurs when attempting to resolve a service that was never registered
-    /// using `register()` or `registerMain()`.
+    /// `resolve(_:)` finds the registrations of `register`, and `resolveMain(_:)` finds those of
+    /// `registerMain`. A type that is registered with one is not registered for the other.
     ///
-    /// - Parameter serviceType: The name of the service type that was not found.
+    /// - Parameter serviceType: The name of the service type.
     case notRegistered(serviceType: String)
 
-    /// A circular dependency was detected during service resolution.
+    /// The factory of a service needs the service that it creates.
     ///
-    /// This error occurs when service A depends on B, B depends on C, and C depends on A,
-    /// creating a cycle that cannot be resolved.
+    /// This error occurs when service A depends on B, B depends on C, and C depends on A.
     ///
     /// It also occurs when another task resolves a singleton or custom-scoped service on the thread
     /// that is running the factory of that service. A nested run loop inside the factory does that.
     ///
     /// - Parameters:
-    ///   - serviceType: The service type where the cycle was detected.
-    ///   - chain: The full dependency chain showing the cycle.
+    ///   - serviceType: The service type that was resolved a second time.
+    ///   - chain: The service types that were being resolved, outermost first, followed by `serviceType`.
     case circularDependency(serviceType: String, chain: [String])
 
-    /// The maximum resolution depth was exceeded.
-    ///
-    /// This error occurs when the dependency chain is deeper than the allowed maximum
-    /// (default: 100). This usually indicates either a circular dependency that wasn't
-    /// detected or an overly complex dependency graph.
+    /// The number of nested resolutions reached ``ServiceEnv/maxResolutionDepth``.
     ///
     /// - Parameters:
-    ///   - depth: The maximum allowed depth that was exceeded.
-    ///   - chain: The current dependency chain when the limit was reached.
+    ///   - depth: The limit.
+    ///   - chain: The service types that were being resolved, outermost first.
     case maxDepthExceeded(depth: Int, chain: [String])
 
-    /// The factory function failed to create the service.
+    /// The factory of a service threw an error that is not a `ServiceError`.
     ///
-    /// This error occurs when the factory function throws an error during service creation.
-    /// The underlying error is wrapped and can be inspected for details.
+    /// A `ServiceError` that a factory throws, for example from a nested resolution, is thrown unchanged.
     ///
     /// - Parameters:
-    ///   - serviceType: The name of the service type that failed to create.
-    ///   - underlyingError: The error thrown by the factory function.
+    ///   - serviceType: The name of the service type whose factory failed.
+    ///   - underlyingError: The error that the factory threw.
     case factoryFailed(serviceType: String, underlyingError: any Error)
 
     public var description: String {

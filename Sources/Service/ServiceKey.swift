@@ -2,10 +2,10 @@
 //  Copyright © 2025 Service Contributors. All rights reserved.
 //
 
-/// A protocol for defining default service implementations.
-/// Types conforming to this protocol can be registered directly using `ServiceEnv.register(_:)`.
+/// A Sendable service type that provides its own default instance.
 ///
-/// Usage example:
+/// A conforming type can be registered without a factory:
+///
 /// ```swift
 /// struct DatabaseService: ServiceKey {
 ///     static var `default`: DatabaseService {
@@ -13,10 +13,12 @@
 ///     }
 /// }
 ///
-/// // Register the service
 /// ServiceEnv.current.register(DatabaseService.self)
 /// ```
+///
+/// The protocol inherits `Sendable`, and `default` is nonisolated. A type whose initializer is
+/// isolated to the main actor cannot conform; register it with `registerMain(_:scope:factory:)`.
 public protocol ServiceKey: Sendable {
-    /// The default instance of the service.
+    /// The instance that the factory of the registration returns.
     static var `default`: Self { get }
 }

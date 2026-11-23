@@ -4,43 +4,30 @@
 
 // MARK: - Sendable Provider Property Wrapper
 
-/// A property wrapper that resolves a Sendable service on every access.
-/// Unlike ``Service``, which caches the resolved instance, `@Provider` delegates
-/// caching entirely to the service's registered scope.
+/// Injects a Sendable service and resolves it on every access.
 ///
-/// This makes `@Provider` ideal for services registered with `.transient` scope
-/// (fresh instance each access) or `.custom` scope (shared within a named scope
-/// that can be independently invalidated).
+/// The wrapper keeps no instance, so the scope of the registration decides which instance an access
+/// returns: a transient service is new on every access, and a custom-scoped service is new after
+/// its scope was reset. The wrapper resolves from the environment that was current when the wrapper
+/// was initialized. For an instance that the wrapper keeps, use ``Service``.
 ///
-/// The environment is captured at initialization time, ensuring consistent behavior
-/// regardless of when the property is accessed.
-///
-/// Usage example:
 /// ```swift
-/// // Register a transient service
-/// env.register(RequestHandler.self, scope: .transient) { RequestHandler() }
-///
 /// struct Controller {
-///     @Provider var handler: RequestHandler  // New instance on every access
+///     @Provider var handler: RequestHandler
+///     @Provider var analytics: AnalyticsService?
 /// }
 /// ```
 ///
-/// For optional services that may not be registered:
-/// ```swift
-/// struct Controller {
-///     @Provider var analytics: AnalyticsService?  // Returns nil if not registered
-/// }
-/// ```
+/// - A property of a service type stops the process with `fatalError` if the resolution fails.
+///   To handle the error, call ``ServiceEnv/resolve(_:)``.
+/// - A property of an optional service type is `nil` if the resolution fails, for example because
+///   the service is not registered.
 @propertyWrapper
 public struct Provider<S: Sendable>: Sendable {
     /// Resolves the service from the environment that was current at initialization time.
     private let resolver: @Sendable () throws -> S
 
-    /// The resolved service instance.
-    /// Resolution happens on every access; caching behavior depends on the service's scope.
-    ///
-    /// - Note: If the service is not registered or resolution fails, this will cause a runtime fatalError.
-    ///         For error handling, use `ServiceEnv.current.resolve()` directly with try-catch.
+    /// The service instance. Every access resolves it.
     public var wrappedValue: S {
         do {
             return try resolver()
@@ -49,15 +36,13 @@ public struct Provider<S: Sendable>: Sendable {
         }
     }
 
-    /// Initializes the provider wrapper.
-    /// The service type is inferred from the property type and will be resolved on each access.
-    /// The current environment is captured at this point.
+    /// Creates a wrapper for the type of the property.
     @_disfavoredOverload
     public init() {
         self.init(S.self)
     }
 
-    /// Initializes the provider wrapper with an explicit service type.
+    /// Creates a wrapper for a service type.
     ///
     /// - Parameter type: The service type to resolve.
     @_disfavoredOverload
@@ -68,15 +53,14 @@ public struct Provider<S: Sendable>: Sendable {
 
     // MARK: - Optional Service Support
 
-    /// Initializes an optional provider wrapper.
-    /// If the service is not registered, the property returns `nil` instead of causing a fatal error.
+    /// Creates a wrapper for an optional property. The property is `nil` if the resolution fails.
     public init<Wrapped: Sendable>() where S == Wrapped? {
         self.init(Wrapped.self)
     }
 
-    /// Initializes an optional provider wrapper with an explicit type.
+    /// Creates a wrapper for an optional property. The property is `nil` if the resolution fails.
     ///
-    /// - Parameter type: The wrapped service type to resolve.
+    /// - Parameter type: The service type to resolve.
     public init<Wrapped: Sendable>(_ type: Wrapped.Type) where S == Wrapped? {
         let env = ServiceEnv.current
         self.resolver = { try? env.resolve(type) }
@@ -85,39 +69,31 @@ public struct Provider<S: Sendable>: Sendable {
 
 // MARK: - MainActor Provider Property Wrapper
 
-/// A property wrapper that resolves a MainActor-isolated service on every access.
-/// Unlike ``MainService``, which caches the resolved instance, `@MainProvider` delegates
-/// caching entirely to the service's registered scope.
+/// Injects a MainActor service and resolves it on every access.
 ///
-/// Use this for MainActor-isolated services where you want the scope to control
-/// instance lifecycle, such as transient or custom-scoped services.
+/// The wrapper keeps no instance, so the scope of the registration decides which instance an access
+/// returns. The wrapper resolves from the environment that was current when the wrapper was
+/// initialized. For an instance that the wrapper keeps, use ``MainService``.
 ///
-/// Usage example:
 /// ```swift
 /// @MainActor
-/// class MyViewController {
-///     @MainProvider var viewModel: ViewModelService  // Resolved on each access
+/// final class MyViewController {
+///     @MainProvider var viewModel: ViewModelService
+///     @MainProvider var analytics: AnalyticsService?
 /// }
 /// ```
 ///
-/// For optional services that may not be registered:
-/// ```swift
-/// @MainActor
-/// class MyViewController {
-///     @MainProvider var analytics: AnalyticsService?  // Returns nil if not registered
-/// }
-/// ```
+/// - A property of a service type stops the process with `fatalError` if the resolution fails.
+///   To handle the error, call ``ServiceEnv/resolveMain(_:)``.
+/// - A property of an optional service type is `nil` if the resolution fails, for example because
+///   the service is not registered.
 @MainActor
 @propertyWrapper
 public struct MainProvider<S> {
     /// Resolves the service from the environment that was current at initialization time.
     private let resolver: @MainActor () throws -> S
 
-    /// The resolved service instance.
-    /// Resolution happens on every access; caching behavior depends on the service's scope.
-    ///
-    /// - Note: If the service is not registered or resolution fails, this will cause a runtime fatalError.
-    ///         For error handling, use `ServiceEnv.current.resolveMain()` directly with try-catch.
+    /// The service instance. Every access resolves it.
     public var wrappedValue: S {
         do {
             return try resolver()
@@ -126,15 +102,13 @@ public struct MainProvider<S> {
         }
     }
 
-    /// Initializes the provider wrapper.
-    /// The service type is inferred from the property type and will be resolved on each access.
-    /// The current environment is captured at this point.
+    /// Creates a wrapper for the type of the property.
     @_disfavoredOverload
     public init() {
         self.init(S.self)
     }
 
-    /// Initializes the provider wrapper with an explicit service type.
+    /// Creates a wrapper for a service type.
     ///
     /// - Parameter type: The service type to resolve.
     @_disfavoredOverload
@@ -145,15 +119,14 @@ public struct MainProvider<S> {
 
     // MARK: - Optional MainProvider Support
 
-    /// Initializes an optional provider wrapper.
-    /// If the service is not registered, the property returns `nil` instead of causing a fatal error.
+    /// Creates a wrapper for an optional property. The property is `nil` if the resolution fails.
     public init<Wrapped>() where S == Wrapped? {
         self.init(Wrapped.self)
     }
 
-    /// Initializes an optional provider wrapper with an explicit type.
+    /// Creates a wrapper for an optional property. The property is `nil` if the resolution fails.
     ///
-    /// - Parameter type: The wrapped service type to resolve.
+    /// - Parameter type: The service type to resolve.
     public init<Wrapped>(_ type: Wrapped.Type) where S == Wrapped? {
         let env = ServiceEnv.current
         self.resolver = { try? env.resolveMain(type) }
