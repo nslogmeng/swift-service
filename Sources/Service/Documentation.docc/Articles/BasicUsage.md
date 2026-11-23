@@ -118,7 +118,7 @@ struct UserRepository {
 
 ### Optional Services
 
-For services that may not be registered, use optional types. The property returns `nil` instead of causing a fatal error:
+For services that may not be registered, use optional types. The property returns `nil` instead of causing a fatal error. A service that is registered and cannot be created still causes one; see <doc:ErrorHandling>.
 
 ```swift
 struct UserController {

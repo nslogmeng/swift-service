@@ -50,6 +50,7 @@ python3 -m http.server 8000 --directory .build/docs
 - `@Service<S: Sendable>` / `@MainService<S>` — resolve on first access and keep the instance
 - `@Provider<S: Sendable>` / `@MainProvider<S>` — resolve on every access. The registered scope decides what is cached
 - Each wrapper captures `ServiceEnv.current` when it is initialized
+- An optional wrapper is `nil` only if the type has no registration. It calls `resolveIfRegistered` / `resolveMainIfRegistered`, which look the registration up and then resolve as usual. Do not use `try?` there, and do not match the `notRegistered` case: a factory that needs an unregistered service throws that case too
 
 **Service Environment** (`ServiceEnv.swift`)
 - A value that refers to one `ServiceStorage`. `ServiceEnv.current` is task-local

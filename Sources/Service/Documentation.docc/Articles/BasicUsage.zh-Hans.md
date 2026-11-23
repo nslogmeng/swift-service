@@ -118,7 +118,7 @@ struct UserRepository {
 
 ### 可选服务
 
-对于可能未注册的服务，使用可选类型。属性会返回 `nil` 而不是触发 fatal error：
+对于可能未注册的服务，使用可选类型。属性会返回 `nil` 而不是触发 fatal error。服务已注册但无法创建时仍会触发，参阅 <doc:ErrorHandling>。
 
 ```swift
 struct UserController {

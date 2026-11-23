@@ -94,7 +94,7 @@ do {
 
 ### 属性包装器行为
 
-所有四个属性包装器（`@Service`、`@MainService`、`@Provider`、`@MainProvider`）在服务未注册时对非可选类型使用 `fatalError`：
+所有四个属性包装器（`@Service`、`@MainService`、`@Provider`、`@MainProvider`）在解析失败时对非可选类型使用 `fatalError`：
 
 ```swift
 struct MyController {
@@ -105,7 +105,7 @@ struct MyController {
 
 **为什么使用 fatalError？** 缺失的必需服务表示配置错误，应在开发期间捕获，而非运行时处理。服务在首次访问时懒加载解析（`@Provider` 为每次访问时），而非初始化时。
 
-**对于可选依赖**，所有四个属性包装器都支持可选类型语法以避免 fatalError：
+**对于可选依赖**，所有四个属性包装器都支持可选类型语法。服务未注册时属性为 `nil`：
 
 ```swift
 struct MyController {
@@ -113,6 +113,8 @@ struct MyController {
     @Provider var tracker: TrackingService?       // 未注册时返回 nil（每次访问）
 }
 ```
+
+只有未注册的服务才是 `nil`。服务已注册但无法创建时，可选属性同样使用 `fatalError`。这包括：它的工厂函数抛出错误，它的工厂函数需要的服务未注册，以及存在循环依赖。要处理这类错误，用 `try?` 或 `do`-`catch` 调用 `resolve`。
 
 ### 工厂函数
 

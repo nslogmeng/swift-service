@@ -46,7 +46,7 @@ Service 提供四个属性包装器，形成 2x2 矩阵：
 - **`@Service` / `@MainService`**：首次访问时懒加载解析，并在内部缓存结果。后续访问始终返回同一实例，不受注册作用域的影响。
 - **`@Provider` / `@MainProvider`**：每次访问时解析。缓存行为完全由服务注册的作用域决定（例如，transient 作用域每次都会生成新实例）。
 
-四个属性包装器都支持可选类型。解析失败时可选属性为 `nil`，例如服务未注册：
+四个属性包装器都支持可选类型。服务未注册时可选属性为 `nil`：
 
 ```swift
 @Service var analytics: AnalyticsService?    // 懒加载，缓存，nil 安全

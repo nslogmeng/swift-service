@@ -46,7 +46,7 @@ Service provides four property wrappers in a 2x2 matrix:
 - **`@Service` / `@MainService`**: Resolves lazily on first access and caches the result internally. Subsequent accesses always return the same instance, regardless of the registered scope.
 - **`@Provider` / `@MainProvider`**: Resolves on every access. Caching behavior is entirely determined by the service's registered scope (e.g., transient scope produces a new instance each time).
 
-All four support optional types. An optional property is `nil` if the resolution fails, for example because the service is not registered:
+All four support optional types. An optional property is `nil` if the service is not registered:
 
 ```swift
 @Service var analytics: AnalyticsService?    // Lazy, cached, nil-safe
